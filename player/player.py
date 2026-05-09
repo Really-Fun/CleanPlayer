@@ -1,67 +1,53 @@
 """Контроллер воспроизведения.
 
 Управляет play / pause / volume / track loading.
-Не занимается визуализацией — за это отвечает VizualPlayer.
-
-Паттерн: Singleton
-Single Responsibility: только воспроизведение.
-Dependency Inversion: зависит от VLCEngine, а не создаёт VLC-объекты напрямую.
+Чистый Python (Pure Python) — никаких зависимостей от PySide6 или GUI.
 """
 
 from __future__ import annotations
 
 import asyncio
-
-from PySide6.QtCore import QObject, QTimer, Signal
 from vlc import EventType
 
 from models import Track
-from providers import PathProvider
-from services import AsyncStreamer, TrackHistoryService
 from player.engine import VLCEngine
 
+class Player:
+    """Плеер. Только воспроизведение. Работает поверх asyncio."""
 
-class Player(QObject):
-    """Синглтон-плеер. Только воспроизведение."""
-
-    track_finished = Signal()
-    track_changed = Signal(object)
-    next_requested = Signal()
-    previous_requested = Signal()
-    _instance: Player | None = None
-
-    def __new__(cls, *args, **kwargs) -> Player:
-        if cls._instance is None:
-            cls._instance = super().__new__(cls, *args, **kwargs)
-        return cls._instance
-
-    def __init__(self) -> None:
-        if getattr(self, "_initialized", False):
-            return
-        super().__init__()
-
+    def __init__(
+        self,
+        event_bus,
+        path_provider,
+        streamer,
+        history_service,
+        loop: asyncio.AbstractEventLoop,
+    ) -> None:
+        self._event_bus = event_bus
+        self._path_provider = path_provider
+        self._streamer = streamer
+        self._history_service = history_service
+        self._loop = loop
+        
         self._engine = VLCEngine()
-        self._path_provider = PathProvider()
-        self._streamer = AsyncStreamer()
-        self._history_service = TrackHistoryService()
 
         self.current_track: Track | None = None
         self.on_pause: bool = False
 
         self.events = self._engine.playback_player.event_manager()
         self.events.event_attach(EventType.MediaPlayerEndReached, self._on_end)
+        self._persist_task = self._loop.create_task(self._persist_loop())
 
-        self._persist_timer = QTimer(self)
-        self._persist_timer.setInterval(5000)
-        self._persist_timer.timeout.connect(self._persist_current_progress)
-        self._persist_timer.start()
-
-        self._initialized = True
-
-    # --- Playback API ---
+    async def _persist_loop(self) -> None:
+        """Фоновый цикл, который каждые 5 секунд сохраняет прогресс."""
+        try:
+            while True:
+                await asyncio.sleep(5)
+                self._persist_current_progress()
+        except asyncio.CancelledError:
+            pass # Задача корректно отменена при выключении приложения
 
     async def play_track(self, track: Track) -> None:
-        """Загружает и проигрывает трек (локальный или стрим)."""
         if self.current_track is not None and self.current_track != track:
             self._save_progress_background(self.current_track, force=True)
 
@@ -75,33 +61,53 @@ class Player(QObject):
         self._engine.play_both(source)
         self._save_progress_background(track, force=True)
         self._start_resume_restore(track)
-        self.track_changed.emit(track)
+        
+        self._event_bus.track_changed.emit(track)
 
     def pause(self) -> None:
         self.on_pause = True
         self._engine.pause_both()
         if self.current_track is not None:
             self._save_progress_background(self.current_track, force=True)
+            
+        self._event_bus.playback_paused.emit()
 
     def resume(self) -> None:
         self.on_pause = False
         self._engine.resume_both()
+        self._event_bus.playback_resumed.emit()
+
+    def next(self) -> None:
+        self._event_bus.next_requested.emit()
+
+    def previous(self) -> None:
+        self._event_bus.previous_requested.emit()
 
     def is_playing(self) -> bool:
         return self._engine.playback_player.is_playing()
 
     def _on_end(self, _event=None) -> None:
-        """Обрабатывает завершение трека от VLC и эмитит сигнал окончания."""
+        """VLC вызывает это из отдельного C-потока.
+        Qt-сигналы в EventBus потокобезопасны, поэтому emit сработает корректно.
+        Но асинхронные задачи нужно кидать в loop безопасно."""
+        
         if self.current_track is not None:
             duration = max(0, self.duration)
-            self._run_background(
+            
+            # Поскольку этот метод вызывается из потока VLC, 
+            # мы используем call_soon_threadsafe для работы с asyncio
+            self._loop.call_soon_threadsafe(
+                self._run_background_sync, 
                 self._history_service.mark_track_finished(
-                    self.current_track,
-                    position_ms=duration,
-                    duration_ms=duration,
+                    self.current_track, position_ms=duration, duration_ms=duration
                 )
             )
-        self.track_finished.emit()
+            
+        self._event_bus.track_finished.emit()
+
+    def _run_background_sync(self, coro):
+        """Вспомогательный метод для запуска корутин из не-asyncio потоков (VLC)"""
+        self._loop.create_task(coro)
 
     @property
     def volume(self) -> int:

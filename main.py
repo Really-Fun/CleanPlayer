@@ -7,10 +7,11 @@ from qasync import QEventLoop
 from PySide6.QtWidgets import QApplication
 from qt_material import apply_stylesheet
 
-from player import Player
+from core import init_app_context
 from services import TrackHistoryService
 from ui import Quantis
 from adapter import CleanAdapter
+from plugins.event_bus import EventBus
 
 
 if __name__ == "__main__":
@@ -19,24 +20,28 @@ if __name__ == "__main__":
         format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
         handlers=[
             logging.StreamHandler(sys.stdout)
-            # logging.FileHandler("app.log") 
-        ]
+            # logging.FileHandler("app.log")
+        ],
     )
     logger = logging.getLogger(__name__)
-    logger.info("""
+    logger.info(
+        """
     --------------
     Quantis v0.1.1
-    --------------""")
+    --------------
+        """
+    )
 
     app = QApplication(sys.argv)
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
 
-    player = Player()
-    CleanAdapter(player, loop)
+    app_context = init_app_context(loop)
 
-    window = Quantis()
+    window = Quantis(context=app_context)
     window.show()
+
+    CleanAdapter(app_context)
 
     with loop:
         try:

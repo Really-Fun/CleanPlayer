@@ -39,6 +39,7 @@ from models import UserPlaylist
 from player import Player
 from providers import PlaylistManager, PathProvider
 from services import AsyncDownloader
+from core import AppContext
 from utils import get_ru_words_for_number, remove_track_from_user_playlist
 
 COVER_SIZE = 160
@@ -54,16 +55,16 @@ class PlaylistPage(QWidget):
 
     go_back = Signal()
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, app_context: AppContext, parent=None,) -> None:
         super().__init__(parent)
 
-        self.player = Player()
+        self.player = app_context.player
         self.pm = PlaylistManager()
-        self.path = PathProvider()
-        self.dl = AsyncDownloader()
+        self.path = app_context.path_provider
+        self.dl = app_context.async_downloader
         self.playlist = None
         self.playlist_cache_key: tuple[str, ...] | None = None
-        self.player.track_changed.connect(self.on_track_changed)
+        app_context.event_bus.track_changed.connect(self.on_track_changed)
 
         self.setObjectName("PlaylistPage")
 

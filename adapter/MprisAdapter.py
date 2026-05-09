@@ -12,24 +12,24 @@ from mpris_server.events import EventAdapter
 from mpris_server import Metadata
 from mpris_server.mpris.metadata import MetadataEntries
 
-from providers import PathProvider
-
 
 class QuantisAppAdapter(MprisAdapter):
     """Адаптер для плеера, реализующий интерфейс MPRIS."""
 
-    def __init__(self, player):
+    def __init__(self, player, event_bus, path_provider):
         """Инициализирует адаптер и подключает сигналы плеера.
 
         Args:
             player: Экземпляр основного плеера.
+            event_bus: Шина событий для подписки на изменения треков.
+            path_provider: Провайдер путей.
         """
         self.player = player
         self._event_handler = None
-        self._path_provider = PathProvider()
+        self._path_provider = path_provider
 
-        player.track_changed.connect(self._on_track_changed)
-        player.track_finished.connect(self._on_track_finished)
+        event_bus.track_changed.connect(self._on_track_changed)
+        event_bus.track_finished.connect(self._on_track_finished)
 
     def set_event_handler(self, handler) -> None:
         """Устанавливает обработчик событий для обновления метаданных по D-Bus.
@@ -48,7 +48,7 @@ class QuantisAppAdapter(MprisAdapter):
                     MetadataEntries.TRACK_ID: "/org/mpris/MediaPlayer2/NoTrack",
                 }
             )
-            
+
         t = self.player.current_track
         length_us = max(0, self.player.duration) * 1000
         meta = {
@@ -58,11 +58,11 @@ class QuantisAppAdapter(MprisAdapter):
             MetadataEntries.ALBUM: getattr(t, "album", None) or "Quantis",
             MetadataEntries.LENGTH: length_us,
         }
-        
+
         art_url = self._art_url_for_track(t)
         if art_url:
             meta[MetadataEntries.ART_URL] = art_url
-            
+
         return Metadata(**meta)
 
     def get_current_track(self):
@@ -118,19 +118,21 @@ class QuantisAppAdapter(MprisAdapter):
         """
         if not track:
             return None
-            
+
         cover_path = self._path_provider.get_cover_path(track)
         if os.path.isfile(cover_path):
             return "file://" + os.path.abspath(cover_path)
-            
+
         if getattr(track, "source", "") == "youtube":
             return f"https://img.youtube.com/vi/{track.track_id}/hqdefault.jpg"
-            
+
         return None
 
     def get_art_url(self, track) -> Optional[str]:
         """Возвращает URL обложки указанного трека."""
-        target_track = track if track is not None else getattr(self.player, "current_track", None)
+        target_track = (
+            track if track is not None else getattr(self.player, "current_track", None)
+        )
         return self._art_url_for_track(target_track)
 
     def is_mute(self) -> bool:
@@ -201,7 +203,9 @@ class QuantisAppAdapter(MprisAdapter):
         """Возвращает список треков MPRIS."""
         return []
 
-    def get_playlists(self, index: int, max_count: int, order: str, reverse: bool) -> list:
+    def get_playlists(
+        self, index: int, max_count: int, order: str, reverse: bool
+    ) -> list:
         """Возвращает список плейлистов MPRIS."""
         return []
 
@@ -231,11 +235,11 @@ class QuantisAppAdapter(MprisAdapter):
 
     def next(self) -> None:
         """Переключает на следующий трек."""
-        self._on_main_thread(lambda: self.player.next_requested.emit())
+        self._on_main_thread(self.player.next)
 
     def previous(self) -> None:
         """Переключает на предыдущий трек."""
-        self._on_main_thread(lambda: self.player.previous_requested.emit())
+        self._on_main_thread(self.player.previous)
 
     def _notify_update(self) -> None:
         """Уведомляет D-Bus об изменении трека или состояния."""
@@ -243,12 +247,12 @@ class QuantisAppAdapter(MprisAdapter):
             self._event_handler.on_title()
             self._event_handler.on_playback()
 
-    def _on_track_changed(self, track) -> None:
-        """Обрабатывает сигнал смены трека."""
+    def _on_track_changed(self, **kwargs) -> None:
+        """Обрабатывает событие смены трека."""
         self._notify_update()
 
-    def _on_track_finished(self) -> None:
-        """Обрабатывает сигнал завершения трека."""
+    def _on_track_finished(self, **kwargs) -> None:
+        """Обрабатывает событие завершения трека."""
         self._notify_update()
 
 

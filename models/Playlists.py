@@ -18,7 +18,7 @@
 
 import json
 import os
-import os.path
+from pathlib import Path
 from typing import Iterable, Tuple
 from abc import ABC, abstractmethod
 
@@ -68,11 +68,7 @@ class BasePlaylist(ABC):
         Returns:
             bool: ``True`` если трек найден и удален, иначе ``False``.
         """
-        try:
-            del self.tracks.values[self.tracks.values.index(track)]
-            return True
-        except ValueError:
-            return False
+        return self.tracks.remove(track)
 
     def set_current_track(self, index: int) -> None:
         """Устанавливаем текущий трек плейлиста.
@@ -87,7 +83,7 @@ class BasePlaylist(ABC):
 
     @staticmethod
     def load_playlist(playlist_path: str):
-        """Загружаем плейлист из файла
+        """Загружаем плейлист из файла.
 
         Args:
             playlist_path (str): путь к файлу плейлиста
@@ -95,7 +91,7 @@ class BasePlaylist(ABC):
         Returns:
             tuple: название плейлиста и список треков
         """
-        with open(playlist_path, encoding="utf-8", mode="r") as file:
+        with open(playlist_path, encoding="utf-8") as file:
             playlist = json.load(file)
             name = playlist["name"]
             cover_path = playlist.get("cover_path", None)
@@ -156,8 +152,8 @@ class UserPlaylist(BasePlaylist):
         return tuple(self.tracks.values)
 
 
-class RecomendationPlaylist(BasePlaylist):
-    """плейлист рекомендаций"""
+class RecommendationPlaylist(BasePlaylist):
+    """Плейлист рекомендаций."""
 
     def __init__(
         self,
@@ -176,8 +172,8 @@ class RecomendationPlaylist(BasePlaylist):
         return tuple(self.tracks.values)
 
     @classmethod
-    def get_playlist_from_path(cls, path_to_playlist: str) -> "DownloadPlaylist | None":
-        pass
+    def get_playlist_from_path(cls, path_to_playlist: str) -> "RecommendationPlaylist | None":
+        return None
 
 
 class DownloadPlaylist(BasePlaylist):
@@ -214,14 +210,14 @@ class DownloadPlaylist(BasePlaylist):
         )
 
     @staticmethod
-    def get_tracks_from_music_dir() -> Tuple[Track]:
-        """Получаем список треков из директории music
+    def get_tracks_from_music_dir() -> Tuple[Track, ...]:
+        """Получаем список треков из директории music.
 
         Returns:
             Tuple[Track]: список треков
         """
-        music_dir = "music"
-        if not os.path.isdir(music_dir):
+        music_dir = Path("music")
+        if not music_dir.is_dir():
             return ()
         tracks = []
         for track_file in os.listdir(music_dir):

@@ -1,24 +1,24 @@
-"""Продвинутая цикл, который позволяет получать предыдущий трек, текущий и следующий
-Протокол и паттерн итератора: ✓
-Single responsibility - True
-Open/Closed - 50/50
-Liskov - True
-Interface segregation - True
-Dependency - from Iterable (but this is okay)
+"""Продвинутый циклический итератор с навигацией вперёд/назад.
+
+Патерн Итератор: ✓
+Single Responsibility: ✓ — только навигация по коллекции
 """
 
-from typing import Iterable, Any, Optional
+from __future__ import annotations
+
+from typing import Iterable, Any
 
 
 class UpgradeCycle:
-    def __init__(self, values: Iterable[Any]) -> None:
-        """Инициализируем цикл
+    """Продвинутый цикл.
 
-        Args:
-            values (Iterable[Any]): значения для цикла
-        """
+    Attributes:
+        values: Кортеж элементов.
+    """
+
+    def __init__(self, values: Iterable[Any]) -> None:
         self._index = 0
-        self.values = tuple(values)
+        self.values: tuple[Any, ...] = tuple(values)
 
     def __iter__(self) -> "UpgradeCycle":
         """Возвращаем итератор
@@ -34,17 +34,28 @@ class UpgradeCycle:
         Returns:
             Optional[Any]: следующее значение
         """
-        # temp = self.values[self._index]
         self._index = (self._index + 1) % len(self.values)
         return self.values[self._index]
 
     def __len__(self) -> int:
-        """Возвращаем длину цикла
+        return len(self.values)
+
+    def remove(self, item: Any) -> bool:
+        """Удаляет элемент из цикла.
 
         Returns:
-            int: длина цикла
+            ``True`` если элемент найден и удалён, иначе ``False``.
         """
-        return len(self.values)
+        lst = list(self.values)
+        try:
+            idx = lst.index(item)
+        except ValueError:
+            return False
+        lst.pop(idx)
+        self.values = tuple(lst)
+        if self._index >= len(self.values) > 0:
+            self._index = len(self.values) - 1
+        return True
 
     def move_previous(self) -> Optional[Any]:
         """Переключаемся на предыдущий трек
@@ -77,12 +88,5 @@ class UpgradeCycle:
         return self.values[len(self.values) - 1]
 
     def set_index(self, index: int) -> None:
+        """Устанавливает текущий индекс."""
         self._index = index
-
-    def advance_and_peek(self) -> Optional[Any]:
-        """Переход на следующий трек и возврат нового текущего (для move_next)."""
-        n = len(self.values)
-        if n == 0:
-            return None
-        self._index = (self._index + 1) % n
-        return self.values[self._index]

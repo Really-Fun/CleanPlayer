@@ -46,7 +46,7 @@ class HomePage(QWidget):
 
     playlist_opened = Signal(object)
 
-    def __init__(self, parent=None):
+    def __init__(self, app_context, parent=None):
         super().__init__(parent)
 
         self.pm = PlaylistManager()

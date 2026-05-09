@@ -34,13 +34,13 @@ class SettingsPage(QWidget):
 
     go_back = Signal()
     background_changed = Signal(str)
-    visualizer_toggled = Signal(bool)  
+    visualizer_toggled = Signal(bool)
     cover_wallpaper_toggled = Signal(bool)
     visualizer_delay_changed = Signal(int)
-    visualizer_color_changed = Signal(tuple)  
-    visualizer_mode_changed = Signal(str)  
+    visualizer_color_changed = Signal(tuple)
+    visualizer_mode_changed = Signal(str)
 
-    def __init__(self, parent=None):
+    def __init__(self, app_context, parent=None):
         super().__init__(parent)
         self.setObjectName("SettingsPage")
         self._last_valid_rgb = (0, 220, 255)
@@ -137,10 +137,10 @@ class SettingsPage(QWidget):
         self._viz_delay.setValue(25)
         self._viz_delay.setFixedWidth(140)
         self._viz_delay.valueChanged.connect(self._on_delay_changed)
-        
+
         self._viz_delay_label = QLabel("25")
         self._viz_delay_label.setObjectName("settingValueLabel")
-        
+
         delay_lay.addWidget(self._viz_delay)
         delay_lay.addWidget(self._viz_delay_label)
         row_delay.add_right(delay_wrap)
@@ -176,7 +176,7 @@ class SettingsPage(QWidget):
         self._cover_toggle.toggled_changed.connect(self.cover_wallpaper_toggled.emit)
         row_toggle.add_right(self._cover_toggle)
         sec.add_row(row_toggle)
-        
+
         self._lay.addWidget(sec)
 
     def _build_theme_setting(self) -> None:
@@ -186,9 +186,7 @@ class SettingsPage(QWidget):
         styles_dir = asset_path("styles")
         if os.path.isdir(styles_dir):
             bg_files = sorted(
-                f[:-4]
-                for f in os.listdir(styles_dir)
-                if f.lower().endswith((".qss"))
+                f[:-4] for f in os.listdir(styles_dir) if f.lower().endswith((".qss"))
             )
         else:
             bg_files = ["light", "dark", "cyberpunk"]
@@ -293,6 +291,7 @@ class SettingsPage(QWidget):
 #  Внутренние виджеты
 # ═══════════════════════════════════════
 
+
 class _ToggleButton(QWidget):
     """Переключатель вкл/выкл."""
 
@@ -315,7 +314,7 @@ class _ToggleButton(QWidget):
         if self._on != checked:
             self._on = checked
             self.toggled_changed.emit(self._on)
-            self.update() 
+            self.update()
 
     def paintEvent(self, event) -> None:
         p = QPainter(self)
@@ -371,7 +370,7 @@ class _SettingsHeader(QWidget):
         lay.addSpacing(12)
 
         title = QLabel("Настройки")
-        title.setObjectName("headerGreeting") # Используем уже готовый стиль из QSS
+        title.setObjectName("headerGreeting")  # Используем уже готовый стиль из QSS
         lay.addWidget(title)
         lay.addStretch()
 

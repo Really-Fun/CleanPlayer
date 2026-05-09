@@ -43,9 +43,10 @@ class AsyncYandexFinder(AsyncFinderInterface):
                 for track in tracks["tracks"]["results"]
             ]
         except yandex_music.exceptions.NetworkError:
-            # TODO logger
+            logger.exception("Ошибка сети при поиске на Yandex: %s", title)
             return []
         except yandex_music.exceptions.YandexMusicError:
+            logger.exception("Ошибка Yandex Music API при поиске: %s", title)
             return []
 
     async def get_track(self, id: int) -> Track | None:
@@ -61,7 +62,7 @@ class AsyncYandexFinder(AsyncFinderInterface):
                 downloaded=False,
             )
         except yandex_music.exceptions.YandexMusicError:
-            # TODO legger
+            logger.exception("Ошибка Yandex Music API при получении трека: %s", id)
             return None
 
 

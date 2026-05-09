@@ -1,29 +1,90 @@
-"""Шаблон плагина"""
+"""Базовый класс для всех плагинов Quantis.
+
+Минимальный плагин::
+
+    from plugins.base import BasePlugin
+
+    class HelloPlugin(BasePlugin):
+        name    = "Название плагина"
+        version = "1.0.0"
+        author  = "You"
+        description = "Описание плагина"
+
+        async def on_load(self):
+            self.app.event_bus.subscribe("track_changed", self._greet)
+
+        async def on_unload(self):
+            self.app.event_bus.unsubscribe("track_changed", self._greet)
+
+        def _greet(self, track):
+            print(f"Сейчас играет: {track.title}")
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from core.app_context import AppContext
 
 
 class BasePlugin:
-    """Базовый класс для всех плагинов Quantis."""
-    
-    name = "Название Плагина"
-    version = "1.0"
-    author = "Really-Fun"
-    description = "Нет описания"
+    """Базовый класс для всех плагинов Quantis.
 
-    def __init__(self, app_context):
+    Attributes:
+        name:        Отображаемое название плагина.
+        version:     Версия в формате ``MAJOR.MINOR.PATCH``.
+        author:      Автор / организация.
+        description: Краткое описание что делает плагин.
+        app:         Контекст приложения. Доступен после ``__init__``.
+        icon:        Иконка (Превью) плагина. Относительный путь
+    """
+
+    name: str = "Без названия"
+    version: str = "0.0.0"
+    author: str = "Unknown"
+    description: str = ""
+    icon: str = ""
+
+    def __init__(self, app_context: AppContext) -> None:
         self.app = app_context
 
-    def on_load(self):
-        """Вызывается при загрузке плагина. Здесь инициализируются UI/Сигналы."""
-        pass
+    async def on_load(self) -> None:
+        """Вызывается при включении плагина.
 
-    def on_unload(self):
-        """Вызывается при отключении плагина. Обязательно очищать ресурсы!"""
-        pass
+        Здесь подписывайся на события, регистрируй страницы, добавляй кнопки.
+        Можно использовать ``await`` для асинхронных операций.
+        """
+        ...
 
-    def on_minimize(self):
-        """Вызывается, когда окно свернули (для оптимизации)."""
-        pass
+    async def on_unload(self) -> None:
+        """Вызывается при выключении плагина.
 
-    def on_restore(self):
-        """Вызывается, когда окно развернули."""
-        pass 
+        Обязательно отписывайся от всех событий и освобождай ресурсы.
+        Для отписки от всех событий сразу используй:
+        ``self.app.event_bus.unsubscribe_all(callback)``
+        """
+        ...
+
+    async def on_minimize(self) -> None:
+        """Вызывается при сворачивании окна (для приостановки тяжёлых операций)."""
+        ...
+
+    async def on_restore(self) -> None:
+        """Вызывается при разворачивании окна."""
+        ...
+
+    # ── Подписка ───────────────────────────────────────────────────
+
+    def subscribe(self, event: str, callback) -> None:
+        """Краткая форма: ``self.app.event_bus.subscribe(event, callback)``."""
+        self.app.event_bus.subscribe(event, callback)
+
+    def unsubscribe(self, event: str, callback) -> None:
+        """Краткая форма: ``self.app.event_bus.unsubscribe(event, callback)``."""
+        self.app.event_bus.unsubscribe(event, callback)
+
+    def __repr__(self) -> str:
+        return f"<Plugin {self.name!r} v{self.version}>"
+
+    __str__ = __repr__

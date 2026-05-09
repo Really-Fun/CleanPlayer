@@ -99,14 +99,14 @@ class SearchBar(QWidget):
 class SearchPage(QWidget):
     """Страница поиска по трекам и исполнителям."""
 
-    def __init__(self, parent=None):
+    def __init__(self, app_context, parent=None):
         super().__init__(parent)
         self.setObjectName("SearchPage")
 
-        self._finder = AsyncFinder()
-        self._player = Player()
-        self._downloader = AsyncDownloader()
-        self._path_provider = PathProvider()
+        self._finder = app_context.async_finder
+        self._player = app_context.player
+        self._downloader = app_context.async_downloader
+        self._path_provider = app_context.path_provider
 
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(8, 8, 8, 8)

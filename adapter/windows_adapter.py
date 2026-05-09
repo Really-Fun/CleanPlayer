@@ -19,7 +19,7 @@ from models import Track
 class WindowsSMTCAdapter:
     """Адаптер интеграции плеера с системным оверлеем Windows (аналог MPRIS)."""
 
-    def __init__(self, player, loop: asyncio.AbstractEventLoop = None):
+    def __init__(self, player, loop: asyncio.AbstractEventLoop, event_bus):
         self.player = player
         self.loop = loop or asyncio.get_event_loop()
 
@@ -35,9 +35,9 @@ class WindowsSMTCAdapter:
         self.smtc.add_button_pressed(self._on_button_pressed)
 
         # Подписываемся на события твоего плеера
-        self.player.track_changed.connect(self._on_track_changed)
+        event_bus.subscribe("track_changed", self._on_track_changed)
 
-    def _on_track_changed(self, track: Track) -> None:
+    def _on_track_changed(self, track: Track = None, **kwargs) -> None:
         """Слушатель: автоматически обновляет данные в Windows при смене трека."""
         # Убедись, что у модели Track есть атрибуты title и artist.
         title = getattr(track, "title", "Unknown Title")
@@ -79,8 +79,8 @@ class WindowsSMTCAdapter:
             self.update_playback_status(False)
 
         elif button == SystemMediaTransportControlsButton.NEXT:
-            # Эмитим сигнал PySide, чтобы логика очереди отработала штатно
-            self.loop.call_soon_threadsafe(self.player.next_requested.emit)
+            # Вызываем штатный метод для переключения
+            self.loop.call_soon_threadsafe(self.player.next)
 
         elif button == SystemMediaTransportControlsButton.PREVIOUS:
-            self.loop.call_soon_threadsafe(self.player.previous_requested.emit)
+            self.loop.call_soon_threadsafe(self.player.previous)

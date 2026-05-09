@@ -6,7 +6,15 @@
 import os
 
 from PySide6.QtCore import QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap, QKeySequence, QShortcut, QPalette
+from PySide6.QtGui import (
+    QColor,
+    QIcon,
+    QPainter,
+    QPixmap,
+    QKeySequence,
+    QShortcut,
+    QPalette,
+)
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -18,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 from qasync import asyncSlot
 
+from core import AppContext
 from models import Track
 from player import Player
 from providers import PathProvider, PlaylistManager
@@ -33,15 +42,15 @@ class PlayMenu(QWidget):
 
     playlist_generated = Signal(object)
 
-    def __init__(self, parent=None):
+    def __init__(self, context: AppContext, parent=None):
         super().__init__(parent)
         self.setObjectName("PlayMenu")
         self.setAttribute(Qt.WA_StyledBackground, True)
 
         self.playlist_manager = PlaylistManager()
-        self.player = Player()
-        self.downloader = AsyncDownloader()
-        self._path_provider = PathProvider()
+        self.player = context.player
+        self.downloader = context.async_downloader
+        self._path_provider = context.path_provider
 
         self._seeking = False
         self._repeat_mode = "off"
@@ -99,7 +108,7 @@ class PlayMenu(QWidget):
         self.btn_repeat.setObjectName("repeatButton")
         self.btn_repeat.setProperty("state", "off")
         self.btn_repeat.setToolTip("Повтор: выкл")
-        
+
         self.btn_prev = self._btn(asset_path("assets/icons/backward.png"), 34)
         self.btn_play = self._btn(asset_path("assets/icons/play.png"), 40)
         self.btn_next = self._btn(asset_path("assets/icons/forward.png"), 34)
@@ -183,8 +192,8 @@ class PlayMenu(QWidget):
         self.btn_repeat.clicked.connect(self._cycle_repeat_mode)
         self.btn_prev.clicked.connect(self.play_previous_track)
         self.btn_next.clicked.connect(self.play_next_track)
-        self.player.next_requested.connect(self._on_next_requested)
-        self.player.previous_requested.connect(self._on_previous_requested)
+        context.event_bus.next_requested.connect(self._on_next_requested)
+        context.event_bus.previous_requested.connect(self._on_previous_requested)
         self.btn_download.clicked.connect(self.download_track)
         self.btn_wave.clicked.connect(self.generate_playlist)
 
@@ -201,15 +210,13 @@ class PlayMenu(QWidget):
         key_shortcut_for_volume_down = QShortcut(QKeySequence("Down"), self)
         key_shortcut_for_volume_down.activated.connect(self._on_volume_down)
 
-        self.player.track_finished.connect(self._on_track_finished)
+        context.event_bus.track_finished.connect(self._on_track_finished)
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
         self._timer.start(250)
 
-        self.player.track_changed.connect(self._on_track_changed)
-
-
+        context.event_bus.track_changed.connect(self._on_track_changed)
 
     @asyncSlot(object)
     async def _on_track_changed(self, track) -> None:
@@ -314,7 +321,7 @@ class PlayMenu(QWidget):
             self.btn_repeat.setProperty("state", "off")
         else:
             self.btn_repeat.setProperty("state", "active")
-        
+
         self.btn_repeat.style().unpolish(self.btn_repeat)
         self.btn_repeat.style().polish(self.btn_repeat)
 
@@ -354,7 +361,7 @@ class PlayMenu(QWidget):
         b.setIconSize(QSize(int(size * 0.6), int(size * 0.6)))
         b.setFixedSize(size, size)
         b.setCursor(Qt.PointingHandCursor)
-        
+
         b.setStyleSheet(f"border-radius: {size // 2}px;")
         return b
 
@@ -362,16 +369,16 @@ class PlayMenu(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setPen(Qt.NoPen)
-        
+
         # 1. Достаем цвет фона (Window) из текущей системной темы
         theme_color = self.palette().color(QPalette.ColorRole.Window)
-        
-        # 2. Если вы хотите сохранить эффект полупрозрачности (как было в _BG_COLOR), 
+
+        # 2. Если вы хотите сохранить эффект полупрозрачности (как было в _BG_COLOR),
         # добавляем альфа-канал (от 0 до 255)
-        theme_color.setAlpha(200) 
-        
+        theme_color.setAlpha(200)
+
         # 3. Рисуем
-        painter.setBrush(theme_color) 
+        painter.setBrush(theme_color)
         rect = QRectF(self.rect())
         painter.drawRoundedRect(rect, _BG_RADIUS, _BG_RADIUS)
 
@@ -380,6 +387,7 @@ def _fmt(ms: int) -> str:
     s = max(0, ms // 1000)
     m, s = divmod(s, 60)
     return f"{m}:{s:02d}"
+
 
 def _elide(text: str, max_len: int) -> str:
     return text if len(text) <= max_len else text[: max_len - 1] + "…"

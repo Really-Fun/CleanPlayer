@@ -1,7 +1,15 @@
+"""Асинхронный стриминг (получение прямых URL для воспроизведения).
+
+Поддерживаемые платформы:
+- Яндекс Музыка
+- YouTube
+"""
+
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from asyncio import get_running_loop
 from concurrent.futures import ThreadPoolExecutor
-from functools import wraps
 from time import time
 import logging
 
@@ -11,24 +19,6 @@ from models import Track
 from yt_dlp import YoutubeDL
 
 logger = logging.getLogger(__name__)
-
-
-def url_cache(func):
-    urls = {}
-
-    @wraps(func)
-    async def wrapper(*args, **kwargs):
-        nonlocal urls
-        if len(args) == 1:
-            track = kwargs["track"]
-        else:
-            track = args[1]
-        track_url = urls.get(track.track_id, None)
-        if (track_url is None) or (time() - track_url[1] >= 30 * 60):
-            track_url = urls[track.track_id] = (await func(*args, **kwargs), time())
-        return track_url[0]
-
-    return wrapper
 
 
 class AsyncStreamerInterface(ABC):
@@ -54,27 +44,27 @@ class AsyncYandexStreamer(AsyncStreamerInterface):
 
 
 class AsyncYoutubeStreamer(AsyncStreamerInterface):
-    def __init__(self):
+    _URL_CACHE_TTL_SEC = 30 * 60  # 30 минут
+
+    def __init__(self) -> None:
         self.opts = {
             "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            #"cookiefile": "cookie.txt",
             "quiet": False,
             "noplaylist": True,
             "extract_flat": False,
             "no_warnings": True,
             "nocheckcertificate": True,
             "postprocessors": [],
-            "format": "m4a/bestaudio[ext=m4a]"
+            "format": "m4a/bestaudio[ext=m4a]",
+            "skip_download": True,
         }
-        adv_opts = self.opts
-        adv_opts["skip_download"] = True
-        self.yt = YoutubeDL(adv_opts)
+        self.yt = YoutubeDL(self.opts)
+        self._executor = ThreadPoolExecutor(max_workers=2)
 
     async def get_stream_url(self, track: Track) -> str | None:
-        with ThreadPoolExecutor() as pool:
-            url = await get_running_loop().run_in_executor(
-                pool, self.sync_stream, self.yt, track.track_id
-            )
+        url = await get_running_loop().run_in_executor(
+            self._executor, self.sync_stream, self.yt, track.track_id
+        )
         return url
 
     @staticmethod
@@ -90,16 +80,28 @@ class AsyncYoutubeStreamer(AsyncStreamerInterface):
 
 
 class AsyncStreamer(AsyncStreamerInterface):
-    def __init__(self):
-        self._async_yandex_streamer = AsyncYandexStreamer()
-        self._async_youtube_streamer = AsyncYoutubeStreamer()
+    """Фасад над Yandex и YouTube стримерами с кэшированием URL."""
 
-    @url_cache
+    _URL_CACHE_TTL_SEC = 30 * 60  # 30 минут
+
+    def __init__(self) -> None:
+        self._yandex = AsyncYandexStreamer()
+        self._youtube = AsyncYoutubeStreamer()
+        self._cache: dict[str | int, tuple[str, float]] = {}
+
     async def get_stream_url(self, track: Track) -> str | None:
+        cached = self._cache.get(track.track_id)
+        if cached is not None and time() - cached[1] < self._URL_CACHE_TTL_SEC:
+            return cached[0]
+
         match track.source:
             case "youtube":
-                return await self._async_youtube_streamer.get_stream_url(track)
+                url = await self._youtube.get_stream_url(track)
             case "yandex":
-                return await self._async_yandex_streamer.get_stream_url(track)
+                url = await self._yandex.get_stream_url(track)
             case _:
-                raise NameError("Неизвестный source у трека")
+                raise NameError(f"Неизвестный source у трека: {track.source!r}")
+
+        if url is not None:
+            self._cache[track.track_id] = (url, time())
+        return url

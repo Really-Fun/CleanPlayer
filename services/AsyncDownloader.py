@@ -155,8 +155,8 @@ class AsyncYoutubeDownloader(AsyncDownloaderInterface):
                     Path(track.cover_path).parent.mkdir(parents=True, exist_ok=True)
                     async with aiofiles.open(track.cover_path, "wb") as file:
                         await file.write(data)
-            except aiohttp.ClientError as e:
-                print(f"Ошибка при скачивании обложки для {track.track_id}: {e}")
+            except aiohttp.ClientError:
+                logger.exception("Ошибка при скачивании обложки для %s", track.track_id)
 
     @staticmethod
     def sync_download(opts: dict, track_id: str) -> None:

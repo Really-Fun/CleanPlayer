@@ -27,7 +27,7 @@ class UserPage(QWidget):
 
     go_back = Signal()
 
-    def __init__(self, parent=None):
+    def __init__(self, context, parent=None):
         super().__init__(parent)
         self.setObjectName("UserPage")
 
@@ -153,7 +153,6 @@ class _TokenSection(QFrame):
         lay.addWidget(custom_api)
 
         save_btn = QPushButton("Сохранить")
-        # save_btn.setCursor(Qt.ForbiddenCursor)
         save_btn.setStyleSheet(
             "QPushButton {"
             "color: rgba(255,255,255,120); background: rgba(255,255,255,10);"
@@ -197,9 +196,7 @@ class _InfoSection(QFrame):
         title.setStyleSheet("color: #fff; font-size: 16px; font-weight: 700;")
         lay.addWidget(title)
 
-        info = QLabel(
-            "ТОКЕНЫ!!!"
-        )
+        info = QLabel("ТОКЕНЫ!!!")
         info.setStyleSheet("color: rgba(255,255,255,180); font-size: 13px;")
         info.setWordWrap(True)
         lay.addWidget(info)

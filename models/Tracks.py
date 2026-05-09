@@ -5,17 +5,32 @@
 2. Треки YouTube
 
 Классы:
-1. Track - абстрактный класс трека
-2. YandexTrack - класс трека Яндекса
-3. YoutubeTrack - класс трека YouTube
+1. TrackSource — перечисление платформ
+2. Track      — базовый датакласс трека
+3. YandexTrack — трек Яндекс.Музыки
+4. YoutubeTrack — трек YouTube
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
+from enum import StrEnum
+
+
+class TrackSource(StrEnum):
+    """Перечисление поддерживаемых платформ.
+
+    Используется вместо хардкода строк ``"yandex"`` / ``"youtube"`` по всему коду.
+    Совместимо со строками: ``TrackSource.YANDEX == "yandex"`` → ``True``.
+    """
+
+    YANDEX  = "yandex"
+    YOUTUBE = "youtube"
 
 
 @dataclass
 class Track:
-    """Абстрактный класс трека"""
+    """Базовый датакласс трека."""
 
     track_id: int | str
     title: str
@@ -24,33 +39,33 @@ class Track:
     source: str = ""
     listen_count: int = 0
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.source}:{self.track_id}"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.source} : {self.title} - {self.author}"
 
-    def __eq__(self, value):
-        if isinstance(value, self.__class__):
-            return self.track_id == value.track_id
-        if hasattr(value, "title") and hasattr(value, "author"):
-            return (self.title, self.author) == (value.title, value.author)
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, self.__class__):
+            return self.track_id == other.track_id
+        if hasattr(other, "title") and hasattr(other, "author"):
+            return (self.title, self.author) == (other.title, other.author)
         return False
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.track_id)
 
 
 @dataclass
 class YandexTrack(Track):
-    """Класс трека Яндекса"""
+    """Трек Яндекс.Музыки."""
 
-    source: str = "yandex"
+    source: str = TrackSource.YANDEX
 
 
 @dataclass
 class YoutubeTrack(Track):
-    """Класс трека YouTube"""
+    """Трек YouTube."""
 
-    source: str = "youtube"
+    source: str = TrackSource.YOUTUBE
     extension: str = "m4a"

@@ -3,19 +3,22 @@ from .Playlists import (
     DownloadPlaylist,
     RecentlyPlayedPlaylist,
     UserPlaylist,
-    RecomendationPlaylist,
+    RecommendationPlaylist,
+    RecommendationPlaylist as RecomendationPlaylist,  # алиас для совместимости
 )
-from .Tracks import Track, YandexTrack, YoutubeTrack
+from .Tracks import Track, YandexTrack, YoutubeTrack, TrackSource
 from .TrackListModel import TrackListModel
 
 __all__ = [
     "Track",
+    "TrackSource",
     "YandexTrack",
     "YoutubeTrack",
     "BasePlaylist",
     "DownloadPlaylist",
     "UserPlaylist",
     "RecentlyPlayedPlaylist",
-    "RecomendationPlaylist",
+    "RecommendationPlaylist",
+    "RecomendationPlaylist",  # алиас для совместимости
     "TrackListModel",
 ]

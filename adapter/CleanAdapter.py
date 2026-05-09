@@ -4,45 +4,38 @@ Windows - SMTC
 '''
 from asyncio import AbstractEventLoop
 import platform
-import importlib.util
 
-from player import Player
+from core import AppContext
+
 
 class CleanAdapter:
     """Создаём нужный адаптер в зависимости от ОС пользователя"""
 
-    def __init__(self, player: Player, loop: AbstractEventLoop) -> CleanAdapter:
+    def __init__(self, context: AppContext) -> None:
         current_os = platform.system()
 
         match current_os:
             case "Linux":
-                self.start_mpris(player=player)
+                self.start_mpris(player=context.player, event_bus=context.event_bus, path_provider=context.path_provider)
 
             case "Windows":
-                self.start_smtc(player=player, loop=loop)
+                self.start_smtc(player=context.player, loop=context.loop, event_bus=context.event_bus)
 
-    def start_mpris(self, player: Player) -> None:
+    def start_mpris(self, player: Player, event_bus, path_provider) -> None:
         """Запускаем MPRIS для линукс
-
-        Args:
-            player (_type_): Сам vlc проигрыватель
         """
         from mpris_server.server import Server
         from .MprisAdapter import QuantisAppAdapter, QuantisEventHandler
 
-        mpris_adapter = QuantisAppAdapter(player)
+        mpris_adapter = QuantisAppAdapter(player, event_bus, path_provider)
         mpris = Server("Quantis", mpris_adapter)
         event_handler = QuantisEventHandler(mpris.root, mpris.player)
         mpris_adapter.set_event_handler(event_handler)
         mpris.publish()
 
-    def start_smtc(self, player: Player, loop: AbstractEventLoop) -> None:
+    def start_smtc(self, player: Player, loop: AbstractEventLoop, event_bus) -> None:
         """Запускаем SMTC для Windows
-
-        Args:
-            player (Player): Сам vlc проигрыватель
-            loop (_type_): Текущий событийный цикл
         """
         from .windows_adapter import WindowsSMTCAdapter
 
-        windows_adapter = WindowsSMTCAdapter(player, loop)
+        windows_adapter = WindowsSMTCAdapter(player, loop, event_bus)

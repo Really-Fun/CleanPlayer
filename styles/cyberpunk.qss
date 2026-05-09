@@ -266,3 +266,116 @@ QPushButton#navButton:checked { background: rgba(255, 40, 150, 100); color: whit
 
 #ResultsPanel { background: rgba(15, 5, 25, 140); border-radius: 14px; }
 #searchStatusLabel { color: rgba(255, 255, 255, 80); font-size: 14px; padding: 24px; background: transparent; }
+
+
+/* =========================================
+   СТРАНИЦА МЕНЕДЖЕРА ПЛАГИНОВ
+   ========================================= */
+
+#PluginsManagerSection {
+    background-color: transparent;
+}
+
+#PluginScrollContent {
+    background-color: transparent;
+}
+
+#PluginPageTitle {
+    color: #fff;
+    font-size: 26px; 
+    font-weight: 800;
+}
+
+/* Скроллбар для плагинов (используем розовый акцент) */
+#PluginScrollArea QScrollBar::handle:vertical { 
+    background: rgba(255, 40, 150, 40); 
+}
+#PluginScrollArea QScrollBar::handle:vertical:hover { 
+    background: rgba(255, 40, 150, 80); 
+}
+
+/* Карточка плагина */
+#PluginCardFrame {
+    background-color: rgba(15, 5, 25, 120); /* Полупрозрачный темный фон */
+    border: 1px solid rgba(255, 255, 255, 10);
+    border-radius: 12px;
+    margin-bottom: 12px;
+}
+#PluginCardFrame:hover {
+    background-color: rgba(255, 40, 150, 10);
+    border: 1px solid rgba(255, 40, 150, 60); /* Неоновый бордер при наведении */
+}
+
+/* Тексты внутри карточки */
+#PluginTitle {
+    font-size: 16px;
+    font-weight: 700;
+    color: rgb(255, 40, 150); /* Неоново-розовый акцент */
+}
+#PluginDesc {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 140);
+}
+#PluginMeta {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 60);
+    font-weight: 600;
+}
+#PluginIcon {
+    color: rgba(255, 255, 255, 80);
+}
+
+/* Кнопка установки плагина (похожа на #createPlaylistBtn) */
+#BtnInstallPlugin {
+    color: white; 
+    font-size: 13px; 
+    font-weight: 700; 
+    border: none; 
+    border-radius: 11px; 
+    background: rgba(255, 40, 150, 20);
+    padding: 8px 16px;
+}
+#BtnInstallPlugin:hover {
+    background: rgba(255, 40, 150, 60);
+    border: 1px solid rgba(255, 40, 150, 255);
+}
+
+/* Кнопки переключения состояния (Включен/Выключен) */
+#BtnTogglePlugin {
+    font-size: 12px;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-weight: bold;
+}
+#BtnTogglePlugin[active="true"] {
+    background: rgb(255, 40, 150);
+    color: #fff;
+    border: none;
+}
+#BtnTogglePlugin[active="true"]:hover {
+    background: rgb(255, 70, 170);
+}
+#BtnTogglePlugin[active="false"] {
+    background: rgba(255, 40, 150, 15);
+    color: rgba(255, 255, 255, 180);
+    border: 1px solid rgba(255, 40, 150, 30);
+}
+#BtnTogglePlugin[active="false"]:hover {
+    background: rgba(255, 40, 150, 30);
+}
+
+/* Кнопка удаления */
+#BtnDeletePlugin {
+    background: transparent;
+    color: rgba(255, 255, 255, 100);
+    border: 1px solid rgba(255, 255, 255, 20);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: bold;
+}
+#BtnDeletePlugin:hover {
+    background: rgba(255, 40, 40, 80); /* Красный оттенок для удаления */
+    color: white;
+    border: 1px solid rgba(255, 40, 40, 150);
+}
