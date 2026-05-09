@@ -9,9 +9,17 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QCursor
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QPushButton, QScrollArea, QFrame,
-    QSizePolicy, QSpacerItem, QFileDialog, QMessageBox,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QFrame,
+    QSizePolicy,
+    QSpacerItem,
+    QFileDialog,
+    QMessageBox,
 )
 
 from plugins.registry import PluginInfo, PluginRegistry
@@ -28,7 +36,7 @@ class PluginCard(QFrame):
         parent=None,
     ) -> None:
         super().__init__(parent)
-        self._info     = info
+        self._info = info
         self._registry = registry
 
         self.setFixedHeight(120)
@@ -184,7 +192,9 @@ class PluginsManagerPage(QWidget):
         root.addWidget(self.scroll_area)
 
         # Надпись "нет плагинов"
-        self._empty_label = QLabel("Плагины не установлены.\nНажми «+ Установить из файла» чтобы добавить.")
+        self._empty_label = QLabel(
+            "Плагины не установлены.\nНажми «+ Установить из файла» чтобы добавить."
+        )
         self._empty_label.setAlignment(Qt.AlignCenter)
         self._empty_label.setObjectName("PluginEmptyLabel")
         self.plugins_layout.addWidget(self._empty_label)
@@ -209,6 +219,7 @@ class PluginsManagerPage(QWidget):
         """Перестраивает список карточек из реестра."""
         registry = PluginRegistry.instance()
         infos = registry.get_all()
+        print(infos)
 
         # Удаляем старые карточки (кроме лейбла и spacer)
         while self.plugins_layout.count() > 2:
@@ -220,9 +231,7 @@ class PluginsManagerPage(QWidget):
 
         for info in infos:
             card = PluginCard(info, registry, self.scroll_content)
-            self.plugins_layout.insertWidget(
-                self.plugins_layout.count() - 1, card
-            )
+            self.plugins_layout.insertWidget(self.plugins_layout.count() - 1, card)
 
     def _install_from_folder(self) -> None:
         """Открывает диалог выбора папки плагина и копирует её в plugins_dir."""
@@ -234,8 +243,8 @@ class PluginsManagerPage(QWidget):
         if not source:
             return
         source_path = Path(source)
-        plugin_id   = source_path.name
-        dest        = PLUGIN_DIR / plugin_id
+        plugin_id = source_path.name
+        dest = PLUGIN_DIR / plugin_id
 
         if dest.exists():
             QMessageBox.warning(
@@ -259,10 +268,3 @@ class PluginsManagerPage(QWidget):
             f"Плагин «{plugin_id}» установлен.\n"
             "Перезапустите приложение для его активации.",
         )
-
-
-
-
-
-
-

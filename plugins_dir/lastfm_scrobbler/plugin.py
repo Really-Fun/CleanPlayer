@@ -39,11 +39,12 @@ class DiscordNetRunner(BasePlugin):
 
         self._rpc = Presence(CLIENT_ID)
         self._is_connected = False
+        self.context = app_context
 
     async def on_load(self) -> None:
-        self.subscribe("track_changed", self._on_track_changed)
-        self.subscribe("track_finished", self._on_track_finished)
-        self.subscribe("playback_paused", self._on_paused)
+        self.context.event_bus.track_changed.connect(self._on_track_changed)
+        self.context.event_bus.track_finished.connect(self._on_track_finished)
+        self.context.event_bus.playback_paused.connect(self._on_paused)
 
         try:
             await asyncio.to_thread(self._rpc.connect)

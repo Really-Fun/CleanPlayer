@@ -79,7 +79,7 @@ class PluginRegistry(QObject):
                 info.error = "; ".join(meta.errors)
                 continue
 
-            if meta.plugin_id in enabled_ids:
+            if meta.plugin_id:
                 await self._do_enable(meta.plugin_id)
 
     async def enable(self, plugin_id: str) -> bool:
@@ -135,7 +135,7 @@ class PluginRegistry(QObject):
             plugin_class = self._loader.load_class(info.meta)
             plugin_settings = QSettings("ReallyFun", f"Quantis/plugins/{plugin_id}")
             instance = plugin_class(self._context, plugin_settings)
-            
+
             await instance.on_load()
             self._active[plugin_id] = instance
             info.is_active = True
