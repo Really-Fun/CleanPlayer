@@ -15,7 +15,7 @@
 <br>
 
 > **Quantis** — быстрый кроссплатформенный десктопный плеер на `PySide6` и `asyncio`.  
-> Обеспечивает поиск, стриминг, скачивание треков и ведение истории прослушивания, опираясь на чистую асинхронную архитектуру.
+> Обеспечивает поиск, стриминг, скачивание треков и ведение истории прослушивания, эквалайзер, система плагинов.
 ---
 
 ## Почему Quantis?
@@ -86,31 +86,6 @@ keyring.set_password("YANDEX_TOKEN_NEON_APP", "NEON_APP", "<ваш_token>")
 keyring.set_password("LASTFM_API_NEON_APP", "NEON_APP", "<ваш_api_key>")
 keyring.set_password("LASTFM_SECRET_NEON_APP", "NEON_APP", "<ваш_api_secret>")
 ```
-
----
-
-## Архитектура истории прослушивания
-
-История разбита на 3 слоя:
-
-- `database/async_database.py` — асинхронная обертка над SQLite.
-- `database/track_history_repository.py` — SQL-репозиторий.
-- `services/TrackHistoryService.py` — бизнес-логика (частота сохранения, финализация прослушивания, сборка “Недавно прослушанных”).
-
-Таблица `track_history` хранит:
-
-- `track_key` (`source:id`)
-- `title`, `author`, `source`
-- `position_ms`, `duration_ms`
-- `listen_count`
-- `last_played_at`
-
-Для скорости и стабильности включены PRAGMA:
-
-- `journal_mode=WAL`
-- `synchronous=NORMAL`
-- `temp_store=MEMORY`
-- `cache_size` (увеличенный кеш)
 
 ---
 
