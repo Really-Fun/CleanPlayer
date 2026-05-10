@@ -2,6 +2,7 @@
 Linux - MPRIS
 Windows - SMTC
 '''
+from __future__ import annotations
 from asyncio import AbstractEventLoop
 import platform
 

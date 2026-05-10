@@ -79,7 +79,7 @@ class PluginRegistry(QObject):
                 info.error = "; ".join(meta.errors)
                 continue
 
-            if meta.plugin_id:
+            if meta.plugin_id in enabled_ids:
                 await self._do_enable(meta.plugin_id)
 
     async def enable(self, plugin_id: str) -> bool:

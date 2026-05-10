@@ -23,6 +23,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from PySide6.QtCore import QSettings
 
 if TYPE_CHECKING:
     from core.app_context import AppContext
@@ -46,8 +47,9 @@ class BasePlugin:
     description: str = ""
     icon: str = ""
 
-    def __init__(self, app_context: AppContext) -> None:
+    def __init__(self, app_context: AppContext, settings: QSettings = None) -> None:
         self.app = app_context
+        self.settings = settings
 
     async def on_load(self) -> None:
         """Вызывается при включении плагина.

@@ -38,7 +38,6 @@
 - `PySide6`, `qasync`, `python-vlc`
 - `ytmusicapi`, `yt-dlp`, `yandex-music`
 - `aiosqlite`
-- `qt-material`
 
 Полный список зависимостей — в `requirements.txt`.
 
@@ -55,7 +54,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-Требование: установлен `VLC` в системе (для `python-vlc`).
+Требование!: установлен `VLC` в системе (для `python-vlc`).
 
 ### Сборка exe (Windows)
 
