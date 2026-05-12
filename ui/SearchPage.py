@@ -188,7 +188,7 @@ class SearchPage(QWidget):
             self._scroll_area.show()
         await asyncio.gather(*tasks)
 
-    async def _load_and_set_cover(self, card: TrackCard, track: YoutubeTrack) -> None:
+    async def _load_and_set_cover(self, card: TrackCard, track) -> None:
         """Вспомогательная корутина для фонового скачивания и обновления UI"""
         path = self._path_provider.get_cover_path(track)
         
