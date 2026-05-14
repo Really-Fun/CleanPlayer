@@ -104,15 +104,15 @@ class PlayMenu(QWidget):
         btns.setSpacing(8)
         btns.setAlignment(Qt.AlignCenter)
 
-        self.btn_repeat = self._btn(asset_path("assets/icons/repeat_playlist.png"), 30)
+        self.btn_repeat = self._btn(asset_path("assets/icons/repeat.svg"), 30)
         self.btn_repeat.setObjectName("repeatButton")
         self.btn_repeat.setProperty("state", "off")
         self.btn_repeat.setToolTip("Повтор: выкл")
 
-        self.btn_prev = self._btn(asset_path("assets/icons/backward.png"), 34)
-        self.btn_play = self._btn(asset_path("assets/icons/play.png"), 40)
-        self.btn_next = self._btn(asset_path("assets/icons/forward.png"), 34)
-        self.btn_wave = self._btn(asset_path("assets/icons/wave.png"), 30)
+        self.btn_prev = self._btn(asset_path("assets/icons/prev.svg"), 34)
+        self.btn_play = self._btn(asset_path("assets/icons/play.svg"), 40)
+        self.btn_next = self._btn(asset_path("assets/icons/next.svg"), 34)
+        self.btn_wave = self._btn(asset_path("assets/icons/radio.svg"), 30)
 
         btns.addWidget(self.btn_repeat)
         btns.addWidget(self.btn_prev)
@@ -221,7 +221,7 @@ class PlayMenu(QWidget):
     @asyncSlot(object)
     async def _on_track_changed(self, track) -> None:
         await self.set_track(track)
-        self.btn_play.setIcon(QIcon(asset_path("assets/icons/pause.png")))
+        self.btn_play.setIcon(QIcon(asset_path("assets/icons/pause.svg")))
 
     async def set_track(self, track: Track) -> None:
         self._title.setText(_elide(track.title, 22))

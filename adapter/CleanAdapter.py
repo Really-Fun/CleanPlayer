@@ -7,6 +7,7 @@ from asyncio import AbstractEventLoop
 import platform
 
 from core import AppContext
+from player.player import Player
 
 
 class CleanAdapter:

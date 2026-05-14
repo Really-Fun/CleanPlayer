@@ -72,13 +72,13 @@ class PluginRegistry(QObject):
         enabled_ids = self._read_enabled()
 
         for meta in self._loader.discover():
+            print(meta)
             info = PluginInfo(meta=meta)
             self._infos[meta.plugin_id] = info
-
             if not meta.is_valid:
                 info.error = "; ".join(meta.errors)
                 continue
-
+            await self._do_enable(meta.plugin_id)
             if meta.plugin_id in enabled_ids:
                 await self._do_enable(meta.plugin_id)
 

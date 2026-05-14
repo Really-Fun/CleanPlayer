@@ -4,12 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import os
-import sys
 
 from PySide6.QtCore import QSettings, Qt
-from PySide6.QtGui import QGuiApplication, QPixmap
+from PySide6.QtGui import QGuiApplication, QIcon, QPixmap
 from PySide6.QtWidgets import (
-    QApplication,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -25,6 +23,7 @@ from ui.AudioVisualizer import AudioVisualizer
 from ui.MenuPlayWidget import PlayMenu
 from ui.MenuTabsWidget import MenuTabs
 from ui.Stack import Stack
+from ui.title_bar import CustomTitleBar
 from ui.ThemeManager import ThemeManager
 from utils import asset_path
 
@@ -70,8 +69,10 @@ class Quantis(QMainWindow):
 
     def _setup_window(self) -> None:
         """Настраивает размер, заголовок и позицию окна."""
+        self.setWindowFlags(Qt.FramelessWindowHint)
         self.setWindowTitle("Quantis")
-        self.resize(1100, 750)
+        self.setWindowIcon(QIcon("assets/icons/logo1.jpg"))
+        self.resize(800, 640)
         self.setMaximumSize(1920, 1080)
         self._center_on_screen()
 
@@ -107,6 +108,13 @@ class Quantis(QMainWindow):
         main_layout = QVBoxLayout(central)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
+        
+        self.title_bar = CustomTitleBar(self, title="Quantis")
+        main_layout.addWidget(self.title_bar)
+        
+        self.setWindowTitle("Quantis")
+        self.setWindowIcon(QIcon("assets/icons/logo1.jpg"))
+
 
         content_layout = QHBoxLayout()
         content_layout.setContentsMargins(0, 0, 0, 0)

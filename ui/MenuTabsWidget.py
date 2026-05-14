@@ -55,15 +55,15 @@ class MenuTabs(QWidget):
 
         # ── Нижние кнопки инструментов ────────────────────────────────────────
         self.btn_settings = self._make_tool_button(
-            asset_path("assets/icons/setting.png")
+            asset_path("assets/icons/settings.svg")
         )
         self.btn_settings.clicked.connect(lambda: self._switch("settings"))
 
-        self.btn_folder = self._make_tool_button(asset_path("assets/icons/folder.png"))
+        self.btn_folder = self._make_tool_button(asset_path("assets/icons/folder.svg"))
         self.btn_folder.clicked.connect(self._open_app_folder)
 
         self.btn_account = self._make_tool_button(
-            asset_path("assets/icons/account.png")
+            asset_path("assets/icons/member.svg")
         )
         self.btn_account.clicked.connect(lambda: self._switch("user"))
 

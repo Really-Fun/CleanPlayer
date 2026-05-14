@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="url(#neonGradient)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <defs>
+        <linearGradient id="neonGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#ff2a7f" />
+            <stop offset="100%" stop-color="#00e5ff" />
+        </linearGradient>
+    </defs>
+    <circle cx="12" cy="12" r="2" fill="url(#neonGradient)"></circle>
+    <path d="M16.24 7.76a6 6 0 0 1 0 8.49"></path>
+    <path d="M7.76 7.76a6 6 0 0 0 0 8.49"></path>
+    <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+    <path d="M4.93 4.93a10 10 0 0 0 0 14.14"></path>
+</svg>

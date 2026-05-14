@@ -43,7 +43,6 @@ playlists/
 Thumbs.db
 
 assets/background/*
-assets/icons/*
 
 CleanPlayer.spec
 build.bat
