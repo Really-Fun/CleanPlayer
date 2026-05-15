@@ -161,7 +161,7 @@ class PlayMenu(QWidget):
         right.setContentsMargins(0, 0, 0, 0)
         right.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
-        self.btn_download = self._btn(asset_path("assets/icons/download.png"), 30)
+        self.btn_download = self._btn(asset_path("assets/icons/download.svg"), 30)
 
         vol_icon = QLabel("🔊")
         vol_icon.setObjectName("volIcon")
@@ -262,10 +262,10 @@ class PlayMenu(QWidget):
     async def toggle_playback(self):
         if self.player.is_playing():
             self.player.pause()
-            self.btn_play.setIcon(QIcon(asset_path("assets/icons/play.png")))
+            self.btn_play.setIcon(QIcon(asset_path("assets/icons/play.svg")))
             return
         self.player.resume()
-        self.btn_play.setIcon(QIcon(asset_path("assets/icons/pause.png")))
+        self.btn_play.setIcon(QIcon(asset_path("assets/icons/pause.svg")))
 
     @asyncSlot()
     async def play_previous_track(self):

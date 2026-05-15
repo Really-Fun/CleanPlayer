@@ -55,8 +55,8 @@ class TrackDelegate(QStyledItemDelegate):
         # We need icons
         from utils import asset_path
 
-        self._play_icon = QIcon(asset_path("assets/icons/play.png"))
-        self._dl_icon = QIcon(asset_path("assets/icons/download.png"))
+        self._play_icon = QIcon(asset_path("assets/icons/play.svg"))
+        self._dl_icon = QIcon(asset_path("assets/icons/download.svg"))
 
     def sizeHint(self, option: QStyleOptionViewItem, index) -> QSize:
         return QSize(option.rect.width(), _CARD_HEIGHT)

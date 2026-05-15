@@ -159,7 +159,7 @@ class RecommendationPlaylist(BasePlaylist):
         self,
         name: str = "Рекомендации",
         tracks: Iterable[Track] | None = None,
-        cover_path: str = "playlist_covers/download.png",
+        cover_path: str = "playlist_covers/recomendation.'svg",
     ) -> None:
         super().__init__(name, tracks, cover_path)
 
@@ -183,7 +183,7 @@ class DownloadPlaylist(BasePlaylist):
         self,
         name: str = "Скачанные",
         tracks: Iterable[Track] | None = None,
-        cover_path: str = "playlist_covers/download.png",
+        cover_path: str = "assets/icons/download.svg",
     ) -> None:
         super().__init__(name, tracks or (), cover_path)
 
@@ -259,7 +259,7 @@ class RecentlyPlayedPlaylist(BasePlaylist):
         self,
         name: str = "Недавно прослушанные",
         tracks: Iterable[Track] | None = None,
-        cover_path: str = "playlist_covers/heart.png",
+        cover_path: str = "assets/icons/recent.svg",
     ) -> None:
         super().__init__(name, tracks or (), cover_path)
 

@@ -48,7 +48,7 @@ class _PlayOverlay(QToolButton):
         self.setObjectName("playOverlayBtn")
         self.setFixedSize(_COVER_SIZE, _COVER_SIZE)
         self.setIconSize(QSize(22, 22))
-        self.setIcon(QIcon(asset_path("assets/icons/play.png")))
+        self.setIcon(QIcon(asset_path("assets/icons/play.svg")))
         self.setCursor(Qt.PointingHandCursor)
         self.hide()
 
@@ -61,7 +61,7 @@ class _DownloadButton(QToolButton):
         self.setObjectName("downloadBtn")
         self.setFixedSize(28, 28)
         self.setIconSize(QSize(16, 16))
-        self.setIcon(QIcon(asset_path("assets/icons/download.png")))
+        self.setIcon(QIcon(asset_path("assets/icons/download.svg")))
         self.setCursor(Qt.PointingHandCursor)
         self.hide()
 
@@ -134,7 +134,6 @@ class TrackCard(QWidget):
 
         layout.addWidget(self._cover_container)
 
-        # --- text block ---
         text_layout = QVBoxLayout()
         text_layout.setContentsMargins(0, 0, 0, 0)
         text_layout.setSpacing(2)

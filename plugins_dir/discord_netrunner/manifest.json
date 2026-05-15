@@ -1,0 +1,8 @@
+{
+  "id": "discord_netruner",
+  "name": "Discord NetRunner",
+  "version": "0.0.1",
+  "author": "Really-Fun",
+  "description": "Отправляет данные о текущем прослушиваемом треке в Discord",
+  "icon": "discord.png"
+}
