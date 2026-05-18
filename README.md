@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/readme/quantis.png" alt="Quantis Logo" width="400">
+  <img src="assets/readme/logo.svg" alt="Quantis Logo" width="400">
 
   <br><br>
 
