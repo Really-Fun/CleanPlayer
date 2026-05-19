@@ -1,18 +1,31 @@
-<div align="center">
-  <img src="assets/readme/logo.svg" alt="Quantis Logo" width="400">
+<p align="center">
+  <img src="assets/readme/logo.svg" alt="Quantis Logo" width="800">
+</p>
 
-  <br><br>
+<p align="center">
+  <img src="assets/readme/b5eaf010-37c2-4c26-bb43-b70827f58cd2.jpg" alt="Quantis Preview" width="600" height="300">
+</p>
 
-  [![Python](https://img.shields.io/badge/python-3.13%2B-informational?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-  [![License](https://img.shields.io/badge/license-GPL3.0-blue?style=for-the-badge)](LICENSE)
-  [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen?style=for-the-badge)](https://github.com/Really-Fun/Quantis)
-  [![Status](https://img.shields.io/badge/status-Active-success?style=for-the-badge)](https://github.com/Really-Fun/Quantis)
-  [![Release](https://img.shields.io/github/v/release/Really-Fun/Quantis?style=for-the-badge)](https://github.com/Really-Fun/Quantis/releases)
-
-[![Platform](https://img.shields.io/badge/soon-Anroid-brightred?style=for-the-badge)](https://github.com/Really-Fun/Quantis/releases)
-</div>
-
-<br>
+<p align="center">
+  <a href="https://www.python.org/">
+    <img src="https://img.shields.io/badge/python-3.13%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python">
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/license-GPL_3.0-blue?style=for-the-badge" alt="License">
+  </a>
+  <a href="https://github.com/Really-Fun/Quantis">
+    <img src="https://img.shields.io/badge/platform-Windows_|_macOS_|_Linux-brightgreen?style=for-the-badge" alt="Platform">
+  </a>
+  <a href="https://github.com/Really-Fun/Quantis">
+    <img src="https://img.shields.io/badge/status-Active-success?style=for-the-badge" alt="Status">
+  </a>
+  <a href="https://github.com/Really-Fun/Quantis/releases">
+    <img src="https://img.shields.io/github/v/release/Really-Fun/Quantis?style=for-the-badge" alt="Release">
+  </a>
+  <a href="https://github.com/Really-Fun/Quantis">
+    <img src="https://img.shields.io/badge/Android-Coming_Soon-orange?style=for-the-badge&logo=android&logoColor=white" alt="Android Soon">
+  </a>
+</p>
 
 > **Quantis** — быстрый кроссплатформенный десктопный плеер на `PySide6` и `asyncio`.  
 > Обеспечивает поиск, стриминг, скачивание треков и ведение истории прослушивания, эквалайзер, система плагинов.
