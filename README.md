@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/readme/b5eaf010-37c2-4c26-bb43-b70827f58cd2.jpg" alt="Quantis Preview" width="600" height="300">
+  <img src="assets/readme/b5eaf010-37c2-4c26-bb43-b70827f58cd2.jpg" alt="Quantis Preview" width="550" height="300" style="border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
 </p>
 
 <p align="center">
