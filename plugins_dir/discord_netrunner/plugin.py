@@ -15,8 +15,8 @@ import time
 from pypresence import Presence
 from pypresence.exceptions import DiscordNotFound
 
-from plugins.base import BasePlugin
-from core import AppContext
+from quantis.plugins.base import BasePlugin
+from quantis.core import AppContext
 
 logger = logging.getLogger(__name__)
 

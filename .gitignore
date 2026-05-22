@@ -28,9 +28,9 @@ covers/*
 database/*.db
 database/*.sqlite
 database/*.sqlite3
-player_history.db
-player_history.db-shm
-player_history.db-wal
+player_history.db*
+player_history.db-shm*
+player_history.db-wal*
 
 # Legacy asset output dirs (if used)
 
