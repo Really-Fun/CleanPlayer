@@ -42,7 +42,8 @@ playlists/
 .DS_Store
 Thumbs.db
 
-assets/background/*
+background/*
+plugins_dir/*
 
 CleanPlayer.spec
 build.bat
