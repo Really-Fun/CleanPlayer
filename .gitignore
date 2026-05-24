@@ -37,12 +37,14 @@ player_history.db-wal*
 
 # Local playlists storage
 playlists/
+playlist_covers/
 
 # OS files
 .DS_Store
 Thumbs.db
 
 background/*
+src/quantis/assets/background/*
 plugins_dir/*
 
 CleanPlayer.spec
