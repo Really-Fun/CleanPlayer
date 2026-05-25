@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="assets/readme/logo.svg" alt="Quantis Logo" width="800">
+  <img src="readme/logo.svg" alt="Quantis Logo" width="800">
 </p>
 
 <p align="center">
-  <img src="assets/readme/b5eaf010-37c2-4c26-bb43-b70827f58cd2.jpg" alt="Quantis Preview" width="550" height="300" style="border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+  <img src="readme/b5eaf010-37c2-4c26-bb43-b70827f58cd2.jpg" alt="Quantis Preview" width="550" height="300" style="border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
 </p>
 
 <p align="center">
@@ -121,23 +121,23 @@ utils/       # файловые и вспомогательные утилиты
 
 ### Главная
 
-![Главная](assets/readme/home.png)
+![Главная](readme/home.png)
 
 ### Поисковик
 
-![Поисковик](assets/readme/search.png)
+![Поисковик](readme/search.png)
 
 ### Плейлист
 
-![Плейлист](assets/readme/playlist.png)
+![Плейлист](readme/playlist.png)
 
 ### Настройки
 
-![Настройки](assets/readme/settings.png)
+![Настройки](readme/settings.png)
 
 ### Обновленный вид (Update)
 
-![Обновление](assets/readme/update.jpg)
+![Обновление](readme/update.jpg)
 
 
 ---
