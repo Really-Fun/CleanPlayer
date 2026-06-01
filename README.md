@@ -13,17 +13,13 @@
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/license-GPL_3.0-blue?style=for-the-badge" alt="License">
   </a>
-</p>
-<p align="center">
-  <a href="https://github.com/Really-Fun/Quantis">
+  <br> <a href="https://github.com/Really-Fun/Quantis">
     <img src="https://img.shields.io/badge/platform-Windows_|_macOS_|_Linux-brightgreen?style=for-the-badge" alt="Platform">
   </a>
   <a href="https://github.com/Really-Fun/Quantis">
     <img src="https://img.shields.io/badge/status-Active-success?style=for-the-badge" alt="Status">
   </a>
-</p>
-<p align="center">
-  <a href="https://github.com/Really-Fun/Quantis/releases">
+  <br> <a href="https://github.com/Really-Fun/Quantis/releases">
     <img src="https://img.shields.io/github/v/release/Really-Fun/Quantis?style=for-the-badge" alt="Release">
   </a>
   <a href="https://github.com/Really-Fun/Quantis">
