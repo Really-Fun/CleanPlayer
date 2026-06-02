@@ -1,11 +1,11 @@
 from .playlist import (
-    Playlist,
     DownloadPlaylist,
+    Playlist,
     RecentlyPlayedPlaylist,
-    UserPlaylist,
     RecommendationPlaylist,
+    UserPlaylist,
 )
-from .track import Track, YandexTrack, YoutubeTrack, TrackSource
+from .track import Track, TrackSource, YandexTrack, YoutubeTrack
 from .track_list_model import TrackListModel
 
 __all__ = [

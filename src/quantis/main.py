@@ -1,14 +1,15 @@
-import sys
 import asyncio
 import logging
+import sys
 
-from qasync import QEventLoop
 from PySide6.QtWidgets import QApplication
+from qasync import QEventLoop
 
+from quantis.adapter import CleanAdapter
 from quantis.core import init_app_context
 from quantis.services import TrackHistoryService
 from quantis.ui import Quantis
-from quantis.adapter import CleanAdapter
+
 
 def main():
     logging.basicConfig(

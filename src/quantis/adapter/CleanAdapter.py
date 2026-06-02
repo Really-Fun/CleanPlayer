@@ -3,8 +3,9 @@ Linux - MPRIS
 Windows - SMTC
 '''
 from __future__ import annotations
-from asyncio import AbstractEventLoop
+
 import platform
+from asyncio import AbstractEventLoop
 
 from quantis.core import AppContext
 from quantis.player.player import Player
@@ -27,6 +28,7 @@ class CleanAdapter:
         """Запускаем MPRIS для линукс
         """
         from mpris_server.server import Server
+
         from .MprisAdapter import QuantisAppAdapter, QuantisEventHandler
 
         mpris_adapter = QuantisAppAdapter(player, event_bus, path_provider)
@@ -40,4 +42,4 @@ class CleanAdapter:
         """
         from .windows_adapter import WindowsSMTCAdapter
 
-        windows_adapter = WindowsSMTCAdapter(player, loop, event_bus)
+        WindowsSMTCAdapter(player, loop, event_bus)

@@ -1,6 +1,7 @@
-from PySide6.QtCore import QObject, Signal, QSettings
-from PySide6.QtGui import QColor
 import os
+
+from PySide6.QtCore import QObject, QSettings, Signal
+from PySide6.QtGui import QColor
 
 from quantis.utils import get_asset_path
 

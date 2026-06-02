@@ -7,7 +7,7 @@
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QSize, Signal, QUrl
+from PySide6.QtCore import QSize, Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtWidgets import (
     QFrame,
@@ -19,7 +19,6 @@ from PySide6.QtWidgets import (
 )
 
 from quantis.utils import get_asset_path
-from quantis.core import AppContext
 
 
 class MenuTabs(QWidget):

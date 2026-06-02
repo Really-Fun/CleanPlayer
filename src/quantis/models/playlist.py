@@ -14,13 +14,13 @@
 
 import json
 import os
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Iterable, Tuple
-from abc import ABC, abstractmethod
 
 from quantis.models.track import Track, YandexTrack, YoutubeTrack
 from quantis.models.upgrade_cycle import UpgradeCycle
-from quantis.providers import TrackManager, PathProvider
+from quantis.providers import PathProvider, TrackManager
 from quantis.utils import get_asset_path
 
 

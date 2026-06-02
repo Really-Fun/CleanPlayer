@@ -1,8 +1,8 @@
 import os
 import re
 
-from PySide6.QtCore import Qt, QRectF, Signal
-from PySide6.QtGui import QBrush, QColor, QLinearGradient, QPainter, QPainterPath, QPen
+from PySide6.QtCore import QRectF, Qt, Signal
+from PySide6.QtGui import QPainter
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -18,12 +18,8 @@ from PySide6.QtWidgets import (
 )
 
 from quantis.ui.theme import (
-    COMBO_QSS,
-    PANEL_DARK,
-    PANEL_RADIUS,
     REFRESH_MS_MAX,
     REFRESH_MS_MIN,
-    scroll_qss,
 )
 from quantis.ui.ThemeManager import ThemeManager
 from quantis.utils import get_asset_path

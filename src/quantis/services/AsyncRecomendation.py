@@ -1,10 +1,11 @@
-from concurrent.futures import ThreadPoolExecutor
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 from ytmusicapi import YTMusic
 
-from quantis.models import Track, YoutubeTrack, RecomendationPlaylist
 from quantis.config import Clients
+from quantis.models import RecomendationPlaylist, Track, YoutubeTrack
+
 from .AsyncFinder import AsyncYoutubeFinder
 
 

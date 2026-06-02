@@ -13,13 +13,12 @@ from PySide6.QtWidgets import QStackedWidget, QVBoxLayout, QWidget
 
 # Импортируем наш единый контекст
 from quantis.core import AppContext
-
 from quantis.ui.HomePage import HomePage
 from quantis.ui.PlaylistPage import PlaylistPage
+from quantis.ui.PluginsManagerPage import PluginsManagerPage
 from quantis.ui.SearchPage import SearchPage
 from quantis.ui.SettingsPage import SettingsPage
 from quantis.ui.UserPage import UserPage
-from quantis.ui.PluginsManagerPage import PluginsManagerPage
 
 if TYPE_CHECKING:
     pass

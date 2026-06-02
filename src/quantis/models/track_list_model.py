@@ -1,6 +1,7 @@
 """Модель списка треков для QListView."""
 
-from PySide6.QtCore import QAbstractListModel, Qt, QModelIndex
+from PySide6.QtCore import QAbstractListModel, QModelIndex, Qt
+
 from quantis.models import Track
 
 

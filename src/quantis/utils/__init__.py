@@ -1,5 +1,4 @@
 from .get_ru_words import get_ru_words_for_number
-from .resource_path import get_asset_path
 from .playlist_helper import (
     add_track_to_user_playlist,
     create_user_playlist_file,
@@ -10,6 +9,7 @@ from .playlist_helper import (
     rename_user_playlist_file,
     touch_user_playlist_file,
 )
+from .resource_path import get_asset_path
 
 __all__ = [
     "get_asset_path",

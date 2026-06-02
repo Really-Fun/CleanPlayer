@@ -9,11 +9,11 @@ from PySide6.QtCore import QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QColor,
     QIcon,
-    QPainter,
-    QPixmap,
     QKeySequence,
-    QShortcut,
+    QPainter,
     QPalette,
+    QPixmap,
+    QShortcut,
 )
 from PySide6.QtWidgets import (
     QHBoxLayout,

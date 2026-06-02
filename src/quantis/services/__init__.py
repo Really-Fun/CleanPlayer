@@ -1,9 +1,8 @@
-from .AsyncFinder import AsyncFinder
-from .AsyncStreamer import AsyncStreamer
 from .AsyncDownloader import AsyncDownloader
+from .AsyncFinder import AsyncFinder
+from .AsyncRecommendation import AsyncRecomendation, AsyncRecommendation
+from .AsyncStreamer import AsyncStreamer
 from .TrackHistoryService import TrackHistoryService
-from .AsyncRecommendation import AsyncRecommendation, AsyncRecomendation
-
 
 __all__ = [
     "AsyncFinder",

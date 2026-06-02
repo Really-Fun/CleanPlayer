@@ -7,6 +7,7 @@
 
 from PySide6.QtCore import QObject, Signal
 
+
 class EventBus(QObject):
     """Центральная шина событий приложения."""
     

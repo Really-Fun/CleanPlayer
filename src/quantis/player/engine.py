@@ -11,9 +11,8 @@ Single Responsibility: жизненный цикл VLC-объектов + син
 from __future__ import annotations
 
 from PySide6.QtCore import QTimer
-from vlc import Instance, MediaPlayer, Media
+from vlc import Instance, Media, MediaPlayer
 
-# Задержка запуска analysis_player (мс).
 _ANALYSIS_DELAY_MS = 1500
 
 

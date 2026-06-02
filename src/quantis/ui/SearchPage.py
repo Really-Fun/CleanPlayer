@@ -197,7 +197,7 @@ class SearchPage(QWidget):
                 return
 
         try:
-            card_index = getattr(card, '_index', 0)
+            getattr(card, '_index', 0)
             card.load_cover()
         except RuntimeError:
             pass

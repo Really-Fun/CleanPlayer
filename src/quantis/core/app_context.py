@@ -3,6 +3,8 @@ from asyncio import AbstractEventLoop
 from qasync import QEventLoop
 
 from quantis.player import Player
+from quantis.plugins import EventBus, PluginRegistry
+from quantis.providers import PathProvider
 from quantis.services import (
     AsyncDownloader,
     AsyncFinder,
@@ -10,8 +12,6 @@ from quantis.services import (
     AsyncStreamer,
     TrackHistoryService,
 )
-from quantis.providers import PathProvider
-from quantis.plugins import EventBus, PluginRegistry
 
 
 class AppContext:

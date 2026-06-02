@@ -3,21 +3,21 @@
 Yandex
 Youtube"""
 
-from abc import ABC, abstractmethod
-from concurrent.futures import ThreadPoolExecutor
-from asyncio import get_running_loop, Semaphore
-from typing import Callable, TypeVar, Any
-from pathlib import Path
 import functools
 import logging
+from abc import ABC, abstractmethod
+from asyncio import Semaphore, get_running_loop
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from typing import Any, Callable, TypeVar
+
+import aiofiles
+import aiohttp
+from yt_dlp import YoutubeDL
 
 from quantis.config import Clients
 from quantis.models.track import Track, YandexTrack, YoutubeTrack
 from quantis.providers import PathProvider
-
-from yt_dlp import YoutubeDL
-import aiohttp
-import aiofiles
 
 F = TypeVar("F", bound=Callable[..., Any])
 logger = logging.getLogger(__name__)

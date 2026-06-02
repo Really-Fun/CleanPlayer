@@ -5,13 +5,13 @@ Youtube
 """
 
 from abc import ABC, abstractmethod
-from concurrent.futures import ThreadPoolExecutor
 from asyncio import get_running_loop
+from concurrent.futures import ThreadPoolExecutor
 
 import yandex_music.exceptions
 
-from quantis.models import Track, YandexTrack, YoutubeTrack
 from quantis.config import Clients
+from quantis.models import Track, YandexTrack, YoutubeTrack
 
 
 class AsyncFinderInterface(ABC):

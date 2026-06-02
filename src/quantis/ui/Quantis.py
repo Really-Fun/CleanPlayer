@@ -18,13 +18,11 @@ from PySide6.QtWidgets import (
 from qasync import asyncSlot
 
 from quantis.core import AppContext
-from quantis.plugins.registry import PluginRegistry
-from quantis.ui.AudioVisualizer import AudioVisualizer
 from quantis.ui.MenuPlayWidget import PlayMenu
 from quantis.ui.MenuTabsWidget import MenuTabs
 from quantis.ui.Stack import Stack
-from quantis.ui.title_bar import CustomTitleBar
 from quantis.ui.ThemeManager import ThemeManager
+from quantis.ui.title_bar import CustomTitleBar
 from quantis.utils import get_asset_path
 
 
@@ -93,17 +91,7 @@ class Quantis(QMainWindow):
         self.dark_overlay = QFrame(central)
         self.dark_overlay.setObjectName("darkOverlay")
 
-        self.visualizer = AudioVisualizer(
-            central,
-            bar_count=56,
-            height=120,
-            delay_ms=self._viz_delay,
-            color_rgb=self._viz_color,
-            mode=self._viz_mode,
-        )
-
         self.background.lower()
-        self.dark_overlay.stackUnder(self.visualizer)
 
         main_layout = QVBoxLayout(central)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -201,20 +189,16 @@ class Quantis(QMainWindow):
 
     def _toggle_viz(self, on: bool) -> None:
         self._settings.setValue(self._KEY_VIZ_TOGGLE, on)
-        self.visualizer.show() if on else self.visualizer.hide()
 
     def _set_visualizer_delay(self, delay_ms: int) -> None:
-        self.visualizer.set_delay_ms(delay_ms)
         self._settings.setValue(self._KEY_VIZ_DELAY, int(delay_ms))
 
     def _set_visualizer_color(self, rgb: tuple[int, int, int]) -> None:
-        self.visualizer.set_color_rgb(rgb)
         self._settings.setValue(self._KEY_VIZ_R, int(rgb[0]))
         self._settings.setValue(self._KEY_VIZ_G, int(rgb[1]))
         self._settings.setValue(self._KEY_VIZ_B, int(rgb[2]))
 
     def _set_visualizer_mode(self, mode: str) -> None:
-        self.visualizer.set_mode(mode)
         self._settings.setValue(self._KEY_VIZ_MODE, str(mode))
 
     def _change_dynamic_wallpaper(self, flag: bool) -> None:
@@ -240,11 +224,4 @@ class Quantis(QMainWindow):
     def resizeEvent(self, event) -> None:
         self.background.resize(self.size())
         self.dark_overlay.resize(self.size())
-        viz_h = self.visualizer.height()
-        self.visualizer.setGeometry(
-            0,
-            (self.height() - viz_h) // 2,
-            self.width(),
-            viz_h,
-        )
         super().resizeEvent(event)

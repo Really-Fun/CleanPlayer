@@ -1,4 +1,5 @@
 from os import path
+
 from quantis.models.track import Track
 
 

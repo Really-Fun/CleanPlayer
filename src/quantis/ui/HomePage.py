@@ -6,7 +6,7 @@
 import logging
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -24,7 +24,7 @@ from qasync import asyncSlot
 
 from quantis.models import DownloadPlaylist, RecentlyPlayedPlaylist, UserPlaylist
 from quantis.providers import PlaylistManager
-from quantis.services import TrackHistoryService, AsyncRecomendation
+from quantis.services import AsyncRecomendation, TrackHistoryService
 from quantis.ui.PlaylistPreview import PlaylistPreview
 from quantis.utils import (
     create_user_playlist_file,

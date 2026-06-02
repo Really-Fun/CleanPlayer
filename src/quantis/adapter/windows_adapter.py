@@ -1,12 +1,12 @@
 import asyncio
 
 try:
-    from winrt.windows.media.playback import MediaPlayer
     from winrt.windows.media import (
-        MediaPlaybackType,
         MediaPlaybackStatus,
+        MediaPlaybackType,
         SystemMediaTransportControlsButton,
     )
+    from winrt.windows.media.playback import MediaPlayer
 except ImportError:
     raise ImportError(
         "Для работы с Windows SMTC необходимо установить пакет winrt: "

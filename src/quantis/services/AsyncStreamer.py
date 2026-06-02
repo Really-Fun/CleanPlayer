@@ -7,16 +7,16 @@
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from asyncio import get_running_loop
 from concurrent.futures import ThreadPoolExecutor
 from time import time
-import logging
+
+from yt_dlp import YoutubeDL
 
 from quantis.config import Clients
 from quantis.models import Track
-
-from yt_dlp import YoutubeDL
 
 logger = logging.getLogger(__name__)
 

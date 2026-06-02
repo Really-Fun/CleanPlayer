@@ -7,23 +7,23 @@ import shutil
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont, QCursor
+from PySide6.QtGui import QCursor, QFont
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
+    QFileDialog,
+    QFrame,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QScrollArea,
-    QFrame,
     QSizePolicy,
     QSpacerItem,
-    QFileDialog,
-    QMessageBox,
+    QVBoxLayout,
+    QWidget,
 )
 
-from quantis.plugins.registry import PluginInfo, PluginRegistry
 from quantis.plugins.loader import PLUGIN_DIR
+from quantis.plugins.registry import PluginInfo, PluginRegistry
 
 
 class PluginCard(QFrame):

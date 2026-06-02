@@ -4,23 +4,24 @@
 Заменяет тяжелые виджеты QWidget (TrackCard) на быструю отрисовку через QPainter.
 """
 
-from PySide6.QtCore import Qt, QRectF, QSize, Signal, QObject, QEvent
+import os
+
+from PySide6.QtCore import QEvent, QObject, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import (
     QColor,
-    QPainter,
     QFont,
     QIcon,
-    QPixmap,
+    QPainter,
     QPainterPath,
+    QPixmap,
 )
 from PySide6.QtWidgets import (
+    QStyle,
     QStyledItemDelegate,
     QStyleOptionViewItem,
-    QStyle,
 )
 
-from quantis.models import TrackListModel, Track
-import os
+from quantis.models import Track, TrackListModel
 
 _COVER_SIZE = 48
 _CARD_HEIGHT = 60

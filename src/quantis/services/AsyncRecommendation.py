@@ -1,13 +1,14 @@
 """Асинхронный сервис рекомендаций треков (YouTube Radio / Watch Playlist)."""
 
-from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 from ytmusicapi import YTMusic
 
-from quantis.models import Track, YoutubeTrack, RecommendationPlaylist
 from quantis.config import Clients
+from quantis.models import RecommendationPlaylist, Track, YoutubeTrack
+
 from .AsyncFinder import AsyncYoutubeFinder
 
 logger = logging.getLogger(__name__)

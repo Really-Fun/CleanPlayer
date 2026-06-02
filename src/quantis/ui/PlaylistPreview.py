@@ -1,15 +1,16 @@
 """Карточка плейлиста для главной страницы (минималистичная)."""
 
 import os
-from PySide6.QtCore import Qt, QRectF, Signal
+
+from PySide6.QtCore import QRectF, Qt, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
+    QFont,
     QLinearGradient,
     QPainter,
     QPainterPath,
     QPixmap,
-    QFont,
 )
 from PySide6.QtWidgets import (
     QLabel,

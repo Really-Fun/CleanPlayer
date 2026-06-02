@@ -7,10 +7,12 @@
 from __future__ import annotations
 
 import asyncio
+
 from vlc import EventType
 
 from quantis.models import Track
 from quantis.player.engine import VLCEngine
+
 
 class Player:
     """Плеер. Только воспроизведение. Работает поверх asyncio."""

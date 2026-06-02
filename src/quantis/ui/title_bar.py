@@ -1,9 +1,12 @@
 import os
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
-from PySide6.QtCore import Qt, QSize
+
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
+
 # Импортируем твою функцию get_asset_path
 from quantis.utils import get_asset_path
+
 
 class CustomTitleBar(QWidget):
     def __init__(self, parent, title="Quantis"):

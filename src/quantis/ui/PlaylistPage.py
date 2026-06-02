@@ -11,7 +11,7 @@ import asyncio
 import logging
 import os
 
-from PySide6.QtCore import Qt, QRectF, Signal
+from PySide6.QtCore import QRectF, Qt, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -24,21 +24,20 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QFrame,
+    QHBoxLayout,
     QLabel,
+    QListView,
     QMessageBox,
     QSizePolicy,
     QToolButton,
     QVBoxLayout,
-    QHBoxLayout,
     QWidget,
-    QListView,
 )
 from qasync import asyncSlot
 
-from quantis.models import RecentlyPlayedPlaylist
-from quantis.models import UserPlaylist
-from quantis.providers import PlaylistManager
 from quantis.core import AppContext
+from quantis.models import RecentlyPlayedPlaylist
+from quantis.providers import PlaylistManager
 from quantis.utils import get_ru_words_for_number, remove_track_from_user_playlist
 
 COVER_SIZE = 160
