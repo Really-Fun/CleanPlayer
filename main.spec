@@ -1,20 +1,28 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
-import ytmusicapi
+import sys
 
-ytm_path = os.path.dirname(ytmusicapi.__file__)
-ytm_ru_locale = (os.path.join(ytm_path, 'locales', 'ru'), 'ytmusicapi/locales/ru')
+# Находим путь к активному виртуальному окружению Poetry
+venv_path = os.environ.get('VIRTUAL_ENV') or os.path.join(os.getcwd(), '.venv')
+site_packages = os.path.join(venv_path, 'lib', f'python{sys.version_info.major}.{sys.version_info.minor}', 'site-packages')
+
+# Динамически собираем путь к локалям ytmusicapi из .venv
+ytm_locales_src = os.path.join(site_packages, 'ytmusicapi', 'locales', 'ru')
+ytm_ru_locale = (ytm_locales_src, 'ytmusicapi/locales/ru') if os.path.exists(ytm_locales_src) else (os.path.abspath('.'), 'ytmusicapi/locales/ru')
 
 a = Analysis(
-    ['main.py'],
-    pathex=[],
+    ['src/quantis/main.py'],
+    pathex=['src'],
     binaries=[],
-    # 1. ДОБАВЛЯЕМ ИКОНКУ В datas (чтобы она запаковалась внутрь exe)
     datas=[
         ytm_ru_locale,
-        ('assets/icons/exe_logo.png', '.')
-    ], 
-    hiddenimports=[],
+        ('src/quantis/assets/icons/exe_logo.png', '.')
+    ],
+    hiddenimports=[
+        'qasync',
+        'aiosqlite',
+        'mpris_server'
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -43,5 +51,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='assets/icons/exe_logo.png', 
+    icon='src/quantis/assets/icons/exe_logo.png',
 )

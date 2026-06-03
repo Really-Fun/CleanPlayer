@@ -21,6 +21,9 @@ dependencies = [
     "keyring (>=25.7.0,<26.0.0)",
     "aiofiles (>=25.1.0,<26.0.0)",
     "mpris-server>=0.9.6; sys_platform == 'linux'",
+    "winrt-Windows.media>=3.2.1; sys_platform == 'windows'",
+    "winrt-Windows.media.playback>=3.2.1; sys_platform == 'windows'",
+    "winrt-Windows.foundation>=3.2.1; sys_platform == 'windows'",
 ]
 
 [project.scripts]
@@ -36,7 +39,8 @@ dev = [
     "ruff (>=0.15.20,<0.16.0)",
     "mypy (>=2.1.0,<3.0.0)",
     "pytest (>=9.1.1,<10.0.0)",
-    "pytest-asyncio (>=1.4.0,<2.0.0)"
+    "pytest-asyncio (>=1.4.0,<2.0.0)",
+    "pyinstaller (>=6.21.0,<7.0.0)"
 ]
 
 

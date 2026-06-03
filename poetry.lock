@@ -197,6 +197,18 @@ dev = ["attribution (==1.8.0)", "black (==25.11.0)", "build (>=1.2)", "coverage[
 docs = ["sphinx (==8.1.3)", "sphinx-mdinclude (==0.6.2)"]
 
 [[package]]
+name = "altgraph"
+version = "0.17.5"
+description = "Python graph (network) package"
+optional = false
+python-versions = "*"
+groups = ["dev"]
+files = [
+    {file = "altgraph-0.17.5-py2.py3-none-any.whl", hash = "sha256:f3a22400bce1b0c701683820ac4f3b159cd301acab067c51c653e06961600597"},
+    {file = "altgraph-0.17.5.tar.gz", hash = "sha256:c87b395dd12fabde9c99573a9749d67da8d29ef9de0125c7f536699b4a9bc9e7"},
+]
+
+[[package]]
 name = "ast-serialize"
 version = "0.5.0"
 description = "Python bindings for mypy AST serialization"
@@ -1035,6 +1047,22 @@ files = [
 ]
 
 [[package]]
+name = "macholib"
+version = "1.16.4"
+description = "Mach-O header analysis and editing"
+optional = false
+python-versions = "*"
+groups = ["dev"]
+markers = "sys_platform == \"darwin\""
+files = [
+    {file = "macholib-1.16.4-py2.py3-none-any.whl", hash = "sha256:da1a3fa8266e30f0ce7e97c6a54eefaae8edd1e5f86f3eb8b95457cae90265ea"},
+    {file = "macholib-1.16.4.tar.gz", hash = "sha256:f408c93ab2e995cd2c46e34fe328b130404be143469e41bc366c807448979362"},
+]
+
+[package.dependencies]
+altgraph = ">=0.17"
+
+[[package]]
 name = "more-itertools"
 version = "11.1.0"
 description = "More routines for operating on iterables, beyond itertools"
@@ -1332,6 +1360,19 @@ optional = ["typing-extensions (>=4)"]
 re2 = ["google-re2 (>=1.1)"]
 
 [[package]]
+name = "pefile"
+version = "2024.8.26"
+description = "Python PE parsing module"
+optional = false
+python-versions = ">=3.6.0"
+groups = ["dev"]
+markers = "sys_platform == \"win32\""
+files = [
+    {file = "pefile-2024.8.26-py3-none-any.whl", hash = "sha256:76f8b485dcd3b1bb8166f1128d395fa3d87af26360c2358fb75b80019b957c6f"},
+    {file = "pefile-2024.8.26.tar.gz", hash = "sha256:3ff6c5d8b43e8c37bb6e6dd5085658d658a7a0bdcd20b6a07b1fcfc1c4e9d632"},
+]
+
+[[package]]
 name = "platformdirs"
 version = "4.10.0"
 description = "A small Python package for determining appropriate platform-specific dirs, e.g. a `user data dir`."
@@ -1576,6 +1617,56 @@ files = [
 pycairo = ">=1.16"
 
 [[package]]
+name = "pyinstaller"
+version = "6.21.0"
+description = "PyInstaller bundles a Python application and all its dependencies into a single package."
+optional = false
+python-versions = "<3.16,>=3.8"
+groups = ["dev"]
+files = [
+    {file = "pyinstaller-6.21.0-py3-none-macosx_10_13_universal2.whl", hash = "sha256:327d132389f37912609e01be62810cf96b5aa95b613903e4b8692e0d12fb0eda"},
+    {file = "pyinstaller-6.21.0-py3-none-manylinux2014_aarch64.whl", hash = "sha256:7071d4b094d5b40deeef5fa3d3b98a1b846087f7562b49209663d5f9281fe251"},
+    {file = "pyinstaller-6.21.0-py3-none-manylinux2014_i686.whl", hash = "sha256:6b6374d652107dd4a2eeece903ff82bb4045bb5e1006c5a158a6dcdbefe84bf2"},
+    {file = "pyinstaller-6.21.0-py3-none-manylinux2014_ppc64le.whl", hash = "sha256:4e3108b3f02384560da70e39b8bf22b0ad597d02bd68a40d76ea91c1cfa00cad"},
+    {file = "pyinstaller-6.21.0-py3-none-manylinux2014_s390x.whl", hash = "sha256:697532279f535ad572bda613db4f821540e235c7854ca6da4d3bf0373f4415ee"},
+    {file = "pyinstaller-6.21.0-py3-none-manylinux2014_x86_64.whl", hash = "sha256:605169523a6b5ace39f13dfbff21add9f2bc43df99c7daf9394fefb2c45e8b6f"},
+    {file = "pyinstaller-6.21.0-py3-none-musllinux_1_1_aarch64.whl", hash = "sha256:5fa56746c1e76f93634d018502301378a2d0c382553d37d8c3c34ff436c12dd1"},
+    {file = "pyinstaller-6.21.0-py3-none-musllinux_1_1_x86_64.whl", hash = "sha256:42395ec76df8e8120c36b13339d9db8cab83e316a12839ee303cc00fc941bb74"},
+    {file = "pyinstaller-6.21.0-py3-none-win32.whl", hash = "sha256:c6b28d30d8fd99ce162ff3aab5013ed44dbfb747566b1f01b9bed7964d7c14e9"},
+    {file = "pyinstaller-6.21.0-py3-none-win_amd64.whl", hash = "sha256:7fae06c494ce0ebfe6bd3055c0e409def884f63af2e3705d06bd431ad9237fc7"},
+    {file = "pyinstaller-6.21.0-py3-none-win_arm64.whl", hash = "sha256:f13c95c9c03fb567217135919f93815c305813126780b0ed6e0123cb8acaf025"},
+    {file = "pyinstaller-6.21.0.tar.gz", hash = "sha256:bb9fab705983e393a2d1cac77d6972513057ad800215fd861dc15ff5272e98fd"},
+]
+
+[package.dependencies]
+altgraph = "*"
+macholib = {version = ">=1.8", markers = "sys_platform == \"darwin\""}
+packaging = ">=22.0"
+pefile = {version = ">=2022.5.30", markers = "sys_platform == \"win32\""}
+pyinstaller-hooks-contrib = ">=2026.6"
+pywin32-ctypes = {version = ">=0.2.1", markers = "sys_platform == \"win32\""}
+setuptools = ">=42.0.0"
+
+[package.extras]
+completion = ["argcomplete"]
+hook-testing = ["execnet (>=1.5.0)", "psutil", "pytest (>=2.7.3)"]
+
+[[package]]
+name = "pyinstaller-hooks-contrib"
+version = "2026.6"
+description = "Community maintained hooks for PyInstaller"
+optional = false
+python-versions = ">=3.8"
+groups = ["dev"]
+files = [
+    {file = "pyinstaller_hooks_contrib-2026.6-py3-none-any.whl", hash = "sha256:fd13b8ac126b35361175edacd41a0d97080b75dd5f4b594ecefefff969509dd3"},
+    {file = "pyinstaller_hooks_contrib-2026.6.tar.gz", hash = "sha256:bef5002c32f4f50bd55b005da12cff64eca8783e7eaf86a06a62410164bab725"},
+]
+
+[package.dependencies]
+packaging = ">=22.0"
+
+[[package]]
 name = "pyside6"
 version = "6.11.1"
 description = "Python bindings for the Qt cross-platform application and UI framework"
@@ -1759,7 +1850,7 @@ version = "0.2.3"
 description = "A (partial) reimplementation of pywin32 using ctypes/cffi"
 optional = false
 python-versions = ">=3.6"
-groups = ["main"]
+groups = ["main", "dev"]
 markers = "sys_platform == \"win32\""
 files = [
     {file = "pywin32-ctypes-0.2.3.tar.gz", hash = "sha256:d162dc04946d704503b2edc4d55f3dba5c1d539ead017afa00142c38b9885755"},
@@ -1850,6 +1941,27 @@ cryptography = ">=2.0"
 jeepney = ">=0.6"
 
 [[package]]
+name = "setuptools"
+version = "82.0.1"
+description = "Most extensible Python build backend with support for C/C++ extension modules"
+optional = false
+python-versions = ">=3.9"
+groups = ["dev"]
+files = [
+    {file = "setuptools-82.0.1-py3-none-any.whl", hash = "sha256:a59e362652f08dcd477c78bb6e7bd9d80a7995bc73ce773050228a348ce2e5bb"},
+    {file = "setuptools-82.0.1.tar.gz", hash = "sha256:7d872682c5d01cfde07da7bccc7b65469d3dca203318515ada1de5eda35efbf9"},
+]
+
+[package.extras]
+check = ["pytest-checkdocs (>=2.4)", "pytest-ruff (>=0.2.1) ; sys_platform != \"cygwin\"", "ruff (>=0.13.0) ; sys_platform != \"cygwin\""]
+core = ["importlib_metadata (>=6) ; python_version < \"3.10\"", "jaraco.functools (>=4)", "jaraco.text (>=3.7)", "more_itertools", "more_itertools (>=8.8)", "packaging (>=24.2)", "tomli (>=2.0.1) ; python_version < \"3.11\"", "wheel (>=0.43.0)"]
+cover = ["pytest-cov"]
+doc = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "pygments-github-lexers (==0.0.5)", "pyproject-hooks (!=1.1)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-favicon", "sphinx-inline-tabs", "sphinx-lint", "sphinx-notfound-page (>=1,<2)", "sphinx-reredirects", "sphinxcontrib-towncrier", "towncrier (<24.7)"]
+enabler = ["pytest-enabler (>=2.2)"]
+test = ["build[virtualenv] (>=1.0.3)", "filelock (>=3.4.0)", "ini2toml[lite] (>=0.14)", "jaraco.develop (>=7.21) ; python_version >= \"3.9\" and sys_platform != \"cygwin\"", "jaraco.envs (>=2.2)", "jaraco.path (>=3.7.2)", "jaraco.test (>=5.5)", "packaging (>=24.2)", "pip (>=19.1)", "pyproject-hooks (!=1.1)", "pytest (>=6,!=8.1.*)", "pytest-home (>=0.5)", "pytest-perf ; sys_platform != \"cygwin\"", "pytest-subprocess", "pytest-timeout", "pytest-xdist (>=3)", "tomli-w (>=1.0.0)", "virtualenv (>=13.0.0)", "wheel (>=0.44.0)"]
+type = ["importlib_metadata (>=7.0.2) ; python_version < \"3.10\"", "jaraco.develop (>=7.21) ; sys_platform != \"cygwin\"", "mypy (==1.18.*)", "pytest-mypy"]
+
+[[package]]
 name = "shiboken6"
 version = "6.11.1"
 description = "Python/C++ bindings helper module"
@@ -1924,6 +2036,147 @@ brotli = ["brotli (>=1.2.0) ; platform_python_implementation == \"CPython\"", "b
 h2 = ["h2 (>=4,<5)"]
 socks = ["pysocks (>=1.5.6,!=1.5.7,<2.0)"]
 zstd = ["backports-zstd (>=1.0.0) ; python_version < \"3.14\""]
+
+[[package]]
+name = "winrt-runtime"
+version = "3.2.1"
+description = "Python projection of Windows Runtime (WinRT) APIs"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+markers = "sys_platform == \"windows\""
+files = [
+    {file = "winrt_runtime-3.2.1-cp310-cp310-win32.whl", hash = "sha256:25a2d1e2b45423742319f7e10fa8ca2e7063f01284b6e85e99d805c4b50bbfb3"},
+    {file = "winrt_runtime-3.2.1-cp310-cp310-win_amd64.whl", hash = "sha256:dc81d5fb736bf1ddecf743928622253dce4d0aac9a57faad776d7a3834e13257"},
+    {file = "winrt_runtime-3.2.1-cp310-cp310-win_arm64.whl", hash = "sha256:363f584b1e9fcb601e3e178636d8877e6f0537ac3c96ce4a96f06066f8ff0eae"},
+    {file = "winrt_runtime-3.2.1-cp311-cp311-win32.whl", hash = "sha256:9e9b64f1ba631cc4b9fe60b8ff16fef3f32c7ce2fcc84735a63129ff8b15c022"},
+    {file = "winrt_runtime-3.2.1-cp311-cp311-win_amd64.whl", hash = "sha256:c0a9046ae416808420a358c51705af8ae100acd40bc578be57ddfdd51cbb0f9c"},
+    {file = "winrt_runtime-3.2.1-cp311-cp311-win_arm64.whl", hash = "sha256:e94f3cb40ea2d723c44c82c16d715c03c6b3bd977d135b49535fdd5415fd9130"},
+    {file = "winrt_runtime-3.2.1-cp312-cp312-win32.whl", hash = "sha256:762b3d972a2f7037f7db3acbaf379dd6d8f6cda505f71f66c6b425d1a1eae2f1"},
+    {file = "winrt_runtime-3.2.1-cp312-cp312-win_amd64.whl", hash = "sha256:06510db215d4f0dc45c00fbb1251c6544e91742a0ad928011db33b30677e1576"},
+    {file = "winrt_runtime-3.2.1-cp312-cp312-win_arm64.whl", hash = "sha256:14562c29a087ccad38e379e585fef333e5c94166c807bdde67b508a6261aa195"},
+    {file = "winrt_runtime-3.2.1-cp313-cp313-win32.whl", hash = "sha256:44e2733bc709b76c554aee6c7fe079443b8306b2e661e82eecfebe8b9d71e4d1"},
+    {file = "winrt_runtime-3.2.1-cp313-cp313-win_amd64.whl", hash = "sha256:3c1fdcaeedeb2920dc3b9039db64089a6093cad2be56a3e64acc938849245a6d"},
+    {file = "winrt_runtime-3.2.1-cp313-cp313-win_arm64.whl", hash = "sha256:28f3dab083412625ff4d2b46e81246932e6bebddf67bea7f05e01712f54e6159"},
+    {file = "winrt_runtime-3.2.1-cp314-cp314-win32.whl", hash = "sha256:9b6298375468ac2f6815d0c008a059fc16508c8f587e824c7936ed9216480dad"},
+    {file = "winrt_runtime-3.2.1-cp314-cp314-win_amd64.whl", hash = "sha256:e36e587ab5fd681ee472cd9a5995743f75107a1a84d749c64f7e490bc86bc814"},
+    {file = "winrt_runtime-3.2.1-cp314-cp314-win_arm64.whl", hash = "sha256:35d6241a2ebd5598e4788e69768b8890ee1eee401a819865767a1fbdd3e9a650"},
+    {file = "winrt_runtime-3.2.1-cp39-cp39-win32.whl", hash = "sha256:07c0cb4a53a4448c2cb7597b62ae8c94343c289eeebd8f83f946eb2c817bde01"},
+    {file = "winrt_runtime-3.2.1-cp39-cp39-win_amd64.whl", hash = "sha256:1856325ca3354b45e0789cf279be9a882134085d34214946db76110d98391efa"},
+    {file = "winrt_runtime-3.2.1-cp39-cp39-win_arm64.whl", hash = "sha256:cf237858de1d62e4c9b132c66b52028a7a3e8534e8ab90b0e29a68f24f7be39d"},
+    {file = "winrt_runtime-3.2.1.tar.gz", hash = "sha256:c8dca19e12b234ae6c3dadf1a4d0761b51e708457492c13beb666556958801ea"},
+]
+
+[package.dependencies]
+typing_extensions = ">=4.12.2"
+
+[[package]]
+name = "winrt-windows-foundation"
+version = "3.2.1"
+description = "Python projection of Windows Runtime (WinRT) APIs"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+markers = "sys_platform == \"windows\""
+files = [
+    {file = "winrt_windows_foundation-3.2.1-cp310-cp310-win32.whl", hash = "sha256:677e98165dcbbf7a2367f905bc61090ef2c568b6e465f87cf7276df4734f3b0b"},
+    {file = "winrt_windows_foundation-3.2.1-cp310-cp310-win_amd64.whl", hash = "sha256:a8f27b4f0fdb73ccc4a3e24bc8010a6607b2bdd722fa799eafce7daa87d19d39"},
+    {file = "winrt_windows_foundation-3.2.1-cp310-cp310-win_arm64.whl", hash = "sha256:d900c6165fab4ea589811efa2feed27b532e1b6f505f63bf63e2052b8cb6bdc4"},
+    {file = "winrt_windows_foundation-3.2.1-cp311-cp311-win32.whl", hash = "sha256:d1b5970241ccd61428f7330d099be75f4f52f25e510d82c84dbbdaadd625e437"},
+    {file = "winrt_windows_foundation-3.2.1-cp311-cp311-win_amd64.whl", hash = "sha256:f3762be2f6e0f2aedf83a0742fd727290b397ffe3463d963d29211e4ebb53a7e"},
+    {file = "winrt_windows_foundation-3.2.1-cp311-cp311-win_arm64.whl", hash = "sha256:806c77818217b3476e6c617293b3d5b0ff8a9901549dc3417586f6799938d671"},
+    {file = "winrt_windows_foundation-3.2.1-cp312-cp312-win32.whl", hash = "sha256:867642ccf629611733db482c4288e17b7919f743a5873450efb6d69ae09fdc2b"},
+    {file = "winrt_windows_foundation-3.2.1-cp312-cp312-win_amd64.whl", hash = "sha256:45550c5b6c2125cde495c409633e6b1ea5aa1677724e3b95eb8140bfccbe30c9"},
+    {file = "winrt_windows_foundation-3.2.1-cp312-cp312-win_arm64.whl", hash = "sha256:94f4661d71cb35ebc52be7af112f2eeabdfa02cb05e0243bf9d6bd2cafaa6f37"},
+    {file = "winrt_windows_foundation-3.2.1-cp313-cp313-win32.whl", hash = "sha256:3998dc58ed50ecbdbabace1cdef3a12920b725e32a5806d648ad3f4829d5ba46"},
+    {file = "winrt_windows_foundation-3.2.1-cp313-cp313-win_amd64.whl", hash = "sha256:6e98617c1e46665c7a56ce3f5d28e252798416d1ebfee3201267a644a4e3c479"},
+    {file = "winrt_windows_foundation-3.2.1-cp313-cp313-win_arm64.whl", hash = "sha256:2a8c1204db5c352f6a563130a5a41d25b887aff7897bb677d4ff0b660315aad4"},
+    {file = "winrt_windows_foundation-3.2.1-cp314-cp314-win32.whl", hash = "sha256:35e973ab3c77c2a943e139302256c040e017fd6ff1a75911c102964603bba1da"},
+    {file = "winrt_windows_foundation-3.2.1-cp314-cp314-win_amd64.whl", hash = "sha256:a22a7ebcec0d262e60119cff728f32962a02df60471ded8b2735a655eccc0ef5"},
+    {file = "winrt_windows_foundation-3.2.1-cp314-cp314-win_arm64.whl", hash = "sha256:3be7fbae829b98a6a946db4fbaf356b11db1fbcbb5d4f37e7a73ac6b25de8b87"},
+    {file = "winrt_windows_foundation-3.2.1-cp39-cp39-win32.whl", hash = "sha256:14d5191725301498e4feb744d91f5b46ce317bf3d28370efda407d5c87f4423b"},
+    {file = "winrt_windows_foundation-3.2.1-cp39-cp39-win_amd64.whl", hash = "sha256:de5e4f61d253a91ba05019dbf4338c43f962bdad935721ced5e7997933994af5"},
+    {file = "winrt_windows_foundation-3.2.1-cp39-cp39-win_arm64.whl", hash = "sha256:ebbf6e8168398c9ed0c72c8bdde95a406b9fbb9a23e3705d4f0fe28e5a209705"},
+    {file = "winrt_windows_foundation-3.2.1.tar.gz", hash = "sha256:ad2f1fcaa6c34672df45527d7c533731fdf65b67c4638c2b4aca949f6eec0656"},
+]
+
+[package.dependencies]
+winrt-runtime = ">=3.2.1.0,<3.3.0.0"
+
+[package.extras]
+all = ["winrt-Windows.Foundation.Collections[all] (>=3.2.1.0,<3.3.0.0)"]
+
+[[package]]
+name = "winrt-windows-media"
+version = "3.2.1"
+description = "Python projection of Windows Runtime (WinRT) APIs"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+markers = "sys_platform == \"windows\""
+files = [
+    {file = "winrt_windows_media-3.2.1-cp310-cp310-win32.whl", hash = "sha256:ec09a5628b64d7cdef352fc2bb2efc8efaa7dcff84a3d632538406b749f9064c"},
+    {file = "winrt_windows_media-3.2.1-cp310-cp310-win_amd64.whl", hash = "sha256:17fc251f057b4c168eaf61fc354bbb1ec59f357dc3aa56c5c2728f68ab676078"},
+    {file = "winrt_windows_media-3.2.1-cp310-cp310-win_arm64.whl", hash = "sha256:c1b9ac96cd591d3cd44938ab411890d8b943389f9d8e35419bc69aa29e8909a1"},
+    {file = "winrt_windows_media-3.2.1-cp311-cp311-win32.whl", hash = "sha256:ac8563eb7c6f87fea05270a0149237cb54632f3cddfbbb6e8ae234f2eb9a8103"},
+    {file = "winrt_windows_media-3.2.1-cp311-cp311-win_amd64.whl", hash = "sha256:22ab05c9e5cb424a718d1bc9d50b737cb953f271de78e592a714d379405fdf23"},
+    {file = "winrt_windows_media-3.2.1-cp311-cp311-win_arm64.whl", hash = "sha256:c6d268f5c0edec3e9e5d4eca70974abd11b8b8eb24ef464f5cb373463853e447"},
+    {file = "winrt_windows_media-3.2.1-cp312-cp312-win32.whl", hash = "sha256:e8c2e2d89b4046ed5f479cab063c1a5c28dbeaa372e63ff3bbc91907d3781d71"},
+    {file = "winrt_windows_media-3.2.1-cp312-cp312-win_amd64.whl", hash = "sha256:d0de8e4970107fd8624df7dca250c036d5809ba92886ae545ff7541e1468ea4b"},
+    {file = "winrt_windows_media-3.2.1-cp312-cp312-win_arm64.whl", hash = "sha256:9901a2ea684d288adc107f70ec2f318be5e2282f94b563113138e21b2bc7b778"},
+    {file = "winrt_windows_media-3.2.1-cp313-cp313-win32.whl", hash = "sha256:6f0438bcfcd66f6a07710e8ff49f60e5ce238fb2a1d90663b17a272de18a4a80"},
+    {file = "winrt_windows_media-3.2.1-cp313-cp313-win_amd64.whl", hash = "sha256:3903ecde3c46abfe1f0572f7a95d205550dea19f7f229186cb89eb309ba26d45"},
+    {file = "winrt_windows_media-3.2.1-cp313-cp313-win_arm64.whl", hash = "sha256:6f8a9aeacd0b1d992fb96392458182a9e593728009a9c0d31e3c71e3e6593481"},
+    {file = "winrt_windows_media-3.2.1-cp314-cp314-win32.whl", hash = "sha256:a55ed7e3845e4ccd47cc1024ba091de7798f179d1167f3773c2a72c6db51331b"},
+    {file = "winrt_windows_media-3.2.1-cp314-cp314-win_amd64.whl", hash = "sha256:9f6964429d4869f1606d2f836ed99e4a8bed8a1af8a94236af902acd34ea292b"},
+    {file = "winrt_windows_media-3.2.1-cp314-cp314-win_arm64.whl", hash = "sha256:2e0374dbf08304324cf75c55206b7904b63b806b681f3ca9e9105d05e8cd7a57"},
+    {file = "winrt_windows_media-3.2.1-cp39-cp39-win32.whl", hash = "sha256:081d82df51876c715ea65861906f918bb776919c9b13b00107341cd0436cabed"},
+    {file = "winrt_windows_media-3.2.1-cp39-cp39-win_amd64.whl", hash = "sha256:4825bcc042bf3d92481daaedf783a2c39f4edfe49c980209503820e52eab7ccd"},
+    {file = "winrt_windows_media-3.2.1-cp39-cp39-win_arm64.whl", hash = "sha256:0cc21dc23a0fdb8bcd6ea8e4a14fea74b14b291b2703074413f3ef3b2c059d0d"},
+    {file = "winrt_windows_media-3.2.1.tar.gz", hash = "sha256:f833e1ef45c0ffbe60cb6a7d60af8cb925385fc600f86069d1eb9d784fd77f8b"},
+]
+
+[package.dependencies]
+winrt-runtime = ">=3.2.1.0,<3.3.0.0"
+
+[package.extras]
+all = ["winrt-Windows.ApplicationModel.AppService[all] (>=3.2.1.0,<3.3.0.0)", "winrt-Windows.Foundation.Collections[all] (>=3.2.1.0,<3.3.0.0)", "winrt-Windows.Foundation[all] (>=3.2.1.0,<3.3.0.0)", "winrt-Windows.Graphics.DirectX.Direct3D11[all] (>=3.2.1.0,<3.3.0.0)", "winrt-Windows.Graphics.DirectX[all] (>=3.2.1.0,<3.3.0.0)", "winrt-Windows.Graphics.Imaging[all] (>=3.2.1.0,<3.3.0.0)", "winrt-Windows.Storage.Streams[all] (>=3.2.1.0,<3.3.0.0)", "winrt-Windows.Storage[all] (>=3.2.1.0,<3.3.0.0)"]
+
+[[package]]
+name = "winrt-windows-media-playback"
+version = "3.2.1"
+description = "Python projection of Windows Runtime (WinRT) APIs"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+markers = "sys_platform == \"windows\""
+files = [
+    {file = "winrt_windows_media_playback-3.2.1-cp310-cp310-win32.whl", hash = "sha256:9ea29b2f1fe69e1320792027036f70051e13026e582ea14c0ca778268e5cbcc6"},
+    {file = "winrt_windows_media_playback-3.2.1-cp310-cp310-win_amd64.whl", hash = "sha256:eb1b946444e5fb7520961057842543f833cfa2d0dae6137c2c9386a47e6d608a"},
+    {file = "winrt_windows_media_playback-3.2.1-cp310-cp310-win_arm64.whl", hash = "sha256:b49a4362d02b8c431c5b9294d4318c8e146c32d2c45f0c48e3990d9309a06c76"},
+    {file = "winrt_windows_media_playback-3.2.1-cp311-cp311-win32.whl", hash = "sha256:94af1a72d5c39a13e8885250d8ae11ce00db1fba4a14c89bf910e06b3bdbf4da"},
+    {file = "winrt_windows_media_playback-3.2.1-cp311-cp311-win_amd64.whl", hash = "sha256:b46c2490000308306a776057397d882e177f628e2fb5f37200107b82232df3e2"},
+    {file = "winrt_windows_media_playback-3.2.1-cp311-cp311-win_arm64.whl", hash = "sha256:3d0e005430dbce819377dec8f4b788bc682545fa957d4149f75906c49bc5a56c"},
+    {file = "winrt_windows_media_playback-3.2.1-cp312-cp312-win32.whl", hash = "sha256:7e0bf3a1e7fa527f792953f341f712c8b382516e0e39038a947255f73845b622"},
+    {file = "winrt_windows_media_playback-3.2.1-cp312-cp312-win_amd64.whl", hash = "sha256:f1c86e67692c7f4749fbfc5d1a069cfae4c6fee7673356baf4f2151968f3ce53"},
+    {file = "winrt_windows_media_playback-3.2.1-cp312-cp312-win_arm64.whl", hash = "sha256:d6c2cf93914e8b208d97217d1c5106ce2612b19fe4e4ae3dbd97edf153edfaa6"},
+    {file = "winrt_windows_media_playback-3.2.1-cp313-cp313-win32.whl", hash = "sha256:84091a30d715a5cda9857517f29937a2ac0d8bf46f1280e2d93246890d5efd82"},
+    {file = "winrt_windows_media_playback-3.2.1-cp313-cp313-win_amd64.whl", hash = "sha256:950f3d10c6d634b928171032919941bcbc74eaf6ca9f5201cf57c4fd56a93775"},
+    {file = "winrt_windows_media_playback-3.2.1-cp313-cp313-win_arm64.whl", hash = "sha256:fd0c6634a6ad49655d5e36779c3217e3c88a9bb05563062e2535c1eb367ef0c9"},
+    {file = "winrt_windows_media_playback-3.2.1-cp314-cp314-win32.whl", hash = "sha256:c954ca3ef9827a1cd9512da21cc3d4b2a7083d8d12909fcb99db8b954878996c"},
+    {file = "winrt_windows_media_playback-3.2.1-cp314-cp314-win_amd64.whl", hash = "sha256:eee23df620cae49bac27d089ed7efa6de6908b7e4aa5e8c2251c3e6ee783e8f2"},
+    {file = "winrt_windows_media_playback-3.2.1-cp314-cp314-win_arm64.whl", hash = "sha256:42283ccea1665aeaa441310afe705a5e003d3087783aeabf15c4c170bbfbbc54"},
+    {file = "winrt_windows_media_playback-3.2.1-cp39-cp39-win32.whl", hash = "sha256:9b9bd111b707ba2cd35649d6f13d2fa9d0b70c1a846cd45e2beac4e83d1cc356"},
+    {file = "winrt_windows_media_playback-3.2.1-cp39-cp39-win_amd64.whl", hash = "sha256:6db4fb8980b24ef53754e8184e22b437a1a723fe01da3d83f0e03b62062396ba"},
+    {file = "winrt_windows_media_playback-3.2.1-cp39-cp39-win_arm64.whl", hash = "sha256:187d7702ab2fddd108cb7c9bb4a208548f5aa687d0178dfa520675153e01b7be"},
+    {file = "winrt_windows_media_playback-3.2.1.tar.gz", hash = "sha256:f16107755c28e23fd8827563eb3103fc4783d269402288b366b8d1a02d4948e4"},
+]
+
+[package.dependencies]
+winrt-runtime = ">=3.2.1.0,<3.3.0.0"
+
+[package.extras]
+all = ["winrt-Windows.Devices.Enumeration[all] (>=3.2.1.0,<3.3.0.0)", "winrt-Windows.Foundation.Collections[all] (>=3.2.1.0,<3.3.0.0)", "winrt-Windows.Foundation.Numerics[all] (>=3.2.1.0,<3.3.0.0)", "winrt-Windows.Foundation[all] (>=3.2.1.0,<3.3.0.0)", "winrt-Windows.Graphics.DirectX.Direct3D11[all] (>=3.2.1.0,<3.3.0.0)", "winrt-Windows.Media.Audio[all] (>=3.2.1.0,<3.3.0.0)", "winrt-Windows.Media.Casting[all] (>=3.2.1.0,<3.3.0.0)", "winrt-Windows.Media.Core[all] (>=3.2.1.0,<3.3.0.0)", "winrt-Windows.Media.MediaProperties[all] (>=3.2.1.0,<3.3.0.0)", "winrt-Windows.Media.Protection[all] (>=3.2.1.0,<3.3.0.0)", "winrt-Windows.Media[all] (>=3.2.1.0,<3.3.0.0)", "winrt-Windows.Storage.Streams[all] (>=3.2.1.0,<3.3.0.0)", "winrt-Windows.Storage[all] (>=3.2.1.0,<3.3.0.0)", "winrt-Windows.UI.Composition[all] (>=3.2.1.0,<3.3.0.0)"]
 
 [[package]]
 name = "yandex-music"
@@ -2102,4 +2355,4 @@ requests = ">=2.22"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.13, <3.15"
-content-hash = "e9c6688f3003c1c94b31b56833f4639c0a98d692d9c44e2bf7be51c905963dae"
+content-hash = "cd66d404ff710a0a7fe11db5230e7ba3bb040183cee94e3feafd183df811a6e2"

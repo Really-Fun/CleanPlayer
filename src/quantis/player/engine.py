@@ -33,11 +33,6 @@ class VLCEngine:
         self._vlc_instance: Instance = Instance()
 
         self._playback_player: MediaPlayer = self._vlc_instance.media_player_new()
-        self._analysis_player: MediaPlayer = self._vlc_instance.media_player_new()
-
-        self._analysis_timer = QTimer()
-        self._analysis_timer.setSingleShot(True)
-        self._analysis_timer.timeout.connect(self._start_analysis)
 
         self._initialized = True
 
@@ -48,10 +43,6 @@ class VLCEngine:
     @property
     def playback_player(self) -> MediaPlayer:
         return self._playback_player
-
-    @property
-    def analysis_player(self) -> MediaPlayer:
-        return self._analysis_player
 
     def load_media(self, source: str) -> Media:
         """Создаёт Media из пути или URL.
@@ -70,26 +61,15 @@ class VLCEngine:
         Args:
             source (str): Путь к медиа-файлу или URL.
         """
-        self._analysis_timer.stop()
-
         media_play = self.load_media(source)
         media_analysis = self.load_media(source)
 
         self._playback_player.set_media(media_play)
-        self._analysis_player.set_media(media_analysis)
 
         self._playback_player.play()
 
-        self._analysis_timer.start(_ANALYSIS_DELAY_MS)
-
-    def _start_analysis(self) -> None:
-        self._analysis_player.play()
-
     def pause_both(self) -> None:
-        self._analysis_timer.stop()
         self._playback_player.pause()
-        self._analysis_player.pause()
 
     def resume_both(self) -> None:
         self._playback_player.play()
-        self._analysis_player.play()
