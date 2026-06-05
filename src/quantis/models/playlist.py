@@ -56,6 +56,14 @@ class Playlist(ABC):
         """
         return self.tracks.peek_current()
 
+    def get_track(self, index: int) -> Track:
+        """Получаем трек по индексу
+
+        Returns:
+            Track: трек
+        """
+        return self.tracks.values[index]
+
     def delete_track(self, track: Track) -> bool:
         """Удаляем трек из плейлиста.
 
@@ -124,6 +132,13 @@ class Playlist(ABC):
         """
         pass
 
+    def __len__(self):
+        return len(self.tracks)
+
+    def __str__(self):
+        return f"{self.name} - {len(self.tracks)}"
+
+    __repr__ = __str__
 
 class RecommendationPlaylist(Playlist):
     """Плейлист рекомендаций."""

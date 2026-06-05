@@ -35,7 +35,7 @@ def main():
 
     app_context = init_app_context(loop)
 
-    window = Quantis(context=app_context)
+    window = Quantis(loop)
     window.show()
 
     CleanAdapter(app_context)

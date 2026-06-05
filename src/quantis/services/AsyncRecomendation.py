@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from ytmusicapi import YTMusic
 
 from quantis.config import Clients
-from quantis.models import RecomendationPlaylist, Track, YoutubeTrack
+from quantis.models import RecommendationPlaylist, Track, YoutubeTrack
 
 from .AsyncFinder import AsyncYoutubeFinder
 

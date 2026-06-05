@@ -1,4 +1,4 @@
-"""Главное окно приложения Quantis."""
+"""Главное окно приложения Quantis с явным внедрением зависимостей."""
 
 from __future__ import annotations
 
@@ -17,13 +17,23 @@ from PySide6.QtWidgets import (
 )
 from qasync import asyncSlot
 
-from quantis.core import AppContext
+from quantis.player import Player
+from quantis.plugins import EventBus, PluginRegistry
+from quantis.providers import PathProvider
 from quantis.ui.MenuPlayWidget import PlayMenu
 from quantis.ui.MenuTabsWidget import MenuTabs
 from quantis.ui.Stack import Stack
 from quantis.ui.ThemeManager import ThemeManager
 from quantis.ui.title_bar import CustomTitleBar
 from quantis.utils import get_asset_path
+from quantis.services import AsyncFinder, AsyncDownloader, AsyncStreamer, TrackHistoryService
+from quantis.services.AsyncRecomendation import AsyncRecomendation
+from quantis.ui.HomePage import HomePage
+from quantis.ui.PlaylistPage import PlaylistPage
+from quantis.ui.SearchPage import SearchPage
+from quantis.ui.SettingsPage import SettingsPage
+from quantis.ui.UserPage import UserPage
+from quantis.ui.PluginsManagerPage import PluginsManagerPage
 
 
 class Quantis(QMainWindow):
@@ -38,17 +48,38 @@ class Quantis(QMainWindow):
     _KEY_VIZ_BG = "visualizer/bg"
     _KEY_COVER_TOGGLE = "background/cover_toggle"
 
-    def __init__(self, context: AppContext) -> None:
+    def __init__(self, loop: asyncio.AbstractEventLoop | None = None) -> None:
         super().__init__()
-        self.context = context
+        self._loop = loop or asyncio.get_event_loop()
 
-        ThemeManager.apply_theme_to_app(self)
+        # 1. Инициализация независимых CORE-сервисов (Бэкенд)
+        self.event_bus = EventBus()
+        self.finder = AsyncFinder()
+        self.downloader = AsyncDownloader()
+        self.recommendation = AsyncRecomendation()
+        self.path_provider = PathProvider()
+        self.plugin_registry = PluginRegistry()
+
+        # Инициализация Player (зависит напрямую от цикла и базовых сервисов)
+        self.player = Player(
+            self.event_bus,
+            path_provider=self.path_provider,
+            streamer=AsyncStreamer(),
+            history_service=TrackHistoryService(),
+            loop=self._loop
+        )
+
+        # 2. Инициализация настроек приложения (До сборки UI)
         self._settings = QSettings("ReallyFun", "Quantis")
-
         self._load_settings()
+
+        # 3. Настройка и сборка графического интерфейса
+        ThemeManager.apply_theme_to_app(self)
         self._setup_window()
         self._setup_widgets()
         self._connect_signals()
+
+        # 4. Применение начального состояния
         self._apply_initial_state()
 
     # ── Инициализация ─────────────────────────────────────────────────────────
@@ -80,6 +111,7 @@ class Quantis(QMainWindow):
         central.setObjectName("central")
         self.setCentralWidget(central)
 
+        # Фоновые обои
         self.background = QLabel(central)
         bg_path = self._settings.value(self._KEY_VIZ_BG)
         pm = QPixmap(get_asset_path(bg_path)) if bg_path else QPixmap()
@@ -90,37 +122,45 @@ class Quantis(QMainWindow):
 
         self.dark_overlay = QFrame(central)
         self.dark_overlay.setObjectName("darkOverlay")
-
         self.background.lower()
 
+        # Главный вертикальный Layout (Кастомный тайтлбар + контент)
         main_layout = QVBoxLayout(central)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
-        
+
         self.title_bar = CustomTitleBar(self, title="Quantis")
         main_layout.addWidget(self.title_bar)
-        
-        self.setWindowTitle("Quantis")
-        self.setWindowIcon(QIcon("assets/icons/logo1.jpg"))
 
-
+        # Горизонтальный контент-лейаут (Боковое меню + правая рабочая область)
         content_layout = QHBoxLayout()
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(0)
 
+        # Вкладки бокового меню
         self.menu_tabs = MenuTabs(self)
         self.menu_tabs.setMaximumWidth(10)
         self.menu_tabs.setAttribute(Qt.WA_TranslucentBackground)
         content_layout.addWidget(self.menu_tabs)
 
+        # Правая область: Стек страниц + Нижний плеер
         right_layout = QVBoxLayout()
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(0)
 
-        self.stack = Stack(self.context, self)
+        # Чистый Стек страниц с использованием лямбда-фабрик (DI)
+        self.stack = Stack(self)
+        self.stack.register_page(Stack.PAGE_HOME, lambda: HomePage(self.recommendation))
+        self.stack.register_page(Stack.PAGE_SEARCH, lambda: SearchPage(self.finder, self.player))
+        self.stack.register_page(Stack.PAGE_PLAYLIST, lambda: PlaylistPage(self.player, self.event_bus))
+        self.stack.register_page(Stack.PAGE_SETTINGS, lambda: SettingsPage())
+        self.stack.register_page(Stack.PAGE_USER, lambda: UserPage(), go_back=Stack.PAGE_HOME)
+        self.stack.register_page(Stack.PAGE_PLUGINS, lambda: PluginsManagerPage())
+
         right_layout.addWidget(self.stack, stretch=1)
 
-        self.play_menu = PlayMenu(self.context)
+        # Нижняя панель управления плеером
+        self.play_menu = PlayMenu(self.player, self.event_bus)
         self.play_menu.setFixedHeight(90)
         self.play_menu.setAttribute(Qt.WA_TranslucentBackground)
         right_layout.addWidget(self.play_menu)
@@ -129,14 +169,15 @@ class Quantis(QMainWindow):
         main_layout.addLayout(content_layout)
 
     def _connect_signals(self) -> None:
-        """Подключает все сигналы."""
+        """Подключает все сигналы напрямую к сервисам."""
         self.menu_tabs.page_changed.connect(self.stack.switch_to)
         self.stack.home_page.playlist_opened.connect(self._open_playlist)
 
-        self.context.event_bus.track_changed.connect(self._change_bg_from_track)
-
+        # Прямой коннект к шине событий бэкенда
+        self.event_bus.track_changed.connect(self._change_bg_from_track)
         self.play_menu.playlist_generated.connect(self.display_radio_on_home)
 
+        # Сигналы со страницы настроек
         sp = self.stack.settings_page
         sp.background_changed.connect(self._change_bg)
         sp.visualizer_toggled.connect(self._toggle_viz)
@@ -157,15 +198,16 @@ class Quantis(QMainWindow):
         asyncio.ensure_future(self._setup_plugins())
 
     async def _setup_plugins(self) -> None:
-        """Инициализирует систему плагинов."""
+        """Инициализирует систему плагинов через безопасный Plugin API контекст."""
+        plugin_settings = QSettings("ReallyFun", "Quantis/plugins")
 
-        self.context.stack = self.stack
-        self.context.menu_tabs = self.menu_tabs
-
-        # Передаем настройки для плагинов
-        self.context.plugin_settings = QSettings("ReallyFun", "Quantis/plugins")
-
-        await self.context.plugin_registry.load_all(self.context)
+        # Передаем только то, что плагинам разрешено трогать
+        await self.plugin_registry.load_all(
+            player=self.player,
+            event_bus=self.event_bus,
+            stack=self.stack,
+            settings=plugin_settings
+        )
 
     # ── Слоты ─────────────────────────────────────────────────────────────────
 
@@ -182,8 +224,7 @@ class Quantis(QMainWindow):
     def _change_bg_from_track(self, track) -> None:
         if not self.cover_wallpaper_toggle:
             return
-        path = self.context.path_provider.get_cover_path(track)
-
+        path = self.path_provider.get_cover_path(track)
         if os.path.exists(path):
             self._change_bg(path)
 
@@ -213,7 +254,6 @@ class Quantis(QMainWindow):
     # ── Qt overrides ──────────────────────────────────────────────────────────
 
     def _center_on_screen(self) -> None:
-        """Размещает окно по центру экрана."""
         screen = QGuiApplication.primaryScreen()
         if screen is not None:
             available = screen.availableGeometry()

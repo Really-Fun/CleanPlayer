@@ -26,11 +26,15 @@ from PySide6.QtWidgets import (
 )
 from qasync import asyncSlot
 
+from quantis.player import Player
+from quantis.plugins import EventBus
+from quantis.providers import PathProvider
 from quantis.core import AppContext
 from quantis.models import Track
 from quantis.providers import PlaylistManager
 from quantis.services import AsyncRecomendation
 from quantis.utils import get_asset_path
+from quantis.services import AsyncDownloader
 
 _BG_COLOR = QColor(0, 0, 0, 200)
 _BG_RADIUS = 18
@@ -41,15 +45,15 @@ class PlayMenu(QWidget):
 
     playlist_generated = Signal(object)
 
-    def __init__(self, context: AppContext, parent=None):
+    def __init__(self, player: Player, event_bus: EventBus, parent=None):
         super().__init__(parent)
         self.setObjectName("PlayMenu")
         self.setAttribute(Qt.WA_StyledBackground, True)
 
         self.playlist_manager = PlaylistManager()
-        self.player = context.player
-        self.downloader = context.async_downloader
-        self._path_provider = context.path_provider
+        self.player = player
+        self.downloader = AsyncDownloader()
+        self._path_provider = PathProvider()
 
         self._seeking = False
         self._repeat_mode = "off"
@@ -191,8 +195,8 @@ class PlayMenu(QWidget):
         self.btn_repeat.clicked.connect(self._cycle_repeat_mode)
         self.btn_prev.clicked.connect(self.play_previous_track)
         self.btn_next.clicked.connect(self.play_next_track)
-        context.event_bus.next_requested.connect(self._on_next_requested)
-        context.event_bus.previous_requested.connect(self._on_previous_requested)
+        event_bus.next_requested.connect(self._on_next_requested)
+        event_bus.previous_requested.connect(self._on_previous_requested)
         self.btn_download.clicked.connect(self.download_track)
         self.btn_wave.clicked.connect(self.generate_playlist)
 
@@ -209,13 +213,13 @@ class PlayMenu(QWidget):
         key_shortcut_for_volume_down = QShortcut(QKeySequence("Down"), self)
         key_shortcut_for_volume_down.activated.connect(self._on_volume_down)
 
-        context.event_bus.track_finished.connect(self._on_track_finished)
+        event_bus.track_finished.connect(self._on_track_finished)
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
         self._timer.start(250)
 
-        context.event_bus.track_changed.connect(self._on_track_changed)
+        event_bus.track_changed.connect(self._on_track_changed)
 
     @asyncSlot(object)
     async def _on_track_changed(self, track) -> None:

@@ -36,7 +36,7 @@ class SettingsPage(QWidget):
     visualizer_color_changed = Signal(tuple)
     visualizer_mode_changed = Signal(str)
 
-    def __init__(self, app_context, parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("SettingsPage")
         self._last_valid_rgb = (0, 220, 255)
