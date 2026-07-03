@@ -9,7 +9,7 @@ from ytmusicapi import YTMusic
 from quantis.config import Clients
 from quantis.models import RecommendationPlaylist, Track, YoutubeTrack
 
-from .AsyncFinder import AsyncYoutubeFinder
+from .async_finder import AsyncYoutubeFinder
 
 logger = logging.getLogger(__name__)
 

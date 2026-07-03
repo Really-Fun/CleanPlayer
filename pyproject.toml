@@ -21,9 +21,9 @@ dependencies = [
     "keyring (>=25.7.0,<26.0.0)",
     "aiofiles (>=25.1.0,<26.0.0)",
     "mpris-server>=0.9.6; sys_platform == 'linux'",
-    "winrt-Windows.media>=3.2.1; sys_platform == 'windows'",
-    "winrt-Windows.media.playback>=3.2.1; sys_platform == 'windows'",
-    "winrt-Windows.foundation>=3.2.1; sys_platform == 'windows'",
+    "winrt-Windows.media>=3.2.1; sys_platform == 'win32'",
+    "winrt-Windows.media.playback>=3.2.1; sys_platform == 'win32'",
+    "winrt-Windows.foundation>=3.2.1; sys_platform == 'win32'",
 ]
 
 [project.scripts]
@@ -43,6 +43,10 @@ dev = [
     "pyinstaller (>=6.21.0,<7.0.0)"
 ]
 
+[tool.pytest.ini_options]
+markers = [
+    "network: тесты, требующие активного интернет-соединения и интеграции с внешними API"
+]
 
 [tool.black]
 line-length = 88

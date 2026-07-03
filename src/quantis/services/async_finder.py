@@ -5,13 +5,16 @@ Youtube
 """
 
 from abc import ABC, abstractmethod
-from asyncio import get_running_loop
+import asyncio
 from concurrent.futures import ThreadPoolExecutor
+import logging
 
 import yandex_music.exceptions
 
 from quantis.config import Clients
 from quantis.models import Track, YandexTrack, YoutubeTrack
+
+logger = logging.getLogger(__name__)
 
 
 class AsyncFinderInterface(ABC):
@@ -30,17 +33,21 @@ class AsyncYandexFinder(AsyncFinderInterface):
         if self.client is None:
             return []
         try:
-            tracks = await self.client.search(
-                title,
+            search_result = await self.client.search(
+                title, type_="track",
             )
+            if not search_result or not search_result.tracks:
+                return []
+                
+            results = search_result.tracks.results[:value]
             return [
                 YandexTrack(
-                    track["id"],
-                    track["title"],
-                    " & ".join(artist["name"] for artist in track["artists"]),
+                    track_id=str(track.id),
+                    title=track.title,
+                    author=" & ".join(artist.name for artist in track.artists if artist.name),
                     downloaded=False,
                 )
-                for track in tracks["tracks"]["results"]
+                for track in results
             ]
         except yandex_music.exceptions.NetworkError:
             logger.exception("Ошибка сети при поиске на Yandex: %s", title)

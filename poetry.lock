@@ -2044,7 +2044,6 @@ description = "Python projection of Windows Runtime (WinRT) APIs"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "sys_platform == \"windows\""
 files = [
     {file = "winrt_runtime-3.2.1-cp310-cp310-win32.whl", hash = "sha256:25a2d1e2b45423742319f7e10fa8ca2e7063f01284b6e85e99d805c4b50bbfb3"},
     {file = "winrt_runtime-3.2.1-cp310-cp310-win_amd64.whl", hash = "sha256:dc81d5fb736bf1ddecf743928622253dce4d0aac9a57faad776d7a3834e13257"},
@@ -2077,7 +2076,6 @@ description = "Python projection of Windows Runtime (WinRT) APIs"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "sys_platform == \"windows\""
 files = [
     {file = "winrt_windows_foundation-3.2.1-cp310-cp310-win32.whl", hash = "sha256:677e98165dcbbf7a2367f905bc61090ef2c568b6e465f87cf7276df4734f3b0b"},
     {file = "winrt_windows_foundation-3.2.1-cp310-cp310-win_amd64.whl", hash = "sha256:a8f27b4f0fdb73ccc4a3e24bc8010a6607b2bdd722fa799eafce7daa87d19d39"},
@@ -2113,7 +2111,6 @@ description = "Python projection of Windows Runtime (WinRT) APIs"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "sys_platform == \"windows\""
 files = [
     {file = "winrt_windows_media-3.2.1-cp310-cp310-win32.whl", hash = "sha256:ec09a5628b64d7cdef352fc2bb2efc8efaa7dcff84a3d632538406b749f9064c"},
     {file = "winrt_windows_media-3.2.1-cp310-cp310-win_amd64.whl", hash = "sha256:17fc251f057b4c168eaf61fc354bbb1ec59f357dc3aa56c5c2728f68ab676078"},
@@ -2149,7 +2146,6 @@ description = "Python projection of Windows Runtime (WinRT) APIs"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "sys_platform == \"windows\""
 files = [
     {file = "winrt_windows_media_playback-3.2.1-cp310-cp310-win32.whl", hash = "sha256:9ea29b2f1fe69e1320792027036f70051e13026e582ea14c0ca778268e5cbcc6"},
     {file = "winrt_windows_media_playback-3.2.1-cp310-cp310-win_amd64.whl", hash = "sha256:eb1b946444e5fb7520961057842543f833cfa2d0dae6137c2c9386a47e6d608a"},
@@ -2355,4 +2351,4 @@ requests = ">=2.22"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.13, <3.15"
-content-hash = "cd66d404ff710a0a7fe11db5230e7ba3bb040183cee94e3feafd183df811a6e2"
+content-hash = "3e94acc3842c3ef78289bb8bcb72cbc6e784aabcc61fef1677e77391d14f4430"
