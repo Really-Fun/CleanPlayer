@@ -74,81 +74,95 @@ class AsyncYandexFinder(AsyncFinderInterface):
 
 
 class AsyncYoutubeFinder(AsyncFinderInterface):
-    def __init__(self) -> None:
+    def __init__(self, executor: ThreadPoolExecutor) -> None:
         self.client = Clients().get_youtube_client()
+        self._executor = executor
 
     async def get_tracks(self, title: str, value: int = 5) -> list[Track]:
-        with ThreadPoolExecutor() as pool:
-            loop = get_running_loop()
-            tracks = await loop.run_in_executor(
-                pool, self.sync_get_tracks, title, value
-            )
-        return tracks
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            self._executor, self._sync_get_tracks, title, value
+        )
 
-    async def get_track(self, id: int) -> Track | None:
-        with ThreadPoolExecutor() as pool:
-            loop = get_running_loop()
-            track = await loop.run_in_executor(pool, self.sync_get_track, id)
-        return track
+    async def get_track(self, id: str | int) -> Track | None:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            self._executor, self._sync_get_track, id
+        )
 
-    def sync_get_tracks(self, title: str, value: int = 5) -> list[Track]:
+    def _sync_get_tracks(self, title: str, value: int = 5) -> list[Track]:
         try:
             results = self.client.search(query=title, filter="songs", limit=value)
             if not results:
                 results = [self.client.get_song(videoId=title)["videoDetails"]]
-        except Exception:
+        except Exception as e:
+            logger.debug("Ошибка поиска YTMusic для '%s': %s", title, e)
             return []
+
         tracks = []
         for track in results:
-            track_id = track.get("videoId")
-            track_title = track.get("title")
             try:
-                authors = " | ".join([author["name"] for author in track["artists"]])
+                authors = " | ".join([author["name"] for author in track.get("artists", [])])
             except Exception:
-                authors = "Author"
+                authors = "Unknown Artist"
+                
             tracks.append(
                 YoutubeTrack(
-                    track_id=track_id,
-                    title=track_title,
+                    track_id=track.get("videoId"),
+                    title=track.get("title"),
                     author=authors,
                     downloaded=False,
                 )
             )
         return tracks
 
-    def sync_get_track(self, id: int) -> Track | None:
-        results = self.client.get_song(id)
-        if not results:
+    def _sync_get_track(self, id: str | int) -> Track | None:
+        try:
+            results = self.client.get_song(str(id))
+            if not results:
+                return None
+            video_details = results.get("videoDetails", {})
+            track_id = video_details.get("videoId") or id
+            track_title = video_details.get("title", "")
+            authors = " | ".join([author["name"] for author in video_details.get("artists", [])])
+            return YoutubeTrack(
+                track_id=track_id, title=track_title, author=authors, downloaded=False
+            )
+        except Exception as e:
+            logger.error("Ошибка YTMusic при получении трека %s: %s", id, e)
             return None
-        track_id = results.get("videoId") or id
-        track_title = results.get("title", "")
-        authors = " | ".join([author["name"] for author in results.get("artists", [])])
-        return YoutubeTrack(
-            track_id=track_id, title=track_title, author=authors, downloaded=False
-        )
 
 
 class AsyncFinder(AsyncFinderInterface):
     def __init__(self):
+        self._executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="FinderPool")
         self._yandex_finder = AsyncYandexFinder()
-        self._youtube_finder = AsyncYoutubeFinder()
+        self._youtube_finder = AsyncYoutubeFinder(self._executor)
 
     async def get_tracks(self, title: str, value: int = 5) -> list[Track]:
-        try:
-            yandex_tracks = await self._yandex_finder.get_tracks(title, value)
-        except Exception:
+        """Ищет треки на Яндексе и YouTube ОДНОВРЕМЕННО."""
+
+        yandex_task = asyncio.create_task(self._yandex_finder.get_tracks(title, value))
+        youtube_task = asyncio.create_task(self._youtube_finder.get_tracks(title, value))
+        
+        yandex_tracks, youtube_tracks = await asyncio.gather(
+            yandex_task, youtube_task, return_exceptions=True
+        )
+        
+        if isinstance(yandex_tracks, Exception):
             yandex_tracks = []
-        try:
-            youtube_tracks = await self._youtube_finder.get_tracks(title, value)
-        except Exception:  # Лучше указать конкретное исключение
+        if isinstance(youtube_tracks, Exception):
             youtube_tracks = []
+            
         return yandex_tracks + youtube_tracks
 
-    async def get_track(self, id: int) -> Track:
+    async def get_track(self, id: str | int) -> Track | None:
+        """Ищет трек по ID на обеих платформах."""
         yandex_track = await self._yandex_finder.get_track(id)
         if yandex_track is not None:
             return yandex_track
         return await self._youtube_finder.get_track(id)
-    
-    def get_all_finders(self):
-        return self._yandex_finder, self._youtube_finder
+        
+    def shutdown(self):
+        """Очищает пул потоков при закрытии приложения."""
+        self._executor.shutdown(wait=False)

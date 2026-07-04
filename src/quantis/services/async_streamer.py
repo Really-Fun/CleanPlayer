@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import functools
 import logging
 from abc import ABC, abstractmethod
 from asyncio import get_running_loop
@@ -19,6 +20,24 @@ from quantis.config import Clients
 from quantis.models import Track
 
 logger = logging.getLogger(__name__)
+
+def cached_stream_url(func):
+    """Декоратор для кэширования прямых URL треков внутри методов класса Streamer."""
+    @functools.wraps(func)
+    async def wrapper(self, track: Track, *args, **kwargs):
+        track_key = str(track.track_id)
+        
+        cached = self._cache.get(track_key)
+        if cached is not None and (time() - cached[1] < self._URL_CACHE_TTL_SEC):
+            return cached[0]
+            
+        url = await func(self, track, *args, **kwargs)
+        
+        if url is not None:
+            self._cache[track_key] = (url, time())
+            
+        return url
+    return wrapper
 
 
 class AsyncStreamerInterface(ABC):
@@ -44,7 +63,7 @@ class AsyncYandexStreamer(AsyncStreamerInterface):
 
 
 class AsyncYoutubeStreamer(AsyncStreamerInterface):
-    _URL_CACHE_TTL_SEC = 30 * 60  # 30 минут
+    _URL_CACHE_TTL_SEC = 30 * 60
 
     def __init__(self) -> None:
         self.opts = {
@@ -80,28 +99,28 @@ class AsyncYoutubeStreamer(AsyncStreamerInterface):
 
 
 class AsyncStreamer(AsyncStreamerInterface):
-    """Фасад над Yandex и YouTube стримерами с кэшированием URL."""
+    """Фасад над Yandex и YouTube стримерами с кэшированием URL через декоратор."""
 
     _URL_CACHE_TTL_SEC = 30 * 60  # 30 минут
 
-    def __init__(self) -> None:
+    def __init__(self, executor: ThreadPoolExecutor | None = None) -> None:
+        self._executor = executor or ThreadPoolExecutor(max_workers=4, thread_name_prefix="StreamerPool")
         self._yandex = AsyncYandexStreamer()
-        self._youtube = AsyncYoutubeStreamer()
-        self._cache: dict[str | int, tuple[str, float]] = {}
+        self._youtube = AsyncYoutubeStreamer(self._executor)
 
+        self._cache: dict[str, tuple[str, float]] = {}
+
+    @cached_stream_url
     async def get_stream_url(self, track: Track) -> str | None:
-        cached = self._cache.get(track.track_id)
-        if cached is not None and time() - cached[1] < self._URL_CACHE_TTL_SEC:
-            return cached[0]
+        """Получает прямой URL. Декоратор @cached_stream_url сам проверит и заполнит кэш."""
+        source_type = str(track.source).lower()
+        
+        if source_type == "youtube":
+            return await self._youtube.get_stream_url(track)
+        elif source_type == "yandex":
+            return await self._yandex.get_stream_url(track)
+            
+        raise NameError(f"Неизвестный источник платформы у трека: {track.source!r}")
 
-        match track.source:
-            case "youtube":
-                url = await self._youtube.get_stream_url(track)
-            case "yandex":
-                url = await self._yandex.get_stream_url(track)
-            case _:
-                raise NameError(f"Неизвестный source у трека: {track.source!r}")
-
-        if url is not None:
-            self._cache[track.track_id] = (url, time())
-        return url
+    def shutdown(self) -> None:
+        self._executor.shutdown(wait=False)

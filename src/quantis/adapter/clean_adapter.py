@@ -7,7 +7,6 @@ from __future__ import annotations
 import platform
 from asyncio import AbstractEventLoop
 
-from quantis.core import AppContext
 from quantis.player.player import Player
 
 
