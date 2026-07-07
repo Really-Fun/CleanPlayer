@@ -1,13 +1,13 @@
 from __future__ import annotations
 
+import logging
+
 from quantis.core.async_bridge import AsyncBridge
 from quantis.models import Track
 from quantis.player import Player
 from quantis.plugins.event_bus import EventBus
 from quantis.providers import PlaylistManager
 from quantis.services import MusicService, TrackHistoryService
-
-import logging
 
 logger = logging.getLogger(__name__)
 class PlaybackController:

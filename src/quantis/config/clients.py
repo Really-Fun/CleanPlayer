@@ -1,7 +1,6 @@
 """Инициализация клиентов:
 - Яндекс Музыка
 - YouTube Music
-- Last.fm (dont need now)
 - Spotify (TODO) - приоритет
 - SoundCloud (TODO)
 - Vk Music (TODO)
@@ -14,9 +13,11 @@ from yandex_music import ClientAsync
 from yandex_music.exceptions import NetworkError as NetworkErrorYandex
 from yandex_music.exceptions import TimedOutError
 from ytmusicapi import YTMusic
+from ytmusicapi.exceptions import YTMusicError
 
 from quantis.config.constants import (
     SERVICE_NAME_YANDEX,
+    SERVICE_NAME_YOUTUBE_COOKIE,
     USER,
 )
 
@@ -41,7 +42,6 @@ class Clients:
             return
         self._yandex = self._init_yandex()
         self._youtube = self._init_youtube()
-        # self._lastfm  = self._init_lastfm()
         self._initialized = True
 
     def get_yandex_client(self) -> ClientAsync | None:
@@ -54,8 +54,9 @@ class Clients:
         """Перечитать токен из keyring (после сохранения в настройках)."""
         self._yandex = self._init_yandex()
 
-    # def get_lastfm_client(self) -> LastFMNetwork | None:
-    #     return self._lastfm
+    def reload_youtube_client(self) -> None:
+        """Перечитать cookie из keyring (после сохранения в настройках)."""
+        self._youtube = self._init_youtube()
 
     @staticmethod
     def _init_yandex() -> ClientAsync | None:
@@ -66,15 +67,11 @@ class Clients:
 
     @staticmethod
     def _init_youtube() -> YTMusic:
-        return YTMusic(language="ru", location="")
-
-    # @staticmethod
-    # def _init_lastfm() -> LastFMNetwork | None:
-    #     api_key    = get_password(SERVICE_NAME_LASTFM_API, USER)
-    #     api_secret = get_password(SERVICE_NAME_LASTFM_SECRET, USER)
-    #     if api_key is None or api_secret is None:
-    #         return None
-    #     try:
-    #         return LastFMNetwork(api_key, api_secret)
-    #     except (WSError, NetworkErrorLastFm):
-    #         return None
+        try:
+            cookie = get_password(SERVICE_NAME_YOUTUBE_COOKIE, USER)
+            if cookie:
+                return YTMusic(auth=cookie, language="ru", location="")
+            return YTMusic(language="ru", location="")
+        except YTMusicError as e:
+            print(f"Ошибка инициализации YTMusic: {e}")
+            return YTMusic(language="ru", location="")

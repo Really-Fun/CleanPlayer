@@ -3,24 +3,23 @@
 Паттерн Итератор: ✓
 Single Responsibility: ✓ — только навигация по коллекции
 """
-
 from __future__ import annotations
 
-from typing import Any, Iterable, Optional
+from typing import Iterable, Iterator, TypeVar
 
-
-class UpgradeCycle:
+TrackType = TypeVar("TrackType")
+class UpgradeCycle(Iterator[TrackType]):
     """Продвинутый цикл.
 
     Attributes:
         values: Кортеж элементов.
     """
 
-    def __init__(self, values: Iterable[Any]) -> None:
+    def __init__(self, values: Iterable[TrackType]) -> None:
         self._index = 0
-        self.values: tuple[Any, ...] = tuple(values)
+        self.values: tuple[TrackType, ...] = tuple(values)
 
-    def __iter__(self) -> "UpgradeCycle":
+    def __iter__(self) -> UpgradeCycle[TrackType]:
         """Возвращаем итератор
 
         Returns:
@@ -28,19 +27,20 @@ class UpgradeCycle:
         """
         return self
 
-    def __next__(self) -> Optional[Any]:
+    def __next__(self) -> TrackType:
         """Возвращаем следующее значение
 
         Returns:
-            Optional[Any]: следующее значение
+            Optional[TrackType]: следующее значение
         """
+            
         self._index = (self._index + 1) % len(self.values)
         return self.values[self._index]
 
     def __len__(self) -> int:
         return len(self.values)
 
-    def remove(self, item: Any) -> bool:
+    def remove(self, item: TrackType) -> bool:
         """Удаляет элемент из цикла.
 
         Returns:
@@ -57,11 +57,11 @@ class UpgradeCycle:
             self._index = len(self.values) - 1
         return True
 
-    def move_previous(self) -> Optional[Any]:
+    def move_previous(self) -> TrackType:
         """Переключаемся на предыдущий трек
 
         Returns:
-            Optional[Any]: предыдущий трек
+            Optional[TrackType]: предыдущий трек
         """
         if self._index != 0:
             self._index -= 1
@@ -69,19 +69,19 @@ class UpgradeCycle:
             self._index = len(self.values) - 1
         return self.values[self._index]
 
-    def peek_current(self) -> Optional[Any]:
+    def peek_current(self) -> TrackType:
         """Получаем текущий трек
 
         Returns:
-            Optional[Any]: текущий трек
+            Optional[TrackType]: текущий трек
         """
         return self.values[self._index]
 
-    def peek_previous(self) -> Optional[Any]:
+    def peek_previous(self) -> TrackType:
         """Получаем предыдущий трек
 
         Returns:
-            Optional[Any]: предыдущий трек
+            Optional[TrackType]: предыдущий трек
         """
         if self._index != 0:
             return self.values[self._index - 1]

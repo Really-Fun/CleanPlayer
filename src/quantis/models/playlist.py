@@ -11,16 +11,17 @@
 3. DownloadPlaylist - класс плейлиста системы
 4. RecentlyPlayedPlaylist - системный плейлист недавно прослушанных
 """
+from __future__ import annotations
 
 import json
 import os
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Iterable, Tuple
+from typing import Iterable, Tuple
 
 from quantis.models.track import Track, YandexTrack, YoutubeTrack
-from quantis.models.upgrade_cycle import UpgradeCycle
 from quantis.providers import PathProvider, TrackManager
+from quantis.types.upgrade_cycle import UpgradeCycle
 from quantis.utils import get_asset_path
 
 
@@ -32,7 +33,7 @@ class Playlist(ABC):
         self.name = name
         self.cover_path = cover_path
 
-    def move_next_track(self) -> Any:
+    def move_next_track(self) -> Track:
         """Переключаемся на следующий трек
 
         Returns:
@@ -40,7 +41,7 @@ class Playlist(ABC):
         """
         return next(self.tracks)
 
-    def move_previous_track(self) -> Any:
+    def move_previous_track(self) -> Track:
         """Переключаемся на предыдущий трек
 
         Returns:
@@ -87,7 +88,7 @@ class Playlist(ABC):
         self.tracks.set_index(index)
 
     @staticmethod
-    def load_playlist(playlist_path: str):
+    def load_playlist(playlist_path: str) -> tuple[str, list[Track], str | None]:
         """Загружаем плейлист из файла.
 
         Args:
@@ -98,7 +99,7 @@ class Playlist(ABC):
         """
         with open(playlist_path, encoding="utf-8") as file:
             playlist = json.load(file)
-            name = playlist["name"]
+            name = str(playlist["name"])
             cover_path = playlist.get("cover_path", None)
             track_manager = TrackManager()
             tracks = [
@@ -109,21 +110,8 @@ class Playlist(ABC):
             ]
         return name, tracks, cover_path
 
-    @classmethod
     @abstractmethod
-    def get_playlist_from_path(cls, path_to_playlist: str):
-        """Получаем плейлист из файла
-
-        Args:
-            path_to_playlist (str): путь к файлу плейлиста
-
-        Returns:
-            Playlist: плейлист
-        """
-        pass
-
-    @abstractmethod
-    def get_tracks(self) -> Tuple[Track]:
+    def get_tracks(self) -> Tuple[Track, ...]:
         """Получаем список треков из плейлиста
 
         Returns:
@@ -131,10 +119,10 @@ class Playlist(ABC):
         """
         pass
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.tracks)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.name} - {len(self.tracks)}"
 
     __repr__ = __str__
@@ -144,23 +132,18 @@ class RecommendationPlaylist(Playlist):
 
     def __init__(
         self,
-        name: str = "Рекомендации",
-        tracks: Iterable[Track] | None = None,
+        tracks: Iterable[Track],
         cover_path: str = "assets/icons/recomendation.svg",
     ) -> None:
-        super().__init__(name, tracks, cover_path)
+        super().__init__("Рекомендации", tracks, cover_path)
 
-    def get_tracks(self) -> Tuple[Track]:
+    def get_tracks(self) -> Tuple[Track, ...]:
         """Получаем список треков из плейлиста
 
         Returns:
-            Tuple[Track]: список треков
+            Tuple[Track, ...]: список треков
         """
         return tuple(self.tracks.values)
-
-    @classmethod
-    def get_playlist_from_path(cls, path_to_playlist: str) -> "RecommendationPlaylist | None":
-        return None
 
 
 class DownloadPlaylist(Playlist):
@@ -174,7 +157,7 @@ class DownloadPlaylist(Playlist):
     ) -> None:
         super().__init__(name, tracks or (), cover_path)
 
-    def get_tracks(self) -> Tuple[Track]:
+    def get_tracks(self) -> Tuple[Track, ...]:
         """Получаем список треков из плейлиста
 
         Returns:
@@ -261,7 +244,7 @@ class RecentlyPlayedPlaylist(Playlist):
     ) -> None:
         super().__init__(name, tracks or (), cover_path)
 
-    def get_tracks(self) -> Tuple[Track]:
+    def get_tracks(self) -> Tuple[Track, ...]:
         """Возвращает треки недавно прослушанного плейлиста."""
         return tuple(self.tracks.values)
 
@@ -289,10 +272,10 @@ class UserPlaylist(Playlist):
         else:
             return None
 
-    def get_tracks(self) -> Tuple[Track]:
+    def get_tracks(self) -> Tuple[Track, ...]:
         """Получаем список треков из плейлиста
 
         Returns:
-            Tuple[Track]: список треков
+            Tuple[Track, ...]: список треков
         """
         return tuple(self.tracks.values)
