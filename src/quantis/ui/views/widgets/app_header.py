@@ -1,22 +1,38 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtCore import QPoint, Qt, Signal
+from PySide6.QtGui import QFont, QIcon
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
 
+from quantis.ui import resources
 from quantis.ui.views.widgets.brand_mark import BrandMark
 
 
 class AppHeader(QFrame):
-    """Компактная шапка: логотип + название страницы."""
+    """Кастомная шапка: заголовок страницы +
+    кнопки окна (свернуть / развернуть / закрыть)."""
+
+    minimize_requested = Signal()
+    maximize_requested = Signal()
+    close_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("appHeader")
-        self.setFixedHeight(64)
+        self.setFixedHeight(40)
+        self._drag_offset: QPoint | None = None
+        self._maximized = False
 
         row = QHBoxLayout(self)
-        row.setContentsMargins(20, 0, 24, 0)
-        row.setSpacing(14)
+        row.setContentsMargins(14, 0, 0, 0)
+        row.setSpacing(10)
 
         self._brand = BrandMark()
         row.addWidget(self._brand, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -27,6 +43,9 @@ class AppHeader(QFrame):
 
         self._title = QLabel("Quantis")
         self._title.setObjectName("headerGreeting")
+        title_font = QFont("Segoe UI", 11)
+        title_font.setWeight(QFont.Weight.DemiBold)
+        self._title.setFont(title_font)
         self._subtitle = QLabel("")
         self._subtitle.setObjectName("headerSub")
         self._subtitle.setVisible(False)
@@ -35,6 +54,51 @@ class AppHeader(QFrame):
         text_col.addWidget(self._subtitle)
         row.addLayout(text_col, stretch=1)
 
+        controls = QHBoxLayout()
+        controls.setSpacing(0)
+        controls.setContentsMargins(0, 0, 0, 0)
+
+        self._min_btn = self._make_control(
+            "windowMinBtn",
+            resources.icon_path("minimize.svg"),
+            "Свернуть",
+            self.minimize_requested.emit,
+        )
+        self._max_btn = self._make_control(
+            "windowMaxBtn",
+            resources.icon_path("maximize.svg"),
+            "Развернуть",
+            self.maximize_requested.emit,
+        )
+        self._close_btn = self._make_control(
+            "windowCloseBtn",
+            resources.icon_path("close.svg"),
+            "Закрыть",
+            self.close_requested.emit,
+        )
+
+        controls.addWidget(self._min_btn)
+        controls.addWidget(self._max_btn)
+        controls.addWidget(self._close_btn)
+        row.addLayout(controls)
+
+    def _make_control(
+        self,
+        object_name: str,
+        icon_path: str,
+        tooltip: str,
+        on_click,
+    ) -> QToolButton:
+        button = QToolButton(self)
+        button.setObjectName(object_name)
+        button.setIcon(QIcon(icon_path))
+        button.setToolTip(tooltip)
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button.setAutoRaise(True)
+        button.setFixedSize(46, 32)
+        button.clicked.connect(on_click)
+        return button
+
     def set_page(self, title: str, subtitle: str = "") -> None:
         self._title.setText(title)
         if subtitle:
@@ -42,3 +106,58 @@ class AppHeader(QFrame):
             self._subtitle.setVisible(True)
         else:
             self._subtitle.setVisible(False)
+
+    def set_maximized(self, maximized: bool) -> None:
+        self._maximized = maximized
+        icon_name = "restore.svg" if maximized else "maximize.svg"
+        tooltip = "Восстановить" if maximized else "Развернуть"
+        self._max_btn.setIcon(QIcon(resources.icon_path(icon_name)))
+        self._max_btn.setToolTip(tooltip)
+
+    def _can_drag(self, pos: QPoint) -> bool:
+        widget = self.childAt(pos)
+        while widget is not None and widget is not self:
+            if isinstance(widget, QToolButton):
+                return False
+            widget = widget.parentWidget()
+        return True
+
+    def mousePressEvent(self, event) -> None:
+        if (
+            event.button() == Qt.MouseButton.LeftButton
+            and self._can_drag(event.position().toPoint())
+        ):
+            window = self.window()
+            if window is not None and not window.isMaximized():
+                self._drag_offset = (
+                    event.globalPosition().toPoint() - window.frameGeometry().topLeft()
+                )
+                event.accept()
+                return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:
+        if (
+            event.buttons() & Qt.MouseButton.LeftButton
+            and self._drag_offset is not None
+        ):
+            window = self.window()
+            if window is not None and not window.isMaximized():
+                window.move(event.globalPosition().toPoint() - self._drag_offset)
+                event.accept()
+                return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        self._drag_offset = None
+        super().mouseReleaseEvent(event)
+
+    def mouseDoubleClickEvent(self, event) -> None:
+        if (
+            event.button() == Qt.MouseButton.LeftButton
+            and self._can_drag(event.position().toPoint())
+        ):
+            self.maximize_requested.emit()
+            event.accept()
+            return
+        super().mouseDoubleClickEvent(event)

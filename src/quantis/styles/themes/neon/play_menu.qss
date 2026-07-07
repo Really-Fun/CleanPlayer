@@ -7,14 +7,14 @@
         stop:0.5 rgba(12, 8, 24, 0.96),
         stop:1 rgba(8, 12, 22, 0.96)
     );
-    border: 1px solid rgba(0, 229, 255, 0.28);
+    border: none;
     border-radius: 14px;
 }
 
 #trackTitle { color: #f8fafc; }
 #trackArtist { color: rgba(0, 229, 255, 0.65); }
 #timeLabel { color: rgba(248, 250, 252, 0.45); }
-#coverLabel { background: rgba(255, 42, 127, 0.15); border: 1px solid rgba(0, 229, 255, 0.2); }
+#coverLabel { background: rgba(255, 42, 127, 0.12); border: none; }
 #volIcon { color: rgba(255, 42, 127, 0.8); }
 
 #seekSlider::groove:horizontal,
@@ -27,7 +27,7 @@
 }
 #seekSlider::handle:horizontal {
     background: #00e5ff;
-    border: 1px solid rgba(255, 42, 127, 0.6);
+    border: none;
 }
 #seekSlider::handle:horizontal:hover { background: #ff2a7f; }
 

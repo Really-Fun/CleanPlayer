@@ -35,3 +35,46 @@ QListView#trackList::item {
 QListView#trackList::item:selected {
     background: transparent;
 }
+
+/* Кастомная панель окна */
+QFrame#appHeader {
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+}
+
+QFrame#appHeader QLabel#headerGreeting {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QToolButton#windowMinBtn,
+QToolButton#windowMaxBtn,
+QToolButton#windowCloseBtn {
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    padding: 0;
+    margin: 0;
+}
+
+QToolButton#windowMinBtn:hover,
+QToolButton#windowMaxBtn:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+QToolButton#windowCloseBtn:hover {
+    background: #e81123;
+}
+
+QToolButton#windowCloseBtn:pressed {
+    background: #bf0f1d;
+}
+
+QLabel#headerBrandLogo {
+    background: transparent;
+    border: none;
+}
+
+QFrame#sideNavRail QToolButton#navIconButton {
+    outline: none;
+}

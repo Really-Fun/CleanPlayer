@@ -118,12 +118,12 @@ class TrackCardDelegate(QStyledItemDelegate):
     ) -> None:
         if is_playing:
             painter.setBrush(QColor(0, 229, 255, 22))
-            painter.setPen(QPen(QColor(0, 229, 255, 90), 1))
+            painter.setPen(Qt.PenStyle.NoPen)
         elif hovered or selected:
-            painter.setBrush(QColor(255, 255, 255, 12))
-            painter.setPen(QPen(QColor(255, 255, 255, 28), 1))
+            painter.setBrush(QColor(255, 255, 255, 10))
+            painter.setPen(Qt.PenStyle.NoPen)
         else:
-            painter.setBrush(QColor(255, 255, 255, 5))
+            painter.setBrush(QColor(255, 255, 255, 4))
             painter.setPen(Qt.PenStyle.NoPen)
 
         painter.drawRoundedRect(rect, self.CARD_RADIUS, self.CARD_RADIUS)
@@ -205,12 +205,8 @@ class TrackCardDelegate(QStyledItemDelegate):
             glow.setColorAt(0.5, QColor(230, 59, 46, 16))
             glow.setColorAt(1.0, QColor(255, 42, 127, 8))
             painter.fillRect(inner, glow)
-            painter.setPen(QPen(QColor(0, 229, 255, 70)))
         elif hovered or selected:
-            painter.setPen(QPen(QColor(255, 255, 255, 30)))
-        else:
-            painter.setPen(QPen(QColor(255, 255, 255, 12)))
-        painter.drawRect(inner)
+            painter.fillRect(inner, QColor(255, 255, 255, 8))
 
         if is_playing:
             painter.fillRect(inner.left(), inner.top() + 8, 3, inner.height() - 16, QColor(0, 229, 255, 220))

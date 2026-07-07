@@ -132,6 +132,7 @@ class RecommendationPlaylist(Playlist):
 
     def __init__(
         self,
+        name: str,
         tracks: Iterable[Track],
         cover_path: str = "assets/icons/recomendation.svg",
     ) -> None:

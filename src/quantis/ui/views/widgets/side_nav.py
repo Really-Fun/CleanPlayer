@@ -7,29 +7,20 @@ from quantis.ui import resources
 
 
 class SideNavRail(QFrame):
-    """Минималистичная боковая навигация."""
+    """Компактная боковая навигация без декоративных кнопок."""
 
     page_changed = Signal(int)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("sideNavRail")
-        self.setFixedWidth(72)
+        self.setFixedWidth(80)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 16, 10, 16)
-        layout.setSpacing(4)
+        layout.setContentsMargins(8, 14, 8, 14)
+        layout.setSpacing(6)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-
-        logo = QToolButton()
-        logo.setObjectName("navLogoMark")
-        logo.setIcon(resources.load_icon("play.svg"))
-        logo.setIconSize(QSize(22, 22))
-        logo.setEnabled(False)
-        logo.setToolTip("Quantis")
-        layout.addWidget(logo, 0, Qt.AlignmentFlag.AlignHCenter)
-        layout.addSpacing(12)
 
         self._group = QButtonGroup(self)
         self._group.setExclusive(True)
@@ -48,7 +39,7 @@ class SideNavRail(QFrame):
             button.setAutoRaise(True)
             button.setToolTip(tooltip)
             button.setIcon(resources.load_icon(icon))
-            button.setIconSize(QSize(22, 22))
+            button.setIconSize(QSize(20, 20))
             button.setCursor(Qt.CursorShape.PointingHandCursor)
             button.setProperty("navIndex", index)
             button.clicked.connect(

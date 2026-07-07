@@ -3,15 +3,14 @@
 QWidget { color: #f0e8d8; }
 
 QFrame#glassPanel {
-    background: rgba(18, 14, 8, 0.82);
-    border: 1px solid rgba(255, 170, 0, 0.12);
+    background: rgba(18, 14, 8, 0.85);
+    border: none;
     border-radius: 14px;
 }
 
 QFrame#appHeader {
-    background: rgba(14, 10, 6, 0.65);
+    background: rgba(14, 10, 6, 0.6);
     border: none;
-    border-bottom: 1px solid rgba(255, 170, 0, 0.08);
 }
 
 #headerGreeting { font-size: 20px; font-weight: 700; color: #faf6ee; }
@@ -22,15 +21,15 @@ QFrame#appHeader {
 }
 
 #searchInput {
-    background: rgba(0, 0, 0, 0.25);
-    border: 1px solid rgba(255, 170, 0, 0.2);
+    background: rgba(0, 0, 0, 0.28);
+    border: none;
     border-radius: 10px; padding: 12px 14px; font-size: 14px; color: #faf6ee;
 }
-#searchInput:focus { border-color: rgba(255, 170, 0, 0.5); }
+#searchInput:focus { background: rgba(0, 0, 0, 0.4); }
 
 QPushButton#searchButton {
-    background: rgba(255, 170, 0, 0.15);
-    border: 1px solid rgba(255, 170, 0, 0.35);
+    background: rgba(255, 170, 0, 0.18);
+    border: none;
     border-radius: 10px; color: #faf6ee; font-weight: 600; padding: 8px 16px;
 }
 QPushButton#searchButton:hover { background: rgba(255, 170, 0, 0.28); }
@@ -47,11 +46,11 @@ QCheckBox#settingsCheck { font-size: 13px; color: #e8dcc8; }
 
 QComboBox#themeCombo, QLineEdit#settingLineEdit {
     background: rgba(0, 0, 0, 0.28);
-    border: 1px solid rgba(255, 170, 0, 0.2);
+    border: none;
     border-radius: 10px; padding: 10px 12px; color: #faf6ee;
 }
 QComboBox#themeCombo:hover, QLineEdit#settingLineEdit:focus {
-    border-color: rgba(255, 170, 0, 0.45);
+    background: rgba(0, 0, 0, 0.4);
 }
 QComboBox#themeCombo QAbstractItemView {
     background: #12100a; color: #faf6ee;
@@ -59,8 +58,8 @@ QComboBox#themeCombo QAbstractItemView {
 }
 
 QFrame#featuredPanel {
-    background: rgba(16, 12, 6, 0.75);
-    border: 1px solid rgba(255, 170, 0, 0.12);
+    background: rgba(16, 12, 6, 0.72);
+    border: none;
     border-radius: 14px;
 }
 

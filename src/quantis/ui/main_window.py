@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication,
@@ -48,6 +49,10 @@ class QuantisMainWindow(QMainWindow):
         self._bundle = bundle
         self._bridge = bundle.async_bridge
         self.setWindowTitle("Quantis")
+        self.setWindowFlags(
+            Qt.WindowType.Window
+            | Qt.WindowType.FramelessWindowHint
+        )
         self.setMinimumSize(960, 640)
         self.resize(1200, 760)
         self._current_page = -1
@@ -82,6 +87,9 @@ class QuantisMainWindow(QMainWindow):
         root.setSpacing(0)
 
         self._header = AppHeader()
+        self._header.minimize_requested.connect(self.showMinimized)
+        self._header.maximize_requested.connect(self._toggle_maximize)
+        self._header.close_requested.connect(self.close)
         root.addWidget(self._header)
 
         body = QHBoxLayout()
@@ -164,6 +172,17 @@ class QuantisMainWindow(QMainWindow):
         self.setStyleSheet(resources.load_stylesheet(theme_id))
         self._shell.set_variant(theme_id)
         self._player_bar.refresh_theme()
+
+    def _toggle_maximize(self) -> None:
+        if self.isMaximized():
+            self.showNormal()
+        else:
+            self.showMaximized()
+
+    def changeEvent(self, event) -> None:
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.WindowStateChange:
+            self._header.set_maximized(self.isMaximized())
 
     def _show_error(self, message: str) -> None:
         import logging

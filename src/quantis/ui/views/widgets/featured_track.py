@@ -54,10 +54,7 @@ class FeaturedTrackPanel(QFrame):
             glow.setColorAt(1.0, QColor(255, 42, 127, 12))
             painter.fillRect(rect, glow)
 
-        painter.setPen(QColor(0, 229, 255, 40))
-        painter.drawRect(rect)
-
-        painter.fillRect(rect.left(), rect.top() + 24, 3, 48, QColor(0, 229, 255, 220))
+        painter.fillRect(rect.left(), rect.top() + 24, 3, 48, QColor(0, 229, 255, 200))
         painter.fillRect(rect.left() + 3, rect.top() + 24, 2, 48, QColor(230, 59, 46, 200))
 
         mono = QFont("Cascadia Mono", 9)

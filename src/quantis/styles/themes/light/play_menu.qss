@@ -2,14 +2,14 @@
 
 #PlayMenu {
     background: rgba(32, 36, 44, 0.92);
-    border: 1px solid rgba(0, 0, 0, 0.15);
+    border: none;
     border-radius: 14px;
 }
 
 #trackTitle { color: #f4f6f8; }
 #trackArtist { color: rgba(200, 208, 218, 0.85); }
 #timeLabel { color: rgba(180, 188, 200, 0.75); }
-#coverLabel { background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12); }
+#coverLabel { background: rgba(255, 255, 255, 0.08); border: none; }
 #volIcon { color: rgba(180, 188, 200, 0.7); }
 
 #seekSlider::groove:horizontal,

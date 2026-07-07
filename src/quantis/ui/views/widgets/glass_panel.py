@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QFrame
 
 from quantis.ui.preferences import UiPreferences
@@ -35,9 +35,7 @@ class GlassPanel(QFrame):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         rect = self.rect().adjusted(1, 1, -2, -2)
 
-        painter.fillRect(rect, QColor(12, 12, 14))
-        painter.setPen(QPen(QColor(0, 229, 255, 102)))
-        painter.drawRect(rect)
-        painter.fillRect(rect.left(), rect.top() + 16, 3, 40, QColor(0, 229, 255, 220))
-        painter.fillRect(rect.left() + 3, rect.top() + 16, 2, 40, QColor(230, 59, 46, 200))
+        painter.fillRect(rect, QColor(12, 12, 14, 200))
+        painter.fillRect(rect.left(), rect.top() + 16, 3, 40, QColor(0, 229, 255, 180))
+        painter.fillRect(rect.left() + 3, rect.top() + 16, 2, 40, QColor(230, 59, 46, 160))
         painter.end()

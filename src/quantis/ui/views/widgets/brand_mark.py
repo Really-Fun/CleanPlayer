@@ -1,20 +1,20 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPen
-from PySide6.QtWidgets import QFrame
+from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPaintEvent
+from PySide6.QtWidgets import QFrame, QWidget
 
 
 class BrandMark(QFrame):
     """Компактный логотип Quantis."""
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("headerBrandMark")
-        self.setFixedSize(36, 36)
+        self.setFixedSize(28, 28)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
 
-    def paintEvent(self, event) -> None:
+    def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
@@ -25,11 +25,11 @@ class BrandMark(QFrame):
 
         painter.setBrush(gradient)
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawRoundedRect(rect, 10, 10)
+        painter.drawRoundedRect(rect, 8, 8)
 
         painter.setPen(QColor(255, 255, 255))
         font = painter.font()
-        font.setPointSize(15)
+        font.setPointSize(12)
         font.setBold(True)
         painter.setFont(font)
         painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "Q")
