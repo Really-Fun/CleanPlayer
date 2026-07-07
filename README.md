@@ -238,7 +238,7 @@ poetry run quantis
 - [ ] Spotify / VK / SoundCloud
 - [ ] Горячие клавиши (Space, Ctrl+←/→)
 - [ ] Визуализатор
-- [ ] Android-клиент
+- [x] Android-клиент (MVP) — см. [android/README.md](android/README.md)
 - [ ] Пользовательские темы и фоны
 
 ---
