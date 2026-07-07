@@ -1,22 +1,37 @@
-/* --- Центральный виджет и базовый фон --- */
-QWidget#central {
+/* Глобальная типографика и каркас */
+
+* {
+    font-family: "Segoe UI", "Inter", sans-serif;
+}
+
+QWidget#appShell,
+QMainWindow,
+QWidget#pageStack {
     background: transparent;
 }
 
-/* Делаем виджеты прозрачными, чтобы был виден красивый фон... */
-QWidget {
+QScrollArea#settingsScroll {
+    background: transparent;
+    border: none;
+}
+
+QScrollArea#settingsScroll > QWidget > QWidget {
     background: transparent;
 }
 
-/* ...НО ЖЕСТКО ЗАПРЕЩАЕМ прозрачность для системных окон, меню и ошибок! */
-QMenu, QMessageBox, QDialog, QToolTip {
-    background-color: #161a22; /* Темно-синий/серый цвет для меню */
-    color: white;
-    border: 1px solid rgba(255, 255, 255, 30);
-    border-radius: 8px;
+QListView#trackList,
+QTableView#trackList {
+    background: transparent;
+    border: none;
+    outline: none;
 }
 
-/* --- Темное перекрытие (Overlay) поверх фона --- */
-#darkOverlay {
-    background-color: rgba(0, 0, 0, 150);
+QListView#trackList::item {
+    border: none;
+    padding: 0;
+    background: transparent;
+}
+
+QListView#trackList::item:selected {
+    background: transparent;
 }

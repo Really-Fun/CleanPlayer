@@ -1,68 +1,44 @@
-"""Общий VLC-движок.
-
-Владеет VLC Instance и MediaPlayer:
-  - playback_player  — воспроизведение звука (обычный вывод)
-
-Паттерн: Singleton
-Single Responsibility: жизненный цикл VLC-объектов + синхронизация медии.
-"""
+"""Движок воспроизведения на Qt Multimedia."""
 
 from __future__ import annotations
 
-from PySide6.QtCore import QTimer
-from vlc import Instance, Media, MediaPlayer
+from pathlib import Path
+
+from PySide6.QtCore import QUrl
+from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 
 
-class VLCEngine:
-    _instance: VLCEngine | None = None
-
-    def __new__(cls) -> VLCEngine:
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+class QtMediaEngine:
+    """Владеет QMediaPlayer и QAudioOutput."""
 
     def __init__(self) -> None:
-        if getattr(self, "_initialized", False):
-            return
+        self._player = QMediaPlayer()
+        self._audio = QAudioOutput()
+        self._player.setAudioOutput(self._audio)
 
-        self._vlc_instance: Instance = Instance()
-        self._playback_player: MediaPlayer = self._vlc_instance.media_player_new()
+    @property
+    def media_player(self) -> QMediaPlayer:
+        return self._player
 
-        self._initialized = True
+    @property
+    def audio_output(self) -> QAudioOutput:
+        return self._audio
 
-    def load_media(self, source: str) -> Media:
-        """Создаёт Media из пути или URL.
-
-        Args:
-            source (str): Путь к медиа-файлу или URL.
-
-        Returns:
-            Media: Объект Media.
-        """
-        return self._vlc_instance.media_new(source)
+    @staticmethod
+    def _to_url(source: str) -> QUrl:
+        if source.startswith(("http://", "https://")):
+            return QUrl(source)
+        return QUrl.fromLocalFile(str(Path(source).resolve()))
 
     def play_media(self, source: str) -> None:
-        """Запускает playback
-
-        Args:
-            source (str): Путь к медиа-файлу или URL.
-        """
-        media_play = self.load_media(source)
-
-        self._playback_player.set_media(media_play)
-
-        self._playback_player.play()
+        self._player.setSource(self._to_url(source))
+        self._player.play()
 
     def pause_media(self) -> None:
-        self._playback_player.pause()
+        self._player.pause()
 
     def resume_media(self) -> None:
-        self._playback_player.play()
-        
-    @property
-    def instance(self) -> Instance:
-        return self._vlc_instance
+        self._player.play()
 
-    @property
-    def playback_player(self) -> MediaPlayer:
-        return self._playback_player
+    def stop_media(self) -> None:
+        self._player.stop()

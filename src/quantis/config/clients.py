@@ -50,6 +50,10 @@ class Clients:
     def get_youtube_client(self) -> YTMusic:
         return self._youtube
 
+    def reload_yandex_client(self) -> None:
+        """Перечитать токен из keyring (после сохранения в настройках)."""
+        self._yandex = self._init_yandex()
+
     # def get_lastfm_client(self) -> LastFMNetwork | None:
     #     return self._lastfm
 

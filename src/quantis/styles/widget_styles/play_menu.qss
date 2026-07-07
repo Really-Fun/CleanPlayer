@@ -1,87 +1,66 @@
+/* Структура плеера — цвета задаются в themes/<theme>/play_menu.qss */
+
+QFrame#playerDock {
+    background: transparent;
+    border: none;
+}
+
 #trackTitle {
-    color: #fff; 
-    font-size: 13px; 
-    font-weight: 500; 
+    font-size: 13px;
+    font-weight: 600;
     background: transparent;
 }
 #trackArtist {
-    color: rgba(255,255,255,110); 
-    font-size: 11px; 
+    font-size: 11px;
     background: transparent;
 }
 #timeLabel {
-    color: rgba(255,255,255,90); 
-    font-size: 11px; 
+    font-size: 10px;
+    font-family: "Cascadia Mono", "Consolas", monospace;
     background: transparent;
+    min-width: 36px;
 }
 #coverLabel {
-    border-radius: 6px; 
-    background: rgba(255,255,255,8);
+    border-radius: 8px;
+    min-width: 48px;
+    max-width: 48px;
+    min-height: 48px;
+    max-height: 48px;
 }
 #volIcon {
-    font-size: 14px; 
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
     background: transparent;
+    min-width: 24px;
 }
 
-/* --- Ползунок перемотки --- */
-#seekSlider::groove:horizontal {
+#seekSlider::groove:horizontal,
+#volSlider::groove:horizontal {
     height: 4px;
-    background: rgba(255,255,255,30);
     border-radius: 2px;
 }
 #seekSlider::handle:horizontal {
-    width: 12px; height: 12px; margin: -4px 0;
-    background: #fff;
+    width: 12px;
+    height: 12px;
+    margin: -4px 0;
     border-radius: 6px;
 }
-#seekSlider::handle:horizontal:hover {
-    background: rgb(0,220,255);
-}
-#seekSlider::sub-page:horizontal {
-    background: #fff;
-    border-radius: 2px;
-}
-#seekSlider::sub-page:horizontal:hover {
-    background: rgb(0,220,255);
-    border-radius: 2px;
-}
-
-/* --- Ползунок громкости --- */
-#volSlider::groove:horizontal {
-    height: 4px;
-    background: rgba(255,255,255,30);
-    border-radius: 2px;
-}
 #volSlider::handle:horizontal {
-    width: 10px; height: 10px; margin: -3px 0;
-    background: #fff;
+    width: 10px;
+    height: 10px;
+    margin: -3px 0;
     border-radius: 5px;
 }
-#volSlider::sub-page:horizontal {
-    background: rgba(255,255,255,120);
-    border-radius: 2px;
-}
 
-/* --- Кнопки управления (общие стили) --- */
 #controlButton {
-    background: transparent;
     border: none;
+    border-radius: 18px;
 }
-#controlButton:hover {
-    background: rgba(255,255,255,15);
+#controlButton[accent=true] {
+    border-radius: 23px;
 }
 
-/* --- Кнопка повтора (динамические состояния) --- */
-#repeatButton {
+#PlayMenu QLabel {
     background: transparent;
-    border: none;
-}
-#repeatButton:hover {
-    background: rgba(255,255,255,15);
-}
-#repeatButton[state="active"] {
-    background: rgba(0,220,255,40);
-}
-#repeatButton[state="active"]:hover {
-    background: rgba(0,220,255,60);
 }

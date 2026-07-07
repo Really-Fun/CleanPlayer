@@ -1,0 +1,209 @@
+from __future__ import annotations
+
+import asyncio
+import logging
+
+from PySide6.QtCore import QObject, QTimer, Signal
+
+from quantis.controllers.playback_controller import PlaybackController
+from quantis.core.async_bridge import AsyncBridge
+from quantis.models import Track
+from quantis.models.playlist import RecommendationPlaylist
+from quantis.services.async_finder import AsyncFinder
+from quantis.ui.models import TrackListModel
+from quantis.ui.viewmodels.base_viewmodel import BaseViewModel
+
+logger = logging.getLogger(__name__)
+
+
+class SearchViewModel(BaseViewModel):
+    results_changed = Signal()
+    download_finished = Signal()
+    status_message = Signal(str)
+
+    def __init__(
+        self,
+        finder: AsyncFinder,
+        playback: PlaybackController,
+        bridge: AsyncBridge,
+        parent: QObject | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._finder = finder
+        self._playback = playback
+        self._bridge = bridge
+        self._model = TrackListModel(parent=self)
+        self._debounce = QTimer(self)
+        self._debounce.setSingleShot(True)
+        self._debounce.setInterval(350)
+        self._debounce.timeout.connect(self._run_search)
+        self._pending_query = ""
+        self._search_generation = 0
+        self._inflight_searches = 0
+
+    @property
+    def model(self) -> TrackListModel:
+        return self._model
+
+    def search(self, query: str) -> None:
+        self._pending_query = query.strip()
+        if not self._pending_query:
+            self._debounce.stop()
+            self._model.set_tracks([])
+            self.results_changed.emit()
+            return
+        self._debounce.start()
+
+    def search_now(self) -> None:
+        self._debounce.stop()
+        self._run_search()
+
+    def _run_search(self) -> None:
+        query = self._pending_query.strip()
+        if not query:
+            self._model.set_tracks([])
+            self.results_changed.emit()
+            return
+
+        from quantis.ui.async_ui import schedule
+
+        self._search_generation += 1
+        generation = self._search_generation
+        self._inflight_searches += 1
+        self.set_loading(True)
+        schedule(self._search_async(query, generation), self._bridge)
+
+    async def _search_async(self, query: str, generation: int) -> None:
+        bridge = self._bridge
+        try:
+            logger.info("Поиск: %s", query)
+            from quantis.config.credentials import yandex_token
+            from quantis.models import TrackSource
+
+            tracks: list[Track] = []
+            yandex_count = 0
+            youtube_count = 0
+            sources_done = 0
+            has_yandex = bool(yandex_token())
+
+            async for source, batch in self._finder.iter_track_batches(query):
+                if generation != self._search_generation:
+                    return
+
+                tracks.extend(batch)
+                if source == "yandex":
+                    yandex_count = len(batch)
+                else:
+                    youtube_count = len(batch)
+                sources_done += 1
+
+                snapshot = list(tracks)
+                if sources_done < 2:
+                    if source == "yandex":
+                        if has_yandex:
+                            status = f"Yandex: {yandex_count} — ищем YouTube…"
+                        else:
+                            status = "Ищем YouTube…"
+                    elif has_yandex:
+                        status = f"YouTube: {youtube_count} — ищем Yandex…"
+                    else:
+                        status = ""
+                elif snapshot:
+                    status = (
+                        f"Найдено: {len(snapshot)} "
+                        f"(Yandex: {yandex_count}, YouTube: {youtube_count})"
+                    )
+                else:
+                    status = ""
+
+                def apply(
+                    items: list[Track] = snapshot,
+                    message: str = status,
+                ) -> None:
+                    self._model.set_tracks(items)
+                    self.results_changed.emit()
+                    if message:
+                        self.status_message.emit(message)
+
+                bridge.invoke_main(apply)
+
+            if generation != self._search_generation:
+                return
+            logger.info("Найдено треков: %d", len(tracks))
+
+            if not tracks:
+
+                def show_empty() -> None:
+                    hint = "Ничего не найдено."
+                    if not yandex_token():
+                        hint += " Укажите токен Yandex в Настройках."
+                    else:
+                        hint += " Попробуйте другой запрос."
+                    self.status_message.emit(hint)
+
+                bridge.invoke_main(show_empty)
+        except (GeneratorExit, asyncio.CancelledError):
+            raise
+        except Exception as exc:
+            logger.exception("Ошибка поиска")
+            if generation == self._search_generation:
+
+                def show_err() -> None:
+                    self.emit_error(str(exc))
+
+                bridge.invoke_main(show_err)
+        finally:
+
+            def finish() -> None:
+                self._inflight_searches = max(0, self._inflight_searches - 1)
+                if self._inflight_searches == 0:
+                    self.set_loading(False)
+
+            bridge.invoke_main(finish)
+
+    def _tracks_snapshot(self) -> list[Track]:
+        return self._model.all_tracks()
+
+    async def play_track(self, track: Track) -> None:
+        tracks = self._tracks_snapshot()
+        if not tracks:
+            await self._playback.play_track(track)
+            return
+        try:
+            index = tracks.index(track)
+        except ValueError:
+            index = 0
+            tracks = [track]
+        playlist = RecommendationPlaylist(name="Поиск", tracks=tracks)
+        playlist.set_current_track(index)
+        self._playback.playlist_manager.set_playlist(playlist)
+        await self._playback.play_track(track)
+
+    async def play_track_at(self, index: int) -> None:
+        track = self._model.get_track(index)
+        if track is not None:
+            await self.play_track(track)
+
+    async def download_track_at(self, index: int) -> None:
+        track = self._model.get_track(index)
+        if track is None or track.downloaded:
+            return
+        bridge = self._bridge
+        downloader = self._playback.music.downloader
+        bridge.invoke_main(lambda: self.set_loading(True))
+        try:
+            await downloader.download_track(track)
+            await downloader.download_cover(track)
+            track.downloaded = True
+
+            def refresh() -> None:
+                model_index = self._model.index(index)
+                self._model.dataChanged.emit(model_index, model_index, [])
+                self.download_finished.emit()
+
+            bridge.invoke_main(refresh)
+        except Exception as exc:
+            logger.exception("Ошибка скачивания")
+            bridge.invoke_main(lambda: self.emit_error(str(exc)))
+        finally:
+            bridge.invoke_main(lambda: self.set_loading(False))

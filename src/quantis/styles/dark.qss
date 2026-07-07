@@ -1,10 +1,6 @@
 /* =========================================
    ГЛОБАЛЬНЫЕ СТИЛИ (База и Окна)
    ========================================= */
-QWidget {
-    /* База остается прозрачной, чтобы пропускать картинку */
-    background: transparent;
-}
 #darkOverlay {
     /* Чуть более выраженное затемнение при открытых диалогах */
     background-color: rgba(0, 0, 0, 140);
@@ -64,7 +60,19 @@ QInputDialog QComboBox QAbstractItemView {
 #headerGreeting, #playlistName, #sectionTitle, #trackTitle, #playlistTitle {
     color: #fff;
 }
-#headerGreeting { font-size: 26px; font-weight: 800; }
+#headerGreeting {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    color: #ffffff;
+    background: transparent;
+}
+#headerSub {
+    color: rgba(255, 255, 255, 170);
+    font-size: 13px;
+    font-weight: 500;
+    background: transparent;
+}
 #playlistName { font-size: 28px; font-weight: 800; }
 #sectionTitle { font-size: 17px; font-weight: 700; }
 #trackTitle { font-size: 14px; font-weight: 600; }

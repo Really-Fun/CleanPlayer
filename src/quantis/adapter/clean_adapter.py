@@ -4,31 +4,43 @@ Windows - SMTC
 '''
 from __future__ import annotations
 
+import logging
 import platform
-from asyncio import AbstractEventLoop
+
+from quantis.core.async_bridge import AsyncBridge
 
 from quantis.player.player import Player
+from quantis.plugins.event_bus import EventBus
+from quantis.providers.path_provider import PathProvider
 
 
 class CleanAdapter:
-    """Создаём нужный адаптер в зависимости от ОС пользователя"""
+    """Создаём нужный адаптер в зависимости от ОС пользователя."""
 
-    def __init__(self, context: AppContext) -> None:
+    def __init__(
+        self,
+        *,
+        player: Player,
+        event_bus: EventBus,
+        path_provider: PathProvider,
+        bridge: AsyncBridge,
+    ) -> None:
         current_os = platform.system()
 
         match current_os:
             case "Linux":
-                self.start_mpris(player=context.player, event_bus=context.event_bus, path_provider=context.path_provider)
-
+                self.start_mpris(
+                    player=player,
+                    event_bus=event_bus,
+                    path_provider=path_provider,
+                )
             case "Windows":
-                self.start_smtc(player=context.player, loop=context.loop, event_bus=context.event_bus)
+                self.start_smtc(player=player, bridge=bridge, event_bus=event_bus)
 
     def start_mpris(self, player: Player, event_bus, path_provider) -> None:
-        """Запускаем MPRIS для линукс
-        """
         from mpris_server.server import Server
 
-        from .MprisAdapter import QuantisAppAdapter, QuantisEventHandler
+        from .mpris_adapter import QuantisAppAdapter, QuantisEventHandler
 
         mpris_adapter = QuantisAppAdapter(player, event_bus, path_provider)
         mpris = Server("Quantis", mpris_adapter)
@@ -36,9 +48,12 @@ class CleanAdapter:
         mpris_adapter.set_event_handler(event_handler)
         mpris.publish()
 
-    def start_smtc(self, player: Player, loop: AbstractEventLoop, event_bus) -> None:
-        """Запускаем SMTC для Windows
-        """
-        from .windows_adapter import WindowsSMTCAdapter
+    def start_smtc(self, player: Player, bridge: AsyncBridge, event_bus) -> None:
+        try:
+            from .windows_adapter import WindowsSMTCAdapter
 
-        WindowsSMTCAdapter(player, loop, event_bus)
+            WindowsSMTCAdapter(player, bridge, event_bus)
+        except Exception:
+            logging.getLogger(__name__).exception(
+                "Windows SMTC недоступен — управление из системного оверлея отключено"
+            )

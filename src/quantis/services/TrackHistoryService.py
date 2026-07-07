@@ -5,9 +5,10 @@
 
 from __future__ import annotations
 
+import asyncio
 from time import monotonic
 
-from quantis.database import AsyncDatabase, TrackHistoryRepository
+from quantis.database import sync_history
 from quantis.models import RecentlyPlayedPlaylist, Track, YandexTrack, YoutubeTrack
 from quantis.providers import TrackManager
 
@@ -28,8 +29,6 @@ class TrackHistoryService:
     def __init__(self, save_interval_sec: float = 5.0) -> None:
         if getattr(self, "_initialized", False):
             return
-        self._db = AsyncDatabase()
-        self._repo = TrackHistoryRepository(self._db)
         self._save_interval_sec = max(1.0, save_interval_sec)
         self._last_saved_by_key: dict[str, float] = {}
         self._track_manager = TrackManager()
@@ -42,7 +41,8 @@ class TrackHistoryService:
 
     async def get_resume_position(self, track: Track) -> int:
         """Возвращает сохраненную позицию для продолжения трека."""
-        return await self._repo.get_saved_position(self.build_track_key(track))
+        track_key = self.build_track_key(track)
+        return await asyncio.to_thread(sync_history.get_saved_position, track_key)
 
     async def save_progress(
         self,
@@ -59,11 +59,12 @@ class TrackHistoryService:
         if not force and now - last_saved < self._save_interval_sec:
             return
 
-        await self._repo.upsert_progress(
+        await asyncio.to_thread(
+            sync_history.upsert_progress,
             track_key=track_key,
             title=track.title,
             author=track.author,
-            source=track.source,
+            source=str(track.source),
             position_ms=position_ms,
             duration_ms=duration_ms,
             listen_increment=0,
@@ -75,11 +76,12 @@ class TrackHistoryService:
     ) -> None:
         """Сохраняет финальное состояние и увеличивает число прослушиваний."""
         track_key = self.build_track_key(track)
-        await self._repo.upsert_progress(
+        await asyncio.to_thread(
+            sync_history.upsert_progress,
             track_key=track_key,
             title=track.title,
             author=track.author,
-            source=track.source,
+            source=str(track.source),
             position_ms=position_ms,
             duration_ms=duration_ms,
             listen_increment=1,
@@ -90,39 +92,41 @@ class TrackHistoryService:
         self, limit: int = 24
     ) -> RecentlyPlayedPlaylist | None:
         """Формирует системный плейлист недавно прослушанных треков."""
-        entries = await self._repo.get_recent_entries(limit=limit)
+        entries = await asyncio.to_thread(sync_history.fetch_recent_entries, limit)
         if not entries:
             return None
+        tracks = await asyncio.to_thread(self._build_tracks_from_entries, entries)
+        return RecentlyPlayedPlaylist(tracks=tracks)
 
+    async def close(self) -> None:
+        """Заглушка для совместимости при завершении приложения."""
+
+    def _build_tracks_from_entries(self, entries: list[dict]) -> list[Track]:
         tracks: list[Track] = []
         for entry in entries:
-            source, track_id = self._split_track_key(entry.track_key, entry.source)
+            source, track_id = self._split_track_key(entry["track_key"], entry["source"])
             downloaded = self._track_manager.is_downloaded(str(track_id))
             if source == "yandex":
                 tracks.append(
                     YandexTrack(
                         track_id=int(track_id) if str(track_id).isdigit() else track_id,
-                        title=entry.title,
-                        author=entry.author,
+                        title=entry["title"],
+                        author=entry["author"],
                         downloaded=downloaded,
-                        listen_count=entry.listen_count,
+                        listen_count=int(entry["listen_count"]),
                     )
                 )
             else:
                 tracks.append(
                     YoutubeTrack(
                         track_id=str(track_id),
-                        title=entry.title,
-                        author=entry.author,
+                        title=entry["title"],
+                        author=entry["author"],
                         downloaded=downloaded,
-                        listen_count=entry.listen_count,
+                        listen_count=int(entry["listen_count"]),
                     )
                 )
-        return RecentlyPlayedPlaylist(tracks=tracks)
-
-    async def close(self) -> None:
-        """Закрывает соединение с БД при завершении приложения."""
-        await self._db.close()
+        return tracks
 
     @staticmethod
     def _split_track_key(track_key: str, source_fallback: str) -> tuple[str, str]:

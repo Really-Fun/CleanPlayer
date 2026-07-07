@@ -1,3 +1,30 @@
+# Poetry / packaging
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Coverage
+.coverage
+htmlcov/
+
+# PyInstaller
+*.spec.bak
+
+# Secrets
+*.pem
+*.key
+cookies.txt
+
+# User config
+config.json
+settings.json
+quantis.json
+
+# IDE
+*.swp
+*~
+desktop.ini
+
 # Виртуальное окружение
 .venv/
 .env
@@ -32,9 +59,6 @@ player_history.db*
 player_history.db-shm*
 player_history.db-wal*
 
-# Legacy asset output dirs (if used)
-
-
 # Local playlists storage
 playlists/
 playlist_covers/
@@ -43,9 +67,13 @@ playlist_covers/
 .DS_Store
 Thumbs.db
 
-background/*
-src/quantis/assets/background/*
+# Пользовательские фоны (дефолтные ассеты в репо не игнорируем)
+background/user/*
+!background/user/.gitkeep
+
+# Плагины пользователя
 plugins_dir/*
+!plugins_dir/.gitkeep
 
 CleanPlayer.spec
 build.bat

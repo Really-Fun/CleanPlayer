@@ -24,7 +24,7 @@ class TrackSource(StrEnum):
     YOUTUBE = "youtube"
 
 
-@dataclass
+@dataclass(eq=False)
 class Track:
     """Базовый дата класс трека."""
 
@@ -42,24 +42,25 @@ class Track:
         return f"{self.source} : {self.title} - {self.author}"
 
     def __eq__(self, other: object) -> bool:
-        if isinstance(other, self.__class__):
-            return self.track_id == other.track_id
-        if hasattr(other, "title") and hasattr(other, "author"):
-            return (self.title, self.author) == (other.title, other.author)
-        return False
+        if not isinstance(other, Track):
+            return False
+        return (
+            str(self.source) == str(other.source)
+            and str(self.track_id) == str(other.track_id)
+        )
 
     def __hash__(self) -> int:
-        return hash(self.track_id)
+        return hash((str(self.source), str(self.track_id)))
 
 
-@dataclass
+@dataclass(eq=False)
 class YandexTrack(Track):
     """Трек Яндекс.Музыки."""
 
     source: str = TrackSource.YANDEX
 
 
-@dataclass
+@dataclass(eq=False)
 class YoutubeTrack(Track):
     """Трек YouTube."""
 

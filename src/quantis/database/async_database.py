@@ -25,19 +25,25 @@ class AsyncDatabase:
     def __init__(self, db_path: str = "player_history.db") -> None:
         self._db_path = Path(db_path)
         self._conn: aiosqlite.Connection | None = None
-        self._init_lock = asyncio.Lock()
         self._initialized = False
+        self._init_task: asyncio.Task[None] | None = None
 
     async def ensure_initialized(self) -> None:
         """Гарантирует создание подключения и таблиц."""
         if self._initialized:
             return
-        async with self._init_lock:
-            if self._initialized:
-                return
-            await self._connect_sync()
-            await self._init_schema_sync()
-            self._initialized = True
+        if self._init_task is None:
+            self._init_task = asyncio.create_task(self._perform_init())
+        try:
+            await self._init_task
+        except Exception:
+            self._init_task = None
+            raise
+
+    async def _perform_init(self) -> None:
+        await self._connect_sync()
+        await self._init_schema_sync()
+        self._initialized = True
 
     async def execute(self, query: str, params: Iterable[Any] = ()) -> None:
         """Выполняет SQL-запрос без возвращаемого результата."""

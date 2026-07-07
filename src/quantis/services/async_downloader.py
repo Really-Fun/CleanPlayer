@@ -16,7 +16,7 @@ import aiohttp
 from yt_dlp import YoutubeDL
 
 from quantis.config import Clients
-from quantis.models.track import Track, YandexTrack, YoutubeTrack
+from quantis.models.track import Track, TrackSource, YandexTrack, YoutubeTrack
 from quantis.providers import PathProvider
 
 F = TypeVar("F", bound=Callable[..., Any])
@@ -66,7 +66,8 @@ class AsyncYandexDownloader(AsyncDownloaderInterface):
         if self.client is None:
             return
         try:
-            track_info = await self.client.tracks(track.track_id)
+            PathProvider.ensure_storage_dirs()
+            track_info = await self.client.tracks(int(track.track_id))
             current_track = track_info[0]
             file_path = self.path_provider.get_track_path(track)
 
@@ -88,7 +89,8 @@ class AsyncYandexDownloader(AsyncDownloaderInterface):
         if self.client is None:
             return
         try:
-            track_info = await self.client.tracks(track.track_id)
+            PathProvider.ensure_storage_dirs()
+            track_info = await self.client.tracks(int(track.track_id))
             await track_info[0].downloadCoverAsync(
                 self.path_provider.get_cover_path(track), "200x200"
             )
@@ -168,24 +170,38 @@ class AsyncYoutubeDownloader(AsyncDownloaderInterface):
         except Exception:
             logger.exception("Не удалось скачать трек с YouTube: %s", track_id)
 
+    async def close(self) -> None:
+        if self._session is not None and not self._session.closed:
+            await self._session.close()
+            self._session = None
+
+    def shutdown(self) -> None:
+        self._executor.shutdown(wait=False)
+
 
 class AsyncDownloader(AsyncDownloaderInterface):
-    def __init__(self):
+    def __init__(self) -> None:
         self._yandex_downloader = AsyncYandexDownloader()
         self._youtube_downloader = AsyncYoutubeDownloader()
 
     @log
     async def download_track(self, track: Track) -> None:
         match track.source:
-            case "yandex":
+            case TrackSource.YANDEX:
                 await self._yandex_downloader.download_track(track)
-            case "youtube":
+            case TrackSource.YOUTUBE:
                 await self._youtube_downloader.download_track(track)
 
     @log
     async def download_cover(self, track: Track) -> None:
         match track.source:
-            case "yandex":
+            case TrackSource.YANDEX:
                 await self._yandex_downloader.download_cover(track)
-            case "youtube":
+            case TrackSource.YOUTUBE:
                 await self._youtube_downloader.download_cover(track)
+
+    def shutdown(self) -> None:
+        self._youtube_downloader.shutdown()
+
+    async def close(self) -> None:
+        await self._youtube_downloader.close()

@@ -1,7 +1,7 @@
-from quantis.player.engine import VLCEngine
+from quantis.player.engine import QtMediaEngine
 from quantis.player.player import Player
 
 __all__ = [
-    "Player",
-    "VLCEngine",
+  "Player",
+  "QtMediaEngine",
 ]

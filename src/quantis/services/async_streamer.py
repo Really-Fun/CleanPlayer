@@ -17,26 +17,29 @@ from time import time
 from yt_dlp import YoutubeDL
 
 from quantis.config import Clients
-from quantis.models import Track
+from quantis.models import Track, TrackSource
 
 logger = logging.getLogger(__name__)
 
+
 def cached_stream_url(func):
     """Декоратор для кэширования прямых URL треков внутри методов класса Streamer."""
+
     @functools.wraps(func)
     async def wrapper(self, track: Track, *args, **kwargs):
-        track_key = str(track.track_id)
-        
+        track_key = f"{track.source}:{track.track_id}"
+
         cached = self._cache.get(track_key)
         if cached is not None and (time() - cached[1] < self._URL_CACHE_TTL_SEC):
             return cached[0]
-            
+
         url = await func(self, track, *args, **kwargs)
-        
+
         if url is not None:
             self._cache[track_key] = (url, time())
-            
+
         return url
+
     return wrapper
 
 
@@ -46,28 +49,48 @@ class AsyncStreamerInterface(ABC):
 
 
 class AsyncYandexStreamer(AsyncStreamerInterface):
-    def __init__(self):
-        self.client = Clients().get_yandex_client()
+    def __init__(self, executor: ThreadPoolExecutor) -> None:
+        self._executor = executor
 
     async def get_stream_url(self, track: Track) -> str | None:
-        if self.client is None:
+        return await get_running_loop().run_in_executor(
+            self._executor, self._sync_get_stream_url, track
+        )
+
+    def _yandex_token(self) -> str | None:
+        from keyring import get_password
+
+        from quantis.config.constants import SERVICE_NAME_YANDEX, USER
+
+        return get_password(SERVICE_NAME_YANDEX, USER)
+
+    def _sync_get_stream_url(self, track: Track) -> str | None:
+        token = self._yandex_token()
+        if not token:
             return None
         try:
-            track_info = await self.client.tracks(track.track_id)
-            download_info = await track_info[0].get_download_info_async()
-            url = await download_info[0].get_direct_link_async()
-            return url
+            from yandex_music import Client
+
+            track_id = int(track.track_id)
+            track_info = Client(token).tracks(track_id)
+            if not track_info:
+                return None
+            download_info = track_info[0].get_download_info()
+            if not download_info:
+                return None
+            return download_info[0].get_direct_link()
         except Exception:
             logger.exception("Не удалось получить URL потока Яндекс.Музыки: %s", track)
             return None
 
 
 class AsyncYoutubeStreamer(AsyncStreamerInterface):
-    _URL_CACHE_TTL_SEC = 30 * 60
-
-    def __init__(self) -> None:
+    def __init__(self, executor: ThreadPoolExecutor) -> None:
         self.opts = {
-            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "user_agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            ),
             "quiet": False,
             "noplaylist": True,
             "extract_flat": False,
@@ -78,16 +101,15 @@ class AsyncYoutubeStreamer(AsyncStreamerInterface):
             "skip_download": True,
         }
         self.yt = YoutubeDL(self.opts)
-        self._executor = ThreadPoolExecutor(max_workers=2)
+        self._executor = executor
 
     async def get_stream_url(self, track: Track) -> str | None:
-        url = await get_running_loop().run_in_executor(
+        return await get_running_loop().run_in_executor(
             self._executor, self.sync_stream, self.yt, track.track_id
         )
-        return url
 
     @staticmethod
-    def sync_stream(yt, track_id: str) -> str | None:
+    def sync_stream(yt: YoutubeDL, track_id: str) -> str | None:
         try:
             info = yt.extract_info(
                 f"https://www.youtube.com/watch?v={track_id}", download=False
@@ -104,23 +126,26 @@ class AsyncStreamer(AsyncStreamerInterface):
     _URL_CACHE_TTL_SEC = 30 * 60  # 30 минут
 
     def __init__(self, executor: ThreadPoolExecutor | None = None) -> None:
-        self._executor = executor or ThreadPoolExecutor(max_workers=4, thread_name_prefix="StreamerPool")
-        self._yandex = AsyncYandexStreamer()
+        self._owns_executor = executor is None
+        self._executor = executor or ThreadPoolExecutor(
+            max_workers=4, thread_name_prefix="StreamerPool"
+        )
+        self._yandex = AsyncYandexStreamer(self._executor)
         self._youtube = AsyncYoutubeStreamer(self._executor)
-
         self._cache: dict[str, tuple[str, float]] = {}
 
     @cached_stream_url
     async def get_stream_url(self, track: Track) -> str | None:
         """Получает прямой URL. Декоратор @cached_stream_url сам проверит и заполнит кэш."""
         source_type = str(track.source).lower()
-        
-        if source_type == "youtube":
+
+        if source_type == TrackSource.YOUTUBE:
             return await self._youtube.get_stream_url(track)
-        elif source_type == "yandex":
+        if source_type == TrackSource.YANDEX:
             return await self._yandex.get_stream_url(track)
-            
-        raise NameError(f"Неизвестный источник платформы у трека: {track.source!r}")
+
+        raise ValueError(f"Неизвестный источник платформы у трека: {track.source!r}")
 
     def shutdown(self) -> None:
-        self._executor.shutdown(wait=False)
+        if self._owns_executor:
+            self._executor.shutdown(wait=False)

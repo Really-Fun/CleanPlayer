@@ -6,7 +6,6 @@ from .playlist import (
     UserPlaylist,
 )
 from .track import Track, TrackSource, YandexTrack, YoutubeTrack
-from .track_list_model import TrackListModel
 
 __all__ = [
     "Track",
@@ -18,5 +17,4 @@ __all__ = [
     "UserPlaylist",
     "RecentlyPlayedPlaylist",
     "RecommendationPlaylist",
-    "TrackListModel",
 ]

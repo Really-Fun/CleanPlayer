@@ -1,8 +1,9 @@
 """Асинхронный сервис рекомендаций треков (YouTube Radio / Watch Playlist)."""
 
+from __future__ import annotations
+
 import asyncio
 import logging
-from concurrent.futures import ThreadPoolExecutor
 
 from ytmusicapi import YTMusic
 
@@ -17,20 +18,23 @@ logger = logging.getLogger(__name__)
 class AsyncRecommendation:
     """Генерирует радио на основе трека через YouTube Music Watch Playlist."""
 
-    def __init__(self) -> None:
-        self.client: YTMusic = Clients().get_youtube_client()
-        self.finder: AsyncYoutubeFinder = AsyncYoutubeFinder()
+    def __init__(
+        self,
+        youtube_finder: AsyncYoutubeFinder,
+        client: YTMusic | None = None,
+    ) -> None:
+        self._finder = youtube_finder
+        self._client = client or Clients().get_youtube_client()
 
     async def generate_radio_from_track(self, track: Track) -> RecommendationPlaylist:
         video_id = track.track_id
         if not isinstance(track, YoutubeTrack):
             video_id = await self._get_youtube_id(track)
 
-        with ThreadPoolExecutor() as thread:
-            result = await asyncio.get_running_loop().run_in_executor(
-                thread,
-                lambda: self.client.get_watch_playlist(videoId=video_id, limit=10),
-            )
+        result = await asyncio.get_running_loop().run_in_executor(
+            self._finder.executor,
+            lambda: self._client.get_watch_playlist(videoId=video_id, limit=10),
+        )
 
         tracks = [
             YoutubeTrack(
@@ -46,12 +50,9 @@ class AsyncRecommendation:
 
     async def _get_youtube_id(self, track: Track) -> str:
         """Ищет YouTube ID для не-YouTube трека."""
-        results = await self.finder.get_tracks(
-            f"{track.title} {track.author}", value=1
-        )
+        results = await self._finder.get_tracks(f"{track.title} {track.author}", value=1)
         return results[0].track_id
 
 
 # Алиас для обратной совместимости
 AsyncRecomendation = AsyncRecommendation
-

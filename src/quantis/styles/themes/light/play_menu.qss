@@ -1,0 +1,33 @@
+/* Light player — приглушённый, не ослепляющий */
+
+#PlayMenu {
+    background: rgba(32, 36, 44, 0.92);
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 14px;
+}
+
+#trackTitle { color: #f4f6f8; }
+#trackArtist { color: rgba(200, 208, 218, 0.85); }
+#timeLabel { color: rgba(180, 188, 200, 0.75); }
+#coverLabel { background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12); }
+#volIcon { color: rgba(180, 188, 200, 0.7); }
+
+#seekSlider::groove:horizontal,
+#volSlider::groove:horizontal {
+    background: rgba(255, 255, 255, 0.15);
+}
+#seekSlider::sub-page:horizontal { background: #5eb3e8; border-radius: 2px; }
+#seekSlider::handle:horizontal { background: #e8ecf0; }
+#seekSlider::handle:horizontal:hover { background: #5eb3e8; }
+
+#volSlider::sub-page:horizontal { background: rgba(94, 179, 232, 0.6); border-radius: 2px; }
+#volSlider::handle:horizontal { background: #e8ecf0; }
+
+#controlButton { background: transparent; }
+#controlButton:hover { background: rgba(255, 255, 255, 0.08); }
+#controlButton[accent=true] {
+    background: #5eb3e8;
+}
+#controlButton[accent=true]:hover {
+    background: #78c4f0;
+}

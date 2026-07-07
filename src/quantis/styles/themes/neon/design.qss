@@ -1,0 +1,111 @@
+/* Neon — cyan + magenta, выразительное свечение */
+
+QWidget {
+    color: #f1f5f9;
+}
+
+QFrame#glassPanel {
+    background: rgba(10, 8, 22, 0.78);
+    border: 1px solid rgba(255, 42, 127, 0.15);
+    border-radius: 14px;
+}
+
+QFrame#appHeader {
+    background: rgba(6, 6, 14, 0.6);
+    border: none;
+    border-bottom: 1px solid rgba(0, 229, 255, 0.12);
+}
+
+#headerGreeting {
+    font-size: 20px;
+    font-weight: 700;
+    color: #f8fafc;
+    letter-spacing: -0.3px;
+}
+
+#sectionTitle {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(0, 229, 255, 0.8);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+#searchInput {
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 42, 127, 0.2);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 14px;
+    color: #f8fafc;
+    selection-background-color: rgba(255, 42, 127, 0.35);
+}
+#searchInput:focus {
+    border-color: rgba(0, 229, 255, 0.55);
+    background: rgba(8, 6, 18, 0.65);
+}
+
+QPushButton#searchButton {
+    background: rgba(255, 42, 127, 0.18);
+    border: 1px solid rgba(255, 42, 127, 0.4);
+    border-radius: 10px;
+    color: #f8fafc;
+    font-weight: 600;
+    padding: 8px 16px;
+}
+QPushButton#searchButton:hover {
+    background: rgba(0, 229, 255, 0.2);
+    border-color: rgba(0, 229, 255, 0.45);
+}
+
+#searchStatus {
+    color: rgba(248, 250, 252, 0.4);
+    font-size: 11px;
+    min-height: 16px;
+}
+
+QLabel#settingsSectionLabel {
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255, 42, 127, 0.75);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+}
+
+QLabel#settingsRowTitle { color: #f8fafc; font-size: 14px; font-weight: 600; }
+QLabel#settingsRowDesc { color: rgba(248, 250, 252, 0.4); font-size: 12px; }
+QCheckBox#settingsCheck { font-size: 13px; color: #e2e8f0; spacing: 8px; }
+
+QComboBox#themeCombo,
+QLineEdit#settingLineEdit {
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 42, 127, 0.2);
+    border-radius: 10px;
+    padding: 10px 12px;
+    color: #f8fafc;
+}
+QComboBox#themeCombo:hover,
+QLineEdit#settingLineEdit:focus {
+    border-color: rgba(0, 229, 255, 0.45);
+}
+QComboBox#themeCombo QAbstractItemView {
+    background: #0a0816;
+    color: #f8fafc;
+    border: 1px solid rgba(0, 229, 255, 0.25);
+    selection-background-color: rgba(255, 42, 127, 0.35);
+}
+
+QFrame#featuredPanel {
+    background: rgba(8, 6, 18, 0.72);
+    border: 1px solid rgba(255, 42, 127, 0.12);
+    border-radius: 14px;
+}
+
+QScrollBar:vertical { width: 4px; background: transparent; }
+QScrollBar::handle:vertical {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ff2a7f, stop:1 #00e5ff);
+    min-height: 40px;
+    border-radius: 2px;
+}
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical { height: 0; }

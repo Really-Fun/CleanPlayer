@@ -18,7 +18,7 @@
 
 - Поиск треков из `Yandex` и `YouTube`.
 - Система плагинов
-- Стабильное воспроизведение через `VLC`.
+- Стабильное воспроизведение через **Qt Multimedia** (отдельный VLC не нужен).
 - Скачивание треков + обложек.
 - История прослушивания в `SQLite` с автосохранением позиции.
 - Системные плейлисты: `Скачанные`, `Недавно прослушанные`.
@@ -31,11 +31,11 @@
 ## Стек
 
 - Python `3.13+`
-- `PySide6`, `qasync`, `python-vlc`
+- `PySide6`, `qasync`, Qt Multimedia
 - `ytmusicapi`, `yt-dlp`, `yandex-music`
 - `aiosqlite`
 
-Полный список зависимостей — в `requirements.txt`.
+Полный список зависимостей — в `pyproject.toml` (Poetry).
 
 ---
 
@@ -44,13 +44,11 @@
 ```bash
 git clone https://github.com/Really-Fun/Quantis.git
 cd Quantis
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-python main.py
+poetry install
+poetry run quantis
 ```
 
-Требование!: установлен `VLC` в системе (для `python-vlc`).
+Требование: для воспроизведения используется Qt Multimedia (отдельный VLC не нужен).
 
 ### Сборка exe (Windows)
 
@@ -91,7 +89,7 @@ keyring.set_password("LASTFM_SECRET_NEON_APP", "NEON_APP", "<ваш_api_secret>"
 config/      # инициализация внешних клиентов
 database/    # SQLite + репозиторий истории
 models/      # модели треков/плейлистов
-player/      # воспроизведение и движок VLC
+player/      # воспроизведение (Qt Multimedia)
 providers/   # менеджеры путей и плейлистов
 services/    # поиск, стриминг, скачивание, история
 ui/          # интерфейс и страницы приложения

@@ -59,16 +59,16 @@ class PluginRegistry(QObject):
         self._settings = QSettings("ReallyFun", "Quantis")
         self._infos: dict[str, PluginInfo] = {}
         self._active: dict[str, object] = {}  # plugin_id → BasePlugin instance
-        self._context = None  # AppContext, задаётся в load_all
+        self._host = None  # PluginHost, задаётся в load_all
 
     # ── Публичный API ─────────────────────────────────────────────────────────
 
-    async def load_all(self, context) -> None:
+    async def load_all(self, host) -> None:
         """Сканирует папку плагинов и загружает включённые.
 
         Вызывать один раз при старте приложения.
         """
-        self._context = context
+        self._host = host
         enabled_ids = self._read_enabled()
 
         for meta in self._loader.discover():
@@ -134,7 +134,7 @@ class PluginRegistry(QObject):
         try:
             plugin_class = self._loader.load_class(info.meta)
             plugin_settings = QSettings("ReallyFun", f"Quantis/plugins/{plugin_id}")
-            instance = plugin_class(self._context, plugin_settings)
+            instance = plugin_class(self._host, plugin_settings)
 
             await instance.on_load()
             self._active[plugin_id] = instance

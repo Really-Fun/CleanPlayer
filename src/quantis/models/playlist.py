@@ -16,7 +16,7 @@ import json
 import os
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Iterable, Tuple
+from typing import Any, Iterable, Tuple
 
 from quantis.models.track import Track, YandexTrack, YoutubeTrack
 from quantis.models.upgrade_cycle import UpgradeCycle
@@ -32,7 +32,7 @@ class Playlist(ABC):
         self.name = name
         self.cover_path = cover_path
 
-    def move_next_track(self):
+    def move_next_track(self) -> Any:
         """Переключаемся на следующий трек
 
         Returns:
@@ -40,7 +40,7 @@ class Playlist(ABC):
         """
         return next(self.tracks)
 
-    def move_previous_track(self):
+    def move_previous_track(self) -> Any:
         """Переключаемся на предыдущий трек
 
         Returns:
@@ -48,7 +48,7 @@ class Playlist(ABC):
         """
         return self.tracks.move_previous()
 
-    def get_current_track(self):
+    def get_current_track(self) -> Track:
         """Получаем текущий трек
 
         Returns:
@@ -73,7 +73,6 @@ class Playlist(ABC):
         Returns:
             bool: ``True`` если трек найден и удален, иначе ``False``.
         """
-        print(1)
         return self.tracks.remove(track)
 
     def set_current_track(self, index: int) -> None:
@@ -147,7 +146,7 @@ class RecommendationPlaylist(Playlist):
         self,
         name: str = "Рекомендации",
         tracks: Iterable[Track] | None = None,
-        cover_path: str = "playlist_covers/recomendation.'svg",
+        cover_path: str = "assets/icons/recomendation.svg",
     ) -> None:
         super().__init__(name, tracks, cover_path)
 

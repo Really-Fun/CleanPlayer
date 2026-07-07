@@ -1,24 +1,19 @@
-import asyncio
 import logging
+import os
 import sys
 
 from PySide6.QtWidgets import QApplication
-from qasync import QEventLoop
 
-from quantis.adapter import CleanAdapter
-from quantis.core import init_app_context
-from quantis.services import TrackHistoryService
+from quantis.core.bootstrap import build_application, shutdown_application
+from quantis.core.async_bridge import AsyncBridge
 from quantis.ui import Quantis
 
 
-def main():
+def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-        handlers=[
-            logging.StreamHandler(sys.stdout)
-            # logging.FileHandler("app.log")
-        ],
+        handlers=[logging.StreamHandler(sys.stdout)],
     )
     logger = logging.getLogger(__name__)
     logger.info(
@@ -30,21 +25,31 @@ def main():
     )
 
     app = QApplication(sys.argv)
-    loop = QEventLoop(app)
-    asyncio.set_event_loop(loop)
-
-    app_context = init_app_context(loop)
-
-    window = Quantis(loop)
+    bridge = AsyncBridge()
+    bridge.setParent(app)
+    bundle = build_application(bridge)
+    window = Quantis(bundle)
     window.show()
 
-    CleanAdapter(app_context)
+    if os.environ.get("QUANTIS_ENABLE_ADAPTER", "1").lower() in ("1", "true", "yes"):
+        from quantis.adapter import CleanAdapter
 
-    with loop:
         try:
-            loop.run_forever()
-        finally:
-            loop.run_until_complete(TrackHistoryService().close())
+            CleanAdapter(
+                player=bundle.player,
+                event_bus=bundle.event_bus,
+                path_provider=bundle.music.provider,
+                bridge=bridge,
+            )
+        except Exception:
+            logger.exception("Системная интеграция плеера недоступна")
+
+    try:
+        sys.exit(app.exec())
+    finally:
+        shutdown_application(bundle)
+        bridge.shutdown()
+
 
 if __name__ == "__main__":
     main()
