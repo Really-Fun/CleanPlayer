@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 
 from quantis.core.bootstrap import ApplicationBundle
 from quantis.ui import resources
+from quantis.ui.controllers.dynamic_wallpaper import DynamicWallpaperController
 from quantis.ui.preferences import UiPreferences
 from quantis.ui.viewmodels.home_vm import HomeViewModel
 from quantis.ui.viewmodels.player_vm import PlayerViewModel
@@ -25,6 +26,7 @@ from quantis.ui.views.settings_page import SettingsPage
 from quantis.ui.views.widgets.app_header import AppHeader
 from quantis.ui.views.widgets.background_frame import BackgroundFrame
 from quantis.ui.views.widgets.side_nav import SideNavRail
+from quantis.ui.views.widgets.wallpaper_backdrop import BodyWithWallpaper
 
 
 class QuantisMainWindow(QMainWindow):
@@ -82,7 +84,7 @@ class QuantisMainWindow(QMainWindow):
         self.setCentralWidget(shell)
         self._shell = shell
 
-        root = QVBoxLayout(shell)
+        root = QVBoxLayout(shell.content_host())
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
@@ -92,9 +94,11 @@ class QuantisMainWindow(QMainWindow):
         self._header.close_requested.connect(self.close)
         root.addWidget(self._header)
 
-        body = QHBoxLayout()
-        body.setContentsMargins(0, 0, 0, 0)
-        body.setSpacing(0)
+        self._body_shell = BodyWithWallpaper(
+            resources.wallpaper_path(),
+            variant=self._ui_prefs.ui_theme,
+        )
+        body = self._body_shell.layout_host
 
         self._nav = SideNavRail()
         self._nav.page_changed.connect(self._on_page_changed)
@@ -124,7 +128,7 @@ class QuantisMainWindow(QMainWindow):
 
         body.addWidget(self._nav)
         body.addWidget(content_host, stretch=1)
-        root.addLayout(body, stretch=1)
+        root.addWidget(self._body_shell, stretch=1)
 
         for view_model in (self._player_vm, self._search_vm, self._home_vm):
             view_model.error_occurred.connect(self._show_error)
@@ -135,6 +139,14 @@ class QuantisMainWindow(QMainWindow):
             lambda: self._home_vm.refresh_downloaded(self._bridge)
         )
         self._ui_prefs.changed.connect(self._on_prefs_changed)
+        self._dynamic_wallpaper = DynamicWallpaperController(
+            self._body_shell.backdrop,
+            bundle.music,
+            bundle.async_bridge,
+            self._ui_prefs,
+            bundle.event_bus,
+            parent=self,
+        )
         self._apply_ui_theme(self._ui_prefs.ui_theme)
         self._on_page_changed(self.PAGE_HOME)
 
@@ -167,10 +179,13 @@ class QuantisMainWindow(QMainWindow):
     def _on_prefs_changed(self) -> None:
         self._apply_ui_theme(self._ui_prefs.ui_theme)
         self._player_bar.refresh_theme()
+        if self._ui_prefs.dynamic_wallpaper_enabled:
+            self._dynamic_wallpaper.refresh_for_track(self._bundle.playback.current_track)
 
     def _apply_ui_theme(self, theme_id: str) -> None:
         self.setStyleSheet(resources.load_stylesheet(theme_id))
         self._shell.set_variant(theme_id)
+        self._body_shell.set_variant(theme_id)
         self._player_bar.refresh_theme()
 
     def _toggle_maximize(self) -> None:

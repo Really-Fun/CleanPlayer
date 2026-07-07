@@ -4,11 +4,11 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPainter, QPixmap, QRadialGradient
-from PySide6.QtWidgets import QFrame
+from PySide6.QtWidgets import QFrame, QWidget
 
 
 class BackgroundFrame(QFrame):
-    """Фон: мягкие обои и виньетка."""
+    """Каркас окна: базовый цвет темы и виньетка (без jpg — обои в BodyWithWallpaper)."""
 
     def __init__(
         self,
@@ -20,9 +20,17 @@ class BackgroundFrame(QFrame):
         self.setObjectName("appShell")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
         self._variant = variant
-        self._wallpaper = QPixmap(str(wallpaper)) if wallpaper else QPixmap()
-        self._cached = QPixmap()
-        self._cache_size = (0, 0)
+        # wallpaper arg kept for API compat; decorative jpg lives in WallpaperBackdrop
+        _ = wallpaper
+
+        self._content = QWidget(self)
+        self._content.setObjectName("appContent")
+        self._content.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+        self._content.setAutoFillBackground(False)
+        self._content.setStyleSheet("background: transparent;")
+
+    def content_host(self) -> QWidget:
+        return self._content
 
     def set_variant(self, variant: str) -> None:
         if self._variant != variant:
@@ -31,37 +39,10 @@ class BackgroundFrame(QFrame):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
-        self._rebuild_cache()
-
-    def _rebuild_cache(self) -> None:
-        size = self.size()
-        if size.width() <= 0 or size.height() <= 0 or self._wallpaper.isNull():
-            self._cached = QPixmap()
-            return
-        if (size.width(), size.height()) == self._cache_size and not self._cached.isNull():
-            return
-        self._cached = self._wallpaper.scaled(
-            size,
-            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-            Qt.TransformationMode.SmoothTransformation,
-        )
-        self._cache_size = (size.width(), size.height())
-
-    def _wallpaper_opacity(self) -> float:
-        return {
-            "classic": 0.12,
-            "neon": 0.11,
-            "editorial": 0.0,
-            "light": 0.14,
-            "yellow_dark": 0.11,
-        }.get(self._variant, 0.10)
+        self._content.setGeometry(self.rect())
 
     def paintEvent(self, event) -> None:
-        if self._cached.isNull() and not self._wallpaper.isNull():
-            self._rebuild_cache()
-
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         rect = self.rect()
 
         bases = {
@@ -72,13 +53,6 @@ class BackgroundFrame(QFrame):
             "neon": QColor(4, 3, 12),
         }
         painter.fillRect(rect, bases.get(self._variant, QColor(5, 6, 12)))
-
-        if self._variant != "editorial" and not self._cached.isNull():
-            painter.setOpacity(self._wallpaper_opacity())
-            x = (rect.width() - self._cached.width()) // 2
-            y = (rect.height() - self._cached.height()) // 2
-            painter.drawPixmap(x, y, self._cached)
-            painter.setOpacity(1.0)
 
         radius = max(rect.width(), rect.height()) * 0.72
         vignette = QRadialGradient(rect.center(), radius)

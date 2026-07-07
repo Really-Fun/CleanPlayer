@@ -8,7 +8,7 @@ import threading
 from collections.abc import Callable, Coroutine
 from typing import Any, TypeVar
 
-from PySide6.QtCore import QObject, QThread, QTimer, Qt, Signal
+from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal
 from PySide6.QtWidgets import QApplication
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,6 @@ class AsyncBridge(QObject):
         if app is not None and QThread.currentThread() == app.thread():
             self._dispatch(callback)
             return
-        # QTimer надёжнее сигнала при вызове из asyncio-потока на Windows.
         try:
             QTimer.singleShot(0, self, lambda cb=callback: self._dispatch(cb))
         except RuntimeError:

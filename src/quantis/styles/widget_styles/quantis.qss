@@ -5,6 +5,10 @@
 }
 
 QWidget#appShell,
+QWidget#appContent,
+QWidget#bodyWithWallpaper,
+QWidget#bodyForeground,
+QWidget#wallpaperBackdrop,
 QMainWindow,
 QWidget#pageStack {
     background: transparent;

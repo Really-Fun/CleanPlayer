@@ -12,12 +12,14 @@ import logging
 from abc import ABC, abstractmethod
 from asyncio import get_running_loop
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from time import time
 
 from yt_dlp import YoutubeDL
 
 from quantis.config import Clients
 from quantis.models import Track, TrackSource
+from quantis.providers import PathProvider
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +103,14 @@ class AsyncYoutubeStreamer(AsyncStreamerInterface):
             "skip_download": True,
         }
         self.yt = YoutubeDL(self.opts)
+        self._video_opts = {
+            **self.opts,
+            "format": (
+                "18/22/b[ext=mp4][vcodec!=none][height<=720]/"
+                "best[vcodec!=none][height<=720][ext=mp4]"
+            ),
+        }
+        self._video_yt = YoutubeDL(self._video_opts)
         self._executor = executor
 
     async def get_stream_url(self, track: Track) -> str | None:
@@ -108,15 +118,97 @@ class AsyncYoutubeStreamer(AsyncStreamerInterface):
             self._executor, self.sync_stream, self.yt, track.track_id
         )
 
+    async def get_video_url(self, video_id: str) -> str | None:
+        return await get_running_loop().run_in_executor(
+            self._executor, self.sync_video_stream, self._video_yt, video_id
+        )
+
+    async def download_wallpaper_clip(self, video_id: str) -> str | None:
+        return await get_running_loop().run_in_executor(
+            self._executor, self.sync_download_wallpaper_clip, video_id
+        )
+
+    @staticmethod
+    def sync_download_wallpaper_clip(video_id: str) -> str | None:
+        cache_dir = Path(PathProvider.WALLPAPER_CLIPS_FOLDER)
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        for existing in cache_dir.glob(f"{video_id}.*"):
+            if existing.is_file() and existing.stat().st_size > 0:
+                return str(existing.resolve())
+
+        out_base = cache_dir / video_id
+        url = f"https://www.youtube.com/watch?v={video_id}"
+        opts = {
+            "user_agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            ),
+            "quiet": True,
+            "no_warnings": True,
+            "noplaylist": True,
+            "nocheckcertificate": True,
+            "format": (
+                "18/22/b[ext=mp4][vcodec!=none][height<=720]/"
+                "best[vcodec!=none][height<=720][ext=mp4]"
+            ),
+            "outtmpl": str(out_base) + ".%(ext)s",
+        }
+        try:
+            with YoutubeDL(opts) as yt:
+                yt.download([url])
+        except Exception:
+            logger.exception("Не удалось скачать видео-клип для обоев: %s", video_id)
+            return None
+
+        for candidate in cache_dir.glob(f"{video_id}.*"):
+            if candidate.is_file() and candidate.stat().st_size > 0:
+                return str(candidate.resolve())
+        return None
+
     @staticmethod
     def sync_stream(yt: YoutubeDL, track_id: str) -> str | None:
         try:
             info = yt.extract_info(
                 f"https://www.youtube.com/watch?v={track_id}", download=False
             )
+            if info is None:
+                return None
             return info.get("url")
         except Exception:
             logger.exception("Не удалось получить URL потока YouTube: %s", track_id)
+            return None
+
+    @staticmethod
+    def sync_video_stream(yt: YoutubeDL, track_id: str) -> str | None:
+        try:
+            info = yt.extract_info(
+                f"https://www.youtube.com/watch?v={track_id}", download=False
+            )
+            if info is None:
+                return None
+
+            url = info.get("url")
+            vcodec = info.get("vcodec")
+            if url and vcodec not in (None, "none"):
+                return url
+
+            progressive: str | None = None
+            fallback: str | None = None
+            for fmt in info.get("formats") or []:
+                fmt_url = fmt.get("url")
+                if not fmt_url:
+                    continue
+                if fmt.get("vcodec") in (None, "none"):
+                    continue
+                if fmt.get("acodec") not in (None, "none"):
+                    progressive = fmt_url
+                    break
+                if fallback is None:
+                    fallback = fmt_url
+
+            return progressive or fallback
+        except Exception:
+            logger.exception("Не удалось получить URL видео YouTube: %s", track_id)
             return None
 
 
@@ -145,6 +237,34 @@ class AsyncStreamer(AsyncStreamerInterface):
             return await self._yandex.get_stream_url(track)
 
         raise ValueError(f"Неизвестный источник платформы у трека: {track.source!r}")
+
+    async def get_video_url(self, track: Track, finder: object | None = None) -> str | None:
+        """Локальный mp4-клип для динамических обоев (кэш в wallpaper_clips/)."""
+        video_id = await self._resolve_youtube_video_id(track, finder)
+        if not video_id:
+            return None
+        return await self._youtube.download_wallpaper_clip(video_id)
+
+    async def _resolve_youtube_video_id(
+        self, track: Track, finder: object | None
+    ) -> str | None:
+        source_type = str(track.source).lower()
+        if source_type == TrackSource.YOUTUBE:
+            return str(track.track_id)
+
+        if finder is None:
+            return None
+        query = f"{track.title} {track.author}"
+        try:
+            results = await finder.get_tracks(query, value=3)  # type: ignore[attr-defined]
+        except Exception:
+            logger.exception("Поиск YouTube-видео для обоев: %s", query)
+            return None
+        youtube_hit = next(
+            (t for t in results if str(t.source).lower() == TrackSource.YOUTUBE),
+            None,
+        )
+        return str(youtube_hit.track_id) if youtube_hit else None
 
     def shutdown(self) -> None:
         if self._owns_executor:

@@ -63,6 +63,18 @@ class SettingsPage(QWidget):
         self._home_featured_cb.toggled.connect(self._on_home_featured_toggled)
         panel_layout.addWidget(self._home_featured_cb)
 
+        wallpaper_row, wallpaper_body = self._row(
+            "Динамические обои",
+            "Видео-клип YouTube вместо jpg-фона (зона под страницами, без звука). "
+            "Первый запуск может занять до минуты — клип кэшируется.",
+        )
+        self._dynamic_wallpaper_cb = QCheckBox("Включить видео-фон при воспроизведении")
+        self._dynamic_wallpaper_cb.setObjectName("settingsCheck")
+        self._dynamic_wallpaper_cb.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._dynamic_wallpaper_cb.toggled.connect(self._on_dynamic_wallpaper_toggled)
+        wallpaper_body.addWidget(self._dynamic_wallpaper_cb)
+        panel_layout.addWidget(wallpaper_row)
+
         panel_layout.addWidget(QLabel("Сервисы", objectName="settingsSectionLabel"))
 
         yandex_row, yandex_body = self._row(
@@ -113,6 +125,10 @@ class SettingsPage(QWidget):
         self._home_featured_cb.setChecked(self._prefs.show_home_featured_panel)
         self._home_featured_cb.blockSignals(False)
 
+        self._dynamic_wallpaper_cb.blockSignals(True)
+        self._dynamic_wallpaper_cb.setChecked(self._prefs.dynamic_wallpaper_enabled)
+        self._dynamic_wallpaper_cb.blockSignals(False)
+
         self._theme_combo.blockSignals(True)
         index = self._theme_combo.findData(self._prefs.ui_theme)
         if index >= 0:
@@ -129,6 +145,9 @@ class SettingsPage(QWidget):
 
     def _on_home_featured_toggled(self, checked: bool) -> None:
         self._prefs.set_show_home_featured_panel(checked)
+
+    def _on_dynamic_wallpaper_toggled(self, checked: bool) -> None:
+        self._prefs.set_dynamic_wallpaper_enabled(checked)
 
     def _on_theme_changed(self, index: int) -> None:
         theme_id = self._theme_combo.itemData(index)

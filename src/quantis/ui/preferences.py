@@ -34,6 +34,8 @@ class UiPreferences(QObject):
 
     _KEY_UI_THEME = "ui/theme"
 
+    _KEY_DYNAMIC_WALLPAPER = "ui/dynamic_wallpaper"
+
 
 
     def __new__(cls) -> UiPreferences:
@@ -125,6 +127,32 @@ class UiPreferences(QObject):
             return
 
         self._settings.setValue(self._KEY_UI_THEME, theme_id)
+
+        self.changed.emit()
+
+
+
+    @property
+
+    def dynamic_wallpaper_enabled(self) -> bool:
+
+        return self._read_bool(
+
+            self._settings.value(self._KEY_DYNAMIC_WALLPAPER, False),
+
+            False,
+
+        )
+
+
+
+    def set_dynamic_wallpaper_enabled(self, value: bool) -> None:
+
+        if self.dynamic_wallpaper_enabled == value:
+
+            return
+
+        self._settings.setValue(self._KEY_DYNAMIC_WALLPAPER, value)
 
         self.changed.emit()
 
