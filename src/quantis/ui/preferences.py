@@ -35,6 +35,7 @@ class UiPreferences(QObject):
     _KEY_UI_THEME = "ui/theme"
 
     _KEY_DYNAMIC_WALLPAPER = "ui/dynamic_wallpaper"
+    _KEY_WALLPAPER = "ui/wallpaper_path"
 
 
 
@@ -153,6 +154,30 @@ class UiPreferences(QObject):
             return
 
         self._settings.setValue(self._KEY_DYNAMIC_WALLPAPER, value)
+
+        self.changed.emit()
+
+
+
+    @property
+
+    def wallpaper_path(self) -> str:
+
+        raw = self._settings.value(self._KEY_WALLPAPER, "")
+
+        return str(raw).strip() if raw else ""
+
+
+
+    def set_wallpaper_path(self, path: str) -> None:
+
+        normalized = path.strip()
+
+        if self.wallpaper_path == normalized:
+
+            return
+
+        self._settings.setValue(self._KEY_WALLPAPER, normalized)
 
         self.changed.emit()
 

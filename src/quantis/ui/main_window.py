@@ -217,9 +217,14 @@ class QuantisMainWindow(QMainWindow):
 
     def _on_prefs_changed(self) -> None:
         self._apply_ui_theme(self._ui_prefs.ui_theme)
+        self._apply_wallpaper()
         self._player_bar.refresh_theme()
         if self._ui_prefs.dynamic_wallpaper_enabled:
             self._dynamic_wallpaper.refresh_for_track(self._bundle.playback.current_track)
+
+    def _apply_wallpaper(self) -> None:
+        path = resources.wallpaper_path()
+        self._body_shell.set_wallpaper(path or None)
 
     def _apply_ui_theme(self, theme_id: str) -> None:
         self.setStyleSheet(resources.load_stylesheet(theme_id))

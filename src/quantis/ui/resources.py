@@ -86,17 +86,11 @@ def load_widget_styles(ui_theme: str = DEFAULT_UI_THEME) -> str:
 
 
 def wallpaper_path() -> str:
-    candidates = [
-        Path(__file__).resolve().parents[3]
-        / "assets"
-        / "background"
-        / "majestic-mountain-peak-tranquil-winter-landscape-generated-by-ai.jpg",
-        Path(get_asset_path("assets/background/wallpaper.jpg")),
-    ]
-    for path in candidates:
-        if path.is_file():
-            return str(path)
-    return ""
+    from quantis.ui.preferences import UiPreferences
+    from quantis.ui.wallpapers import resolve_wallpaper_path
+
+    prefs = UiPreferences()
+    return resolve_wallpaper_path(prefs.wallpaper_path or None)
 
 
 def load_stylesheet(ui_theme: str = DEFAULT_UI_THEME) -> str:

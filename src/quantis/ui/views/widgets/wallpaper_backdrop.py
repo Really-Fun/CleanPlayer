@@ -109,6 +109,18 @@ class WallpaperBackdrop(QWidget):
             self._variant = variant
             self.update()
 
+    def set_wallpaper(self, path: str | Path | None) -> None:
+        pixmap = QPixmap()
+        if path:
+            file_path = Path(path)
+            if file_path.is_file():
+                pixmap = QPixmap(str(file_path))
+        self._wallpaper = pixmap
+        self._cache_size = (0, 0)
+        self._cached = QPixmap()
+        self._rebuild_cache()
+        self.update()
+
     def set_dynamic_wallpaper_enabled(self, enabled: bool) -> None:
         self._dynamic_enabled = enabled
         if not enabled:
@@ -223,6 +235,9 @@ class BodyWithWallpaper(QWidget):
 
     def set_variant(self, variant: str) -> None:
         self._backdrop.set_variant(variant)
+
+    def set_wallpaper(self, path: str | Path | None) -> None:
+        self._backdrop.set_wallpaper(path)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QShowEvent
 from PySide6.QtWidgets import (
@@ -21,6 +23,11 @@ from quantis.plugins import PluginRegistry
 from quantis.plugins.loader import resolve_plugins_dir
 from quantis.ui.preferences import UiPreferences
 from quantis.ui.resources import UI_THEME_LABELS
+from quantis.ui.wallpapers import (
+    scan_wallpapers,
+    user_backgrounds_dir,
+    wallpaper_display_name,
+)
 from quantis.ui.views.widgets.glass_panel import GlassPanel
 
 class SettingsPage(QWidget):
@@ -69,6 +76,20 @@ class SettingsPage(QWidget):
         self._home_featured_cb.setCursor(Qt.CursorShape.PointingHandCursor)
         self._home_featured_cb.toggled.connect(self._on_home_featured_toggled)
         panel_layout.addWidget(self._home_featured_cb)
+
+        static_wall_row, static_wall_body = self._row(
+            "Обои",
+            f"Положите jpg/png в папку: {user_backgrounds_dir()}",
+        )
+        self._wallpaper_combo = QComboBox()
+        self._wallpaper_combo.setObjectName("themeCombo")
+        self._wallpaper_combo.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._wallpaper_combo.currentIndexChanged.connect(self._on_wallpaper_changed)
+        static_wall_body.addWidget(self._wallpaper_combo)
+        self._wallpaper_status = QLabel()
+        self._wallpaper_status.setObjectName("settingsRowDesc")
+        static_wall_body.addWidget(self._wallpaper_status)
+        panel_layout.addWidget(static_wall_row)
 
         wallpaper_row, wallpaper_body = self._row(
             "Динамические обои",
@@ -137,6 +158,7 @@ class SettingsPage(QWidget):
 
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)
+        self._refresh_wallpapers()
         self._refresh_plugins()
 
     def _row(self, title: str, desc: str) -> tuple[QFrame, QVBoxLayout]:
@@ -164,6 +186,7 @@ class SettingsPage(QWidget):
             self._theme_combo.setCurrentIndex(index)
         self._theme_combo.blockSignals(False)
 
+        self._refresh_wallpapers(block_signals=True)
         self._update_token_status()
 
     def _update_token_status(self) -> None:
@@ -177,6 +200,46 @@ class SettingsPage(QWidget):
 
     def _on_dynamic_wallpaper_toggled(self, checked: bool) -> None:
         self._prefs.set_dynamic_wallpaper_enabled(checked)
+
+    def _refresh_wallpapers(self, *, block_signals: bool = False) -> None:
+        if block_signals:
+            self._wallpaper_combo.blockSignals(True)
+
+        current = self._prefs.wallpaper_path
+        self._wallpaper_combo.clear()
+        self._wallpaper_combo.addItem("По умолчанию", "")
+
+        files = scan_wallpapers()
+        for path in files:
+            self._wallpaper_combo.addItem(
+                wallpaper_display_name(path),
+                str(path.resolve()),
+            )
+
+        if not files:
+            self._wallpaper_status.setText(
+                "В папке background/user пока нет изображений — добавьте jpg или png"
+            )
+        else:
+            user_count = sum(
+                1 for p in files if str(p.parent.resolve()) == str(user_backgrounds_dir().resolve())
+            )
+            self._wallpaper_status.setText(
+                f"Найдено обоев: {len(files)} (ваших: {user_count})"
+            )
+
+        index = self._wallpaper_combo.findData(current)
+        if index < 0 and current:
+            self._wallpaper_combo.addItem(f"⚠ {Path(current).name}", current)
+            index = self._wallpaper_combo.findData(current)
+        self._wallpaper_combo.setCurrentIndex(index if index >= 0 else 0)
+
+        if block_signals:
+            self._wallpaper_combo.blockSignals(False)
+
+    def _on_wallpaper_changed(self, index: int) -> None:
+        path = self._wallpaper_combo.itemData(index)
+        self._prefs.set_wallpaper_path(str(path) if path else "")
 
     def _on_theme_changed(self, index: int) -> None:
         theme_id = self._theme_combo.itemData(index)
