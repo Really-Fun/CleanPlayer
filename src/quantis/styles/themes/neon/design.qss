@@ -5,8 +5,8 @@ QWidget {
 }
 
 QFrame#glassPanel {
-    background: rgba(10, 8, 22, 0.82);
-    border: none;
+    background: rgba(11, 13, 22, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 14px;
 }
 
@@ -16,10 +16,10 @@ QFrame#appHeader {
 }
 
 #headerGreeting {
-    font-size: 20px;
-    font-weight: 700;
+    font-size: 13px;
+    font-weight: 600;
     color: #f8fafc;
-    letter-spacing: -0.3px;
+    letter-spacing: -0.2px;
 }
 
 #sectionTitle {
@@ -93,8 +93,8 @@ QComboBox#themeCombo QAbstractItemView {
 }
 
 QFrame#featuredPanel {
-    background: rgba(8, 6, 18, 0.72);
-    border: none;
+    background: rgba(11, 13, 22, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 14px;
 }
 

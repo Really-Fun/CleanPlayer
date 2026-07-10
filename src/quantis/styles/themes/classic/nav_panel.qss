@@ -1,6 +1,5 @@
 QFrame#sideNavRail {
-    background: rgba(8, 10, 16, 0.6);
-    border: none;
+    border-top: 2px solid rgba(58, 168, 216, 0.35);
 }
 
 QToolButton#navIconButton {
@@ -13,7 +12,7 @@ QToolButton#navIconButton {
 }
 
 QToolButton#navIconButton:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.06);
 }
 
 QToolButton#navIconButton:checked {
@@ -21,5 +20,5 @@ QToolButton#navIconButton:checked {
 }
 
 QToolButton#navIconButton:pressed {
-    background: rgba(58, 168, 216, 0.22);
+    background: rgba(58, 168, 216, 0.24);
 }

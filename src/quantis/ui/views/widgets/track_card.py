@@ -3,13 +3,25 @@ from __future__ import annotations
 from typing import Callable
 
 from PySide6.QtCore import QEvent, QRect, QSize, Qt
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QLinearGradient, QPainter, QPen
-from PySide6.QtWidgets import QStyledItemDelegate, QStyle, QStyleOptionViewItem
+from PySide6.QtGui import QColor, QFontMetrics, QLinearGradient, QPainter, QPen
+from PySide6.QtWidgets import QStyle, QStyledItemDelegate, QStyleOptionViewItem
 
 from quantis.models import Track, TrackSource
+from quantis.ui.models import TrackListModel
 from quantis.ui.preferences import UiPreferences
 from quantis.ui.resources import THEME_EDITORIAL
-from quantis.ui.models import TrackListModel
+from quantis.ui.views.widgets.delegate_paint_kit import (
+    C_ACCENT,
+    C_TITLE,
+    C_TITLE_PLAYING,
+    FONT_ACTION,
+    FONT_AUTHOR,
+    FONT_COVER,
+    FONT_EDITORIAL_AUTHOR,
+    FONT_EDITORIAL_INDEX,
+    FONT_EDITORIAL_TITLE,
+    FONT_TITLE,
+)
 
 
 class TrackCardDelegate(QStyledItemDelegate):
@@ -17,6 +29,24 @@ class TrackCardDelegate(QStyledItemDelegate):
     CARD_RADIUS = 10
     COVER_SIZE = 40
     ACTION_SIZE = 26
+
+    _C_BG_PLAYING = QColor(0, 229, 255, 22)
+    _C_BG_HOVER = QColor(255, 255, 255, 10)
+    _C_BG_IDLE = QColor(255, 255, 255, 4)
+    _C_COVER_TEXT = QColor(255, 255, 255, 230)
+    _C_AUTHOR = QColor(248, 250, 252, 120)
+    _C_DL_OK_BG = QColor(34, 197, 94, 60)
+    _C_DL_OK_PEN = QColor(34, 197, 94, 140)
+    _C_DL_HOVER_BG = QColor(255, 255, 255, 16)
+    _C_DL_HOVER_PEN = QColor(255, 255, 255, 50)
+    _C_DL_HOVER_TEXT = QColor(248, 250, 252, 200)
+    _C_EDITORIAL_BG = QColor(12, 12, 14)
+    _C_EDITORIAL_HOVER = QColor(255, 255, 255, 8)
+    _C_EDITORIAL_IDX = QColor(255, 255, 255, 10)
+    _C_EDITORIAL_AUTHOR = QColor(242, 240, 235, 100)
+    _C_EDITORIAL_TITLE = QColor(242, 240, 235)
+    _GRAD_YT = (QColor(220, 50, 50), QColor(140, 30, 30))
+    _GRAD_YA = (QColor(0, 180, 220), QColor(80, 60, 200))
 
     def __init__(
         self,
@@ -26,9 +56,15 @@ class TrackCardDelegate(QStyledItemDelegate):
         super().__init__(parent)
         self._on_download = on_download
         self._prefs = UiPreferences()
+        self._editorial = self._prefs.ui_theme == THEME_EDITORIAL
         self._prefs.changed.connect(self._on_theme_changed)
+        self._fm_title = QFontMetrics(FONT_TITLE)
+        self._fm_author = QFontMetrics(FONT_AUTHOR)
+        self._fm_editorial_title = QFontMetrics(FONT_EDITORIAL_TITLE)
+        self._fm_editorial_author = QFontMetrics(FONT_EDITORIAL_AUTHOR)
 
     def _on_theme_changed(self) -> None:
+        self._editorial = self._prefs.ui_theme == THEME_EDITORIAL
         parent = self.parent()
         if parent is not None and hasattr(parent, "viewport"):
             parent.viewport().update()
@@ -45,7 +81,7 @@ class TrackCardDelegate(QStyledItemDelegate):
                 width = max(view.width(), width)
         return QSize(width, self.CARD_HEIGHT)
 
-    def _action_rect(self, rect) -> QRect:
+    def _action_rect(self, rect: QRect) -> QRect:
         inner = rect.adjusted(4, 2, -8, -2)
         return QRect(
             inner.right() - self.ACTION_SIZE,
@@ -70,18 +106,14 @@ class TrackCardDelegate(QStyledItemDelegate):
     def paint(self, painter: QPainter, option, index) -> None:
         track: Track | None = index.data(TrackListModel.TrackRole)
         if track is None:
-            super().paint(painter, option, index)
             return
 
         is_playing = bool(index.data(TrackListModel.IsPlayingRole))
         hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
         selected = bool(option.state & QStyle.StateFlag.State_Selected)
         rect = option.rect.adjusted(4, 2, -4, -2)
-        editorial = self._prefs.ui_theme == THEME_EDITORIAL
 
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        if editorial:
+        if self._editorial:
             self._paint_editorial(
                 painter, rect, track, index.row(), is_playing, hovered, selected
             )
@@ -93,18 +125,18 @@ class TrackCardDelegate(QStyledItemDelegate):
 
         action_rect = self._action_rect(option.rect)
         if track.downloaded:
-            painter.setBrush(QColor(34, 197, 94, 60))
-            painter.setPen(QPen(QColor(34, 197, 94, 140), 1))
+            painter.setBrush(self._C_DL_OK_BG)
+            painter.setPen(QPen(self._C_DL_OK_PEN, 1))
             painter.drawEllipse(action_rect)
             painter.setPen(QColor(255, 255, 255))
-            painter.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+            painter.setFont(FONT_ACTION)
             painter.drawText(action_rect, Qt.AlignmentFlag.AlignCenter, "✓")
         elif hovered:
-            painter.setBrush(QColor(255, 255, 255, 16))
-            painter.setPen(QPen(QColor(255, 255, 255, 50), 1))
+            painter.setBrush(self._C_DL_HOVER_BG)
+            painter.setPen(QPen(self._C_DL_HOVER_PEN, 1))
             painter.drawEllipse(action_rect)
-            painter.setPen(QColor(248, 250, 252, 200))
-            painter.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+            painter.setPen(self._C_DL_HOVER_TEXT)
+            painter.setFont(FONT_ACTION)
             painter.drawText(action_rect, Qt.AlignmentFlag.AlignCenter, "↓")
 
     def _paint_default(
@@ -116,22 +148,20 @@ class TrackCardDelegate(QStyledItemDelegate):
         hovered: bool,
         selected: bool,
     ) -> None:
-        if is_playing:
-            painter.setBrush(QColor(0, 229, 255, 22))
-            painter.setPen(Qt.PenStyle.NoPen)
-        elif hovered or selected:
-            painter.setBrush(QColor(255, 255, 255, 10))
-            painter.setPen(Qt.PenStyle.NoPen)
-        else:
-            painter.setBrush(QColor(255, 255, 255, 4))
-            painter.setPen(Qt.PenStyle.NoPen)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
+        if is_playing:
+            painter.setBrush(self._C_BG_PLAYING)
+        elif hovered or selected:
+            painter.setBrush(self._C_BG_HOVER)
+        else:
+            painter.setBrush(self._C_BG_IDLE)
+        painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRoundedRect(rect, self.CARD_RADIUS, self.CARD_RADIUS)
 
         if is_playing:
             bar = QRect(rect.left() + 2, rect.top() + 10, 3, rect.height() - 20)
-            painter.setBrush(QColor(0, 229, 255))
-            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(C_ACCENT)
             painter.drawRoundedRect(bar, 2, 2)
 
         cover_rect = QRect(
@@ -140,50 +170,43 @@ class TrackCardDelegate(QStyledItemDelegate):
             self.COVER_SIZE,
             self.COVER_SIZE,
         )
+        c1, c2 = (
+            self._GRAD_YT
+            if str(track.source).lower() == TrackSource.YOUTUBE
+            else self._GRAD_YA
+        )
         grad = QLinearGradient(cover_rect.topLeft(), cover_rect.bottomRight())
-        source = str(track.source).lower()
-        if source == TrackSource.YOUTUBE:
-            grad.setColorAt(0.0, QColor(220, 50, 50))
-            grad.setColorAt(1.0, QColor(140, 30, 30))
-        else:
-            grad.setColorAt(0.0, QColor(0, 180, 220))
-            grad.setColorAt(1.0, QColor(80, 60, 200))
+        grad.setColorAt(0.0, c1)
+        grad.setColorAt(1.0, c2)
         painter.setBrush(grad)
-        painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRoundedRect(cover_rect, 8, 8)
 
         initial = (track.title or "?")[0].upper()
-        painter.setPen(QColor(255, 255, 255, 230))
-        painter.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        painter.setPen(self._C_COVER_TEXT)
+        painter.setFont(FONT_COVER)
         painter.drawText(cover_rect, Qt.AlignmentFlag.AlignCenter, initial)
 
         action_w = self.ACTION_SIZE + 16 if self._on_download else 8
         text_left = cover_rect.right() + 12
         text_right = rect.right() - action_w
-        title_rect = QRect(text_left, rect.top() + 10, text_right - text_left, 20)
-        author_rect = QRect(text_left, rect.top() + 28, text_right - text_left, 16)
+        text_w = max(0, text_right - text_left)
+        title_rect = QRect(text_left, rect.top() + 10, text_w, 20)
+        author_rect = QRect(text_left, rect.top() + 28, text_w, 16)
 
-        title_color = QColor(0, 229, 255) if is_playing else QColor(248, 250, 252)
-        painter.setPen(title_color)
-        painter.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
-        elided_title = QFontMetrics(painter.font()).elidedText(
-            track.title, Qt.TextElideMode.ElideRight, title_rect.width()
-        )
+        painter.setPen(C_TITLE_PLAYING if is_playing else C_TITLE)
+        painter.setFont(FONT_TITLE)
         painter.drawText(
             title_rect,
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-            elided_title,
+            self._fm_title.elidedText(track.title, Qt.TextElideMode.ElideRight, text_w),
         )
 
-        painter.setPen(QColor(248, 250, 252, 120))
-        painter.setFont(QFont("Segoe UI", 9))
-        elided_author = QFontMetrics(painter.font()).elidedText(
-            track.author, Qt.TextElideMode.ElideRight, author_rect.width()
-        )
+        painter.setPen(self._C_AUTHOR)
+        painter.setFont(FONT_AUTHOR)
         painter.drawText(
             author_rect,
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-            elided_author,
+            self._fm_author.elidedText(track.author, Qt.TextElideMode.ElideRight, text_w),
         )
 
     def _paint_editorial(
@@ -197,7 +220,7 @@ class TrackCardDelegate(QStyledItemDelegate):
         selected: bool,
     ) -> None:
         inner = rect.adjusted(1, 1, -1, -1)
-        painter.fillRect(inner, QColor(12, 12, 14))
+        painter.fillRect(inner, self._C_EDITORIAL_BG)
 
         if is_playing:
             glow = QLinearGradient(inner.topLeft(), inner.bottomRight())
@@ -206,16 +229,18 @@ class TrackCardDelegate(QStyledItemDelegate):
             glow.setColorAt(1.0, QColor(255, 42, 127, 8))
             painter.fillRect(inner, glow)
         elif hovered or selected:
-            painter.fillRect(inner, QColor(255, 255, 255, 8))
+            painter.fillRect(inner, self._C_EDITORIAL_HOVER)
 
         if is_playing:
-            painter.fillRect(inner.left(), inner.top() + 8, 3, inner.height() - 16, QColor(0, 229, 255, 220))
-            painter.fillRect(inner.left() + 3, inner.top() + 8, 2, inner.height() - 16, QColor(230, 59, 46, 200))
+            painter.fillRect(
+                inner.left(), inner.top() + 8, 3, inner.height() - 16, QColor(0, 229, 255, 220)
+            )
+            painter.fillRect(
+                inner.left() + 3, inner.top() + 8, 2, inner.height() - 16, QColor(230, 59, 46, 200)
+            )
 
-        idx_font = QFont("Georgia", 28)
-        idx_font.setWeight(QFont.Weight.Light)
-        painter.setFont(idx_font)
-        painter.setPen(QColor(255, 255, 255, 10))
+        painter.setFont(FONT_EDITORIAL_INDEX)
+        painter.setPen(self._C_EDITORIAL_IDX)
         painter.drawText(
             inner.adjusted(0, 0, -12, 0),
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
@@ -225,30 +250,26 @@ class TrackCardDelegate(QStyledItemDelegate):
         action_w = self.ACTION_SIZE + 16 if self._on_download else 8
         text_left = inner.left() + 16
         text_right = inner.right() - action_w
-        title_rect = QRect(text_left, inner.top() + 10, text_right - text_left, 22)
-        author_rect = QRect(text_left, inner.top() + 30, text_right - text_left, 16)
+        text_w = max(0, text_right - text_left)
+        title_rect = QRect(text_left, inner.top() + 10, text_w, 22)
+        author_rect = QRect(text_left, inner.top() + 30, text_w, 16)
 
-        title_color = QColor(0, 229, 255) if is_playing else QColor(242, 240, 235)
-        painter.setPen(title_color)
-        painter.setFont(QFont("Georgia", 12))
-        elided_title = QFontMetrics(painter.font()).elidedText(
-            track.title, Qt.TextElideMode.ElideRight, title_rect.width()
-        )
+        painter.setPen(C_TITLE_PLAYING if is_playing else self._C_EDITORIAL_TITLE)
+        painter.setFont(FONT_EDITORIAL_TITLE)
         painter.drawText(
             title_rect,
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-            elided_title,
+            self._fm_editorial_title.elidedText(
+                track.title, Qt.TextElideMode.ElideRight, text_w
+            ),
         )
 
-        mono = QFont("Cascadia Mono", 8)
-        mono.setWeight(QFont.Weight.Medium)
-        painter.setFont(mono)
-        painter.setPen(QColor(242, 240, 235, 100))
-        elided_author = QFontMetrics(painter.font()).elidedText(
-            track.author.upper(), Qt.TextElideMode.ElideRight, author_rect.width()
-        )
+        painter.setFont(FONT_EDITORIAL_AUTHOR)
+        painter.setPen(self._C_EDITORIAL_AUTHOR)
         painter.drawText(
             author_rect,
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-            elided_author,
+            self._fm_editorial_author.elidedText(
+                track.author.upper(), Qt.TextElideMode.ElideRight, text_w
+            ),
         )

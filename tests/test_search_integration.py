@@ -9,7 +9,6 @@ from PySide6.QtWidgets import QApplication
 
 from quantis.controllers.playback_controller import PlaybackController
 from quantis.core.async_bridge import AsyncBridge
-from quantis.plugins.event_bus import EventBus
 from quantis.player import Player, QtMediaEngine
 from quantis.providers import PlaylistManager
 from quantis.services.async_finder import AsyncFinder

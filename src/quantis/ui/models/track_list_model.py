@@ -12,12 +12,19 @@ class TrackListModel(QAbstractTableModel):
     IndexRole = Qt.ItemDataRole.UserRole + 2
     IsPlayingRole = Qt.ItemDataRole.UserRole + 3
 
-    _BATCH_SIZE = 40
+    DEFAULT_BATCH_SIZE = 40
 
-    def __init__(self, tracks: list[Track] | None = None, parent=None):
+    def __init__(
+        self,
+        tracks: list[Track] | None = None,
+        *,
+        batch_size: int | None = None,
+        parent=None,
+    ):
         super().__init__(parent)
+        self._batch_size = max(1, batch_size or self.DEFAULT_BATCH_SIZE)
         self._tracks: list[Track] = list(tracks or [])
-        self._loaded_count = min(len(self._tracks), self._BATCH_SIZE)
+        self._loaded_count = min(len(self._tracks), self._batch_size)
         self._playing_track: Track | None = None
 
     def roleNames(self) -> dict[int, bytes]:
@@ -69,7 +76,7 @@ class TrackListModel(QAbstractTableModel):
         remaining = len(self._tracks) - self._loaded_count
         if remaining <= 0:
             return
-        count = min(remaining, self._BATCH_SIZE)
+        count = min(remaining, self._batch_size)
         start = self._loaded_count
         end = start + count - 1
         self.beginInsertRows(QModelIndex(), start, end)
@@ -79,7 +86,7 @@ class TrackListModel(QAbstractTableModel):
     def set_tracks(self, tracks: list[Track]) -> None:
         self.beginResetModel()
         self._tracks = list(tracks)
-        self._loaded_count = min(len(self._tracks), self._BATCH_SIZE)
+        self._loaded_count = min(len(self._tracks), self._batch_size)
         self.endResetModel()
 
     def all_tracks(self) -> list[Track]:
@@ -104,9 +111,22 @@ class TrackListModel(QAbstractTableModel):
         return True
 
     def set_playing_track(self, track: Track | None) -> None:
-        self._playing_track = track
-        if self.rowCount() == 0:
+        if self._playing_track is track:
             return
-        self.dataChanged.emit(
-            self.index(0, 0), self.index(self.rowCount() - 1, 0), [self.IsPlayingRole]
-        )
+        rows: set[int] = set()
+        if self._playing_track is not None:
+            try:
+                rows.add(self._tracks.index(self._playing_track))
+            except ValueError:
+                pass
+        self._playing_track = track
+        if track is not None:
+            try:
+                rows.add(self._tracks.index(track))
+            except ValueError:
+                pass
+        role = [self.IsPlayingRole]
+        for row in rows:
+            if row < self._loaded_count:
+                idx = self.index(row, 0)
+                self.dataChanged.emit(idx, idx, role)

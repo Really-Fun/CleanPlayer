@@ -28,6 +28,9 @@ def main() -> None:
     bridge = AsyncBridge()
     bridge.setParent(app)
     bundle = build_application(bridge)
+    from quantis.plugins import PluginRegistry
+
+    bridge.schedule(PluginRegistry.instance().load_all(bundle.plugin_host))
     window = Quantis(bundle)
     window.show()
 

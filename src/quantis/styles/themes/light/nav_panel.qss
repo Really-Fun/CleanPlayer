@@ -1,6 +1,5 @@
 QFrame#sideNavRail {
-    background: rgba(32, 36, 44, 0.4);
-    border: none;
+    border-top: 2px solid rgba(94, 179, 232, 0.35);
 }
 
 QToolButton#navIconButton {

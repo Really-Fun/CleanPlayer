@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 class PathProvider:
     MUSIC_FOLDER = "music/"
     COVERS_FOLDER = "covers/"
-    WALLPAPER_CLIPS_FOLDER = "wallpaper_clips/"
     _instance = None
 
     def __new__(cls, *args, **kwargs):
@@ -26,7 +25,6 @@ class PathProvider:
     def ensure_storage_dirs(cls) -> None:
         Path(cls.MUSIC_FOLDER).mkdir(parents=True, exist_ok=True)
         Path(cls.COVERS_FOLDER).mkdir(parents=True, exist_ok=True)
-        Path(cls.WALLPAPER_CLIPS_FOLDER).mkdir(parents=True, exist_ok=True)
 
     @staticmethod
     def _sanitize_filename_part(value: str) -> str:

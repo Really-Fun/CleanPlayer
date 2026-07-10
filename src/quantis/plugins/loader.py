@@ -10,16 +10,29 @@ import importlib.util
 import json
 import logging
 import sys
+import types
 from dataclasses import dataclass, field
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Динамически определяем корневую папку проекта (где лежит main.py)
-# и ищем папку plugins_dir рядом с ней
-BASE_DIR = Path(__file__).parent.parent
-DEFAULT_PLUGIN_DIR = BASE_DIR / "plugins_dir"
+def resolve_plugins_dir() -> Path:
+    """Каталог пользовательских плагинов в корне проекта (или cwd)."""
+    project_root = Path(__file__).resolve().parents[3]
+    candidates = (
+        Path.cwd() / "plugins_dir",
+        project_root / "plugins_dir",
+    )
+    for path in candidates:
+        if path.is_dir():
+            return path
+    return project_root / "plugins_dir"
+
+
+DEFAULT_PLUGIN_DIR = resolve_plugins_dir()
 PLUGIN_DIR = DEFAULT_PLUGIN_DIR
+
+_PLUGIN_PACKAGE = "quantis_plugins"
 
 
 @dataclass
@@ -109,21 +122,44 @@ class PluginLoader:
         )
 
     @staticmethod
-    def _import_module(meta: PluginMeta):
-        module_name = f"quantis_plugins.{meta.plugin_id}"
+    def _ensure_plugin_package(plugin_dir: Path) -> None:
+        """Регистрирует namespace-пакет quantis_plugins для относительных импортов."""
+        resolved = str(plugin_dir.resolve())
+        if _PLUGIN_PACKAGE not in sys.modules:
+            pkg = types.ModuleType(_PLUGIN_PACKAGE)
+            pkg.__path__ = []
+            sys.modules[_PLUGIN_PACKAGE] = pkg
+        pkg_path = sys.modules[_PLUGIN_PACKAGE].__path__
+        if resolved not in pkg_path:
+            pkg_path.append(resolved)
 
-        spec = importlib.util.spec_from_file_location(module_name, meta.entry)
+    @staticmethod
+    def _import_module(meta: PluginMeta):
+        plugin_dir = meta.path.resolve()
+        PluginLoader._ensure_plugin_package(plugin_dir)
+
+        module_name = f"{_PLUGIN_PACKAGE}.{meta.plugin_id}"
+        plugin_dir_str = str(plugin_dir)
+
+        spec = importlib.util.spec_from_file_location(
+            module_name,
+            meta.entry,
+            submodule_search_locations=[plugin_dir_str],
+        )
         if spec is None or spec.loader is None:
             raise ImportError(f"Не удалось загрузить спецификацию для {meta.entry}")
 
         module = importlib.util.module_from_spec(spec)
+        module.__package__ = _PLUGIN_PACKAGE
 
         sys.modules[module_name] = module
+
+        if plugin_dir_str not in sys.path:
+            sys.path.insert(0, plugin_dir_str)
 
         try:
             spec.loader.exec_module(module)
         except Exception as e:
-            # Очищаем sys.modules при ошибке загрузки, чтобы не оставлять мусор
             sys.modules.pop(module_name, None)
             raise ImportError(
                 f"Ошибка выполнения кода плагина {meta.plugin_id}: {e}"

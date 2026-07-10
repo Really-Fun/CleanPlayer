@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QShowEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -15,19 +16,25 @@ from PySide6.QtWidgets import (
 )
 
 from quantis.config.credentials import save_yandex_token, yandex_token
+from quantis.core.async_bridge import AsyncBridge
+from quantis.plugins import PluginRegistry
+from quantis.plugins.loader import resolve_plugins_dir
 from quantis.ui.preferences import UiPreferences
 from quantis.ui.resources import UI_THEME_LABELS
 from quantis.ui.views.widgets.glass_panel import GlassPanel
-
 
 class SettingsPage(QWidget):
     def __init__(
         self,
         preferences: UiPreferences | None = None,
+        bridge: AsyncBridge | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._prefs = preferences or UiPreferences()
+        self._bridge = bridge
+        self._registry = PluginRegistry.instance()
+        self._plugin_checkboxes: dict[str, QCheckBox] = {}
         self.setObjectName("settingsPage")
 
         scroll = QScrollArea()
@@ -65,8 +72,7 @@ class SettingsPage(QWidget):
 
         wallpaper_row, wallpaper_body = self._row(
             "Динамические обои",
-            "Видео-клип YouTube вместо jpg-фона (зона под страницами, без звука). "
-            "Первый запуск может занять до минуты — клип кэшируется.",
+            "Видео-клип YouTube вместо jpg-фона (зона под страницами, без звука)",
         )
         self._dynamic_wallpaper_cb = QCheckBox("Включить видео-фон при воспроизведении")
         self._dynamic_wallpaper_cb.setObjectName("settingsCheck")
@@ -98,6 +104,23 @@ class SettingsPage(QWidget):
         yandex_body.addWidget(self._token_status)
         panel_layout.addWidget(yandex_row)
 
+        panel_layout.addWidget(QLabel("Плагины", objectName="settingsSectionLabel"))
+
+        plugins_row, plugins_body = self._row(
+            "Расширения",
+            f"Папка: {resolve_plugins_dir()}",
+        )
+        self._plugins_layout = QVBoxLayout()
+        self._plugins_layout.setSpacing(6)
+        self._plugins_empty = QLabel(
+            "Плагины не найдены. Создайте папку с plugin.py и manifest.json в plugins_dir/"
+        )
+        self._plugins_empty.setObjectName("settingsRowDesc")
+        self._plugins_empty.setWordWrap(True)
+        self._plugins_layout.addWidget(self._plugins_empty)
+        plugins_body.addLayout(self._plugins_layout)
+        panel_layout.addWidget(plugins_row)
+
         panel_layout.addStretch()
         layout.addWidget(panel)
         layout.addStretch()
@@ -108,7 +131,13 @@ class SettingsPage(QWidget):
         outer.addWidget(scroll)
 
         self._prefs.changed.connect(self._sync_from_preferences)
+        self._registry.plugin_changed.connect(self._on_plugin_registry_changed)
         self._sync_from_preferences()
+        self._refresh_plugins()
+
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        self._refresh_plugins()
 
     def _row(self, title: str, desc: str) -> tuple[QFrame, QVBoxLayout]:
         frame = QFrame()
@@ -163,3 +192,72 @@ class SettingsPage(QWidget):
             self._token_status.setText(str(exc))
         except Exception as exc:
             self._token_status.setText(f"Ошибка: {exc}")
+
+    def _on_plugin_registry_changed(self, _plugin_id: str) -> None:
+        self._refresh_plugins()
+
+    def _refresh_plugins(self) -> None:
+        self._registry.rescan()
+        while self._plugins_layout.count():
+            item = self._plugins_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None and widget is not self._plugins_empty:
+                widget.deleteLater()
+        self._plugin_checkboxes.clear()
+
+        infos = sorted(self._registry.get_all(), key=lambda i: i.meta.name.lower())
+        if not infos:
+            self._plugins_layout.addWidget(self._plugins_empty)
+            self._plugins_empty.show()
+            return
+
+        self._plugins_empty.hide()
+
+        for info in infos:
+            meta = info.meta
+            row = QWidget()
+            row_layout = QVBoxLayout(row)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setSpacing(2)
+
+            cb = QCheckBox(f"{meta.name}  v{meta.version}")
+            cb.setObjectName("settingsCheck")
+            cb.setCursor(Qt.CursorShape.PointingHandCursor)
+            cb.blockSignals(True)
+            cb.setChecked(info.is_active)
+            cb.blockSignals(False)
+
+            invalid = not meta.is_valid
+            if invalid or info.error:
+                cb.setEnabled(False)
+            else:
+                plugin_id = meta.plugin_id
+                cb.toggled.connect(
+                    lambda checked, pid=plugin_id: self._on_plugin_toggled(pid, checked)
+                )
+
+            row_layout.addWidget(cb)
+            if meta.description:
+                row_layout.addWidget(
+                    QLabel(meta.description, objectName="settingsRowDesc")
+                )
+            if meta.author and meta.author != "Unknown":
+                row_layout.addWidget(
+                    QLabel(f"Автор: {meta.author}", objectName="settingsRowDesc")
+                )
+            if info.error:
+                err = QLabel(info.error, objectName="settingsRowDesc")
+                err.setStyleSheet("color: #e57373;")
+                row_layout.addWidget(err)
+
+            self._plugin_checkboxes[meta.plugin_id] = cb
+            self._plugins_layout.addWidget(row)
+
+    def _on_plugin_toggled(self, plugin_id: str, enabled: bool) -> None:
+        if self._bridge is None:
+            return
+        self._registry.rescan()
+        if enabled:
+            self._bridge.schedule(self._registry.enable(plugin_id))
+        else:
+            self._bridge.schedule(self._registry.disable(plugin_id))

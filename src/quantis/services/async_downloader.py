@@ -3,13 +3,12 @@
 Yandex
 Youtube"""
 
-import functools
 import logging
 from abc import ABC, abstractmethod
 from asyncio import Semaphore, get_running_loop
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Callable, TypeVar
+from typing import Optional
 
 import aiofiles
 import aiohttp
@@ -19,51 +18,37 @@ from quantis.config import Clients
 from quantis.models.track import Track, TrackSource, YandexTrack, YoutubeTrack
 from quantis.providers import PathProvider
 
-F = TypeVar("F", bound=Callable[..., Any])
 logger = logging.getLogger(__name__)
-
-
-def log(method: F) -> F:
-    logger = logging.getLogger(method.__module__)
-
-    @functools.wraps(method)
-    async def wrapper(*args: Any, **kwargs: Any) -> Any:
-        logger.debug(f"Entering: {method.__name__}")
-
-        result = await method(*args, **kwargs)
-        logger.debug(result)
-
-        logger.debug(f"Exiting: {method.__name__}")
-
-        return result
-
-    return wrapper
 
 
 class AsyncDownloaderInterface(ABC):
     """Абстрактный класс для Downloader'ов"""
 
     @abstractmethod
-    async def download_track(self, track: Track) -> None: ...
+    async def download_track(self, track: Track | YandexTrack | YoutubeTrack) -> None: 
+        ...
 
     @abstractmethod
-    async def download_cover(self, track: Track) -> None: ...
+    async def download_cover(self, track: Track | YandexTrack | YoutubeTrack) -> None:
+        ...
 
 
 class AsyncYandexDownloader(AsyncDownloaderInterface):
     """Класс для асинхронного скачивания треков и обложек с яндекса"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.path_provider = PathProvider()
         self.client = Clients().get_yandex_client()
 
-    async def download_track(self, track: YandexTrack) -> None:
+    async def download_track(self, track: Track | YandexTrack | YoutubeTrack) -> None:
         """Скачивает трек с яндекса. Асинхронное скачивание
 
         Args:
             track (YandexTrack): Трек с Яндекса
         """
         if self.client is None:
+            logger.warning("Клиент ЯндексМузыки не инициализирован." \
+            "Невозможно скачать трек: %s", track)
             return
         try:
             PathProvider.ensure_storage_dirs()
@@ -80,13 +65,15 @@ class AsyncYandexDownloader(AsyncDownloaderInterface):
         except Exception:
             logger.exception("Не удалось скачать трек с Яндекс.Музыки: %s", track)
 
-    async def download_cover(self, track: YandexTrack) -> None:
+    async def download_cover(self, track: Track | YandexTrack | YoutubeTrack) -> None:
         """Скачивает обложку трека с платформы Яндекс. Асинхронное скачивание
 
         Args:
             track (YandexTrack): Трек с Яндекса
         """
         if self.client is None:
+            logger.warning("Клиент ЯндексМузыки не инициализирован." \
+            "Невозможно скачать трек: %s", track)
             return
         try:
             PathProvider.ensure_storage_dirs()
@@ -101,7 +88,7 @@ class AsyncYandexDownloader(AsyncDownloaderInterface):
 class AsyncYoutubeDownloader(AsyncDownloaderInterface):
     """Класс для асинхронного скачивания треков и обложек с ютуба"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.opts = {
             "quiet": True,
             "noplaylist": True,
@@ -113,7 +100,7 @@ class AsyncYoutubeDownloader(AsyncDownloaderInterface):
         }
         self.path_provider = PathProvider()
         self._executor = ThreadPoolExecutor(max_workers=10)
-        self._session = None
+        self._session: Optional[aiohttp.ClientSession] = None
         self._semaphore = Semaphore(value=8)
 
     async def get_session(self) -> aiohttp.ClientSession:
@@ -121,7 +108,7 @@ class AsyncYoutubeDownloader(AsyncDownloaderInterface):
             self._session = aiohttp.ClientSession()
         return self._session
 
-    async def download_track(self, track: YoutubeTrack) -> None:
+    async def download_track(self, track: Track | YandexTrack | YoutubeTrack) -> None:
         """Асинхронная функция для скачивания трека с ютуба.
         Основана на ThreadPoolExecutor и синхронном скачивании с ytdlp
 
@@ -134,16 +121,15 @@ class AsyncYoutubeDownloader(AsyncDownloaderInterface):
         await get_running_loop().run_in_executor(
             self._executor, self.sync_download, self.opts, track.track_id
         )
-        track.track_path = self.opts["outtmpl"]
 
-    async def download_cover(self, track: YoutubeTrack) -> None:
+    async def download_cover(self, track:  Track | YandexTrack | YoutubeTrack) -> None:
         """Асинхронное получение обложки с ютуб.
 
         Args:
             track (YoutubeTrack): Трек с Ютуба
         """
         cover_url = f"https://img.youtube.com/vi/{track.track_id}/hqdefault.jpg"
-        track.cover_path = self.path_provider.get_cover_path(track)
+        cover_path = self.path_provider.get_cover_path(track)
 
         session = await self.get_session()
 
@@ -154,14 +140,14 @@ class AsyncYoutubeDownloader(AsyncDownloaderInterface):
                         return
                     data = await response.read()
 
-                    Path(track.cover_path).parent.mkdir(parents=True, exist_ok=True)
-                    async with aiofiles.open(track.cover_path, "wb") as file:
+                    Path(cover_path).parent.mkdir(parents=True, exist_ok=True)
+                    async with aiofiles.open(cover_path, "wb") as file:
                         await file.write(data)
             except aiohttp.ClientError:
                 logger.exception("Ошибка при скачивании обложки для %s", track.track_id)
 
     @staticmethod
-    def sync_download(opts: dict, track_id: str) -> None:
+    def sync_download(opts: dict, track_id: int | str) -> None:
         try:
             with YoutubeDL(opts) as ydl:
                 ydl.extract_info(
@@ -184,7 +170,6 @@ class AsyncDownloader(AsyncDownloaderInterface):
         self._yandex_downloader = AsyncYandexDownloader()
         self._youtube_downloader = AsyncYoutubeDownloader()
 
-    @log
     async def download_track(self, track: Track) -> None:
         match track.source:
             case TrackSource.YANDEX:
@@ -192,7 +177,6 @@ class AsyncDownloader(AsyncDownloaderInterface):
             case TrackSource.YOUTUBE:
                 await self._youtube_downloader.download_track(track)
 
-    @log
     async def download_cover(self, track: Track) -> None:
         match track.source:
             case TrackSource.YANDEX:

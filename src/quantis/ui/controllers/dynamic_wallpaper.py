@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 from PySide6.QtCore import QObject
 
@@ -64,7 +63,7 @@ class DynamicWallpaperController(QObject):
     async def _load_video(self, track: Track) -> None:
         track_key = _track_key(track)
         try:
-            clip_path = await self._music.streamer.get_video_url(
+            url = await self._music.streamer.get_video_url(
                 track,
                 finder=self._music.finder,
             )
@@ -74,15 +73,15 @@ class DynamicWallpaperController(QObject):
 
         if self._pending_track_key != track_key:
             return
-        if not clip_path or not Path(clip_path).is_file():
-            logger.warning("Видео-клип для обоев не найден: %s", track)
+        if not url:
+            logger.warning("Видео для обоев не найдено: %s", track)
             self._bridge.invoke_main(self._backdrop.stop_video)
             return
 
-        logger.info("Динамические обои: %s → %s", track, clip_path)
-        path = clip_path
+        logger.info("Динамические обои: стрим для %s", track)
+        stream_url = url
 
         def _play() -> None:
-            self._backdrop.play_video_file(path)
+            self._backdrop.play_video_url(stream_url)
 
         self._bridge.invoke_main(_play)

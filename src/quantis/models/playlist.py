@@ -132,11 +132,11 @@ class RecommendationPlaylist(Playlist):
 
     def __init__(
         self,
-        name: str,
-        tracks: Iterable[Track],
-        cover_path: str = "assets/icons/recomendation.svg",
+        name: str = "Рекомендации",
+        tracks: Iterable[Track] | None = None,
+        cover_path: str = get_asset_path("assets/icons/recomendation.svg"),
     ) -> None:
-        super().__init__("Рекомендации", tracks, cover_path)
+        super().__init__(name, tracks or (), cover_path)
 
     def get_tracks(self) -> Tuple[Track, ...]:
         """Получаем список треков из плейлиста

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QPoint, Qt, Signal
-from PySide6.QtGui import QFont, QIcon
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -43,9 +43,6 @@ class AppHeader(QFrame):
 
         self._title = QLabel("Quantis")
         self._title.setObjectName("headerGreeting")
-        title_font = QFont("Segoe UI", 11)
-        title_font.setWeight(QFont.Weight.DemiBold)
-        self._title.setFont(title_font)
         self._subtitle = QLabel("")
         self._subtitle.setObjectName("headerSub")
         self._subtitle.setVisible(False)

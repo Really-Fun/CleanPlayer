@@ -44,6 +44,8 @@ class LibraryPage(QWidget):
         self._list.verticalHeader().hide()
         self._list.horizontalHeader().hide()
         self._list.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self._list.verticalHeader().setDefaultSectionSize(TrackCardDelegate.CARD_HEIGHT)
+        self._list.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         self._list.setShowGrid(False)
         self._list.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)

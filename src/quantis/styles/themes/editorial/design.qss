@@ -24,6 +24,49 @@ QFrame#appHeader {
     letter-spacing: -0.2px;
 }
 
+QLabel#homeGreeting {
+    font-family: Georgia, serif;
+    font-size: 34px;
+    font-weight: 400;
+    color: #f2f0eb;
+    letter-spacing: -0.6px;
+}
+
+QLabel#homeSectionTitle {
+    font-family: Georgia, serif;
+    font-size: 24px;
+    font-weight: 400;
+    color: #f2f0eb;
+}
+
+QLabel#homeSectionSubtitle {
+    font-family: "Cascadia Mono", Consolas, monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: rgba(242, 240, 235, 0.45);
+    text-transform: uppercase;
+}
+
+QFrame#playlistCard {
+    background: rgba(255, 255, 255, 0.04);
+    border: none;
+    border-radius: 0;
+}
+
+QFrame#playlistCard:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+QFrame#quickPickTile {
+    background: rgba(255, 255, 255, 0.05);
+    border: none;
+    border-radius: 0;
+}
+
+QFrame#quickPickTile:hover {
+    background: rgba(255, 255, 255, 0.09);
+}
+
 #sectionTitle {
     font-family: "Cascadia Mono", Consolas, monospace;
     font-size: 10px;
@@ -135,7 +178,8 @@ QScrollBar::add-line:vertical,
 QScrollBar::sub-line:vertical { height: 0; }
 
 QListView#trackList,
-QTableView#trackList {
+QTableView#trackList,
+QTableView#homeTrackList {
     background: transparent;
     border: none;
     outline: none;

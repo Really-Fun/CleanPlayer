@@ -32,6 +32,7 @@ UI_THEME_BASE_QSS: dict[str, str] = {
 }
 
 _SHARED_WIDGET_STYLES = (
+    "surfaces.qss",
     "home.qss",
     "play_menu.qss",
     "playlist_page.qss",

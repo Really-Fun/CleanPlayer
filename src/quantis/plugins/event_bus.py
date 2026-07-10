@@ -12,6 +12,7 @@ class EventBus(QObject):
     """Центральная шина событий приложения."""
     
     track_changed = Signal(object)     # Передает объект Track
+    history_updated = Signal()         # История прослушивания записана в БД
     playback_paused = Signal()
     playback_resumed = Signal()
     playback_stopped = Signal()

@@ -12,23 +12,21 @@ import logging
 from abc import ABC, abstractmethod
 from asyncio import get_running_loop
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 from time import time
 
 from yt_dlp import YoutubeDL
 
 from quantis.config import Clients
 from quantis.models import Track, TrackSource
-from quantis.providers import PathProvider
 
 logger = logging.getLogger(__name__)
 
 
-def cached_stream_url(func):
+def cached_stream_url(func: callable) -> callable:
     """Декоратор для кэширования прямых URL треков внутри методов класса Streamer."""
 
     @functools.wraps(func)
-    async def wrapper(self, track: Track, *args, **kwargs):
+    async def wrapper(self: AsyncStreamerInterface, track: Track, *args: tuple, **kwargs: dict) -> str | None:
         track_key = f"{track.source}:{track.track_id}"
 
         cached = self._cache.get(track_key)
@@ -123,48 +121,6 @@ class AsyncYoutubeStreamer(AsyncStreamerInterface):
             self._executor, self.sync_video_stream, self._video_yt, video_id
         )
 
-    async def download_wallpaper_clip(self, video_id: str) -> str | None:
-        return await get_running_loop().run_in_executor(
-            self._executor, self.sync_download_wallpaper_clip, video_id
-        )
-
-    @staticmethod
-    def sync_download_wallpaper_clip(video_id: str) -> str | None:
-        cache_dir = Path(PathProvider.WALLPAPER_CLIPS_FOLDER)
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        for existing in cache_dir.glob(f"{video_id}.*"):
-            if existing.is_file() and existing.stat().st_size > 0:
-                return str(existing.resolve())
-
-        out_base = cache_dir / video_id
-        url = f"https://www.youtube.com/watch?v={video_id}"
-        opts = {
-            "user_agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-            ),
-            "quiet": True,
-            "no_warnings": True,
-            "noplaylist": True,
-            "nocheckcertificate": True,
-            "format": (
-                "18/22/b[ext=mp4][vcodec!=none][height<=720]/"
-                "best[vcodec!=none][height<=720][ext=mp4]"
-            ),
-            "outtmpl": str(out_base) + ".%(ext)s",
-        }
-        try:
-            with YoutubeDL(opts) as yt:
-                yt.download([url])
-        except Exception:
-            logger.exception("Не удалось скачать видео-клип для обоев: %s", video_id)
-            return None
-
-        for candidate in cache_dir.glob(f"{video_id}.*"):
-            if candidate.is_file() and candidate.stat().st_size > 0:
-                return str(candidate.resolve())
-        return None
-
     @staticmethod
     def sync_stream(yt: YoutubeDL, track_id: str) -> str | None:
         try:
@@ -239,11 +195,11 @@ class AsyncStreamer(AsyncStreamerInterface):
         raise ValueError(f"Неизвестный источник платформы у трека: {track.source!r}")
 
     async def get_video_url(self, track: Track, finder: object | None = None) -> str | None:
-        """Локальный mp4-клип для динамических обоев (кэш в wallpaper_clips/)."""
+        """Прямой URL видео для динамических обоев (стрим, без сохранения на диск)."""
         video_id = await self._resolve_youtube_video_id(track, finder)
         if not video_id:
             return None
-        return await self._youtube.download_wallpaper_clip(video_id)
+        return await self._youtube.get_video_url(video_id)
 
     async def _resolve_youtube_video_id(
         self, track: Track, finder: object | None

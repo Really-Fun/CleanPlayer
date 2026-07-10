@@ -116,16 +116,13 @@ class WallpaperBackdrop(QWidget):
         else:
             self.update()
 
-    def play_video_file(self, path: str | Path) -> None:
-        if not self._dynamic_enabled:
-            return
-        file_path = Path(path)
-        if not file_path.is_file():
+    def play_video_url(self, url: str) -> None:
+        if not self._dynamic_enabled or not url:
             return
         self._video_active = True
         self._video_surface.show()
         self.lower()
-        self._video_player.setSource(QUrl.fromLocalFile(str(file_path.resolve())))
+        self._video_player.setSource(QUrl(url))
         self._video_player.play()
         self.update()
 

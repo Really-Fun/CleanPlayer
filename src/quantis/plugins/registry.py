@@ -72,15 +72,15 @@ class PluginRegistry(QObject):
         enabled_ids = self._read_enabled()
 
         for meta in self._loader.discover():
-            print(meta)
             info = PluginInfo(meta=meta)
             self._infos[meta.plugin_id] = info
             if not meta.is_valid:
                 info.error = "; ".join(meta.errors)
                 continue
-            await self._do_enable(meta.plugin_id)
             if meta.plugin_id in enabled_ids:
                 await self._do_enable(meta.plugin_id)
+
+        logger.info("Найдено плагинов: %s, включено: %s", len(self._infos), len(self._active))
 
     async def enable(self, plugin_id: str) -> bool:
         """Включает плагин: загружает, вызывает ``on_load()``, сохраняет в настройки.
@@ -121,6 +121,30 @@ class PluginRegistry(QObject):
 
     def is_active(self, plugin_id: str) -> bool:
         return plugin_id in self._active
+
+    async def unload_all(self) -> None:
+        """Выключает все активные плагины при завершении (настройки не трогаем)."""
+        for plugin_id in list(self._active):
+            instance = self._active.pop(plugin_id, None)
+            if instance is not None:
+                try:
+                    await instance.on_unload()
+                except Exception:
+                    logger.exception("Ошибка в on_unload() плагина '%s'", plugin_id)
+            if plugin_id in self._infos:
+                self._infos[plugin_id].is_active = False
+        logger.info("Все плагины выгружены")
+
+    def rescan(self) -> None:
+        """Повторно сканирует папку плагинов (новые без перезапуска)."""
+        for meta in self._loader.discover():
+            if meta.plugin_id in self._infos:
+                continue
+            info = PluginInfo(meta=meta)
+            if not meta.is_valid:
+                info.error = "; ".join(meta.errors)
+            self._infos[meta.plugin_id] = info
+            self.plugin_changed.emit(meta.plugin_id)
 
     # ── Внутренние методы ─────────────────────────────────────────────────────
 

@@ -74,6 +74,8 @@ background/user/*
 # Плагины пользователя
 plugins_dir/*
 !plugins_dir/.gitkeep
+!plugins_dir/hello_plugin/
+!plugins_dir/hello_plugin/**
 
 CleanPlayer.spec
 build.bat

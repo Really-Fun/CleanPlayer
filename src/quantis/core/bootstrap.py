@@ -12,6 +12,7 @@ from quantis.plugins.event_bus import EventBus
 from quantis.providers import PlaylistManager
 from quantis.services import TrackHistoryService
 from quantis.services.music_service import MusicService
+from quantis.services.playback_history import PlaybackHistoryWatcher
 
 
 @dataclass
@@ -50,10 +51,12 @@ def build_application(bridge: AsyncBridge) -> ApplicationBundle:
         event_bus=event_bus,
         playback=playback,
         music=music,
+        async_bridge=bridge,
     )
 
     wire_player_events(player, event_bus, playback, bridge)
     wire_event_bus_navigation(event_bus, playback, bridge)
+    PlaybackHistoryWatcher(player, history, event_bus, bridge)
 
     return ApplicationBundle(
         async_bridge=bridge,
@@ -105,4 +108,15 @@ def wire_event_bus_navigation(
 
 
 def shutdown_application(bundle: ApplicationBundle) -> None:
+    from quantis.plugins import PluginRegistry
+
+    registry = PluginRegistry.instance()
+    future = __import__("asyncio").run_coroutine_threadsafe(
+        registry.unload_all(),
+        bundle.async_bridge._loop,
+    )
+    try:
+        future.result(timeout=3)
+    except Exception:
+        pass
     bundle.music.shutdown()

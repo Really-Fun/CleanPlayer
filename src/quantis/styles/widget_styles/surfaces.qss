@@ -1,0 +1,35 @@
+/* Design system — единые поверхности и отступы */
+
+QFrame#PlayMenu,
+QFrame#TrackListPanel,
+QFrame#glassPanel,
+QFrame#sideNavRail {
+    background-color: rgba(11, 13, 22, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 14px;
+}
+
+QFrame#playerDock {
+    background: qlineargradient(
+        x1:0, y1:0, x2:0, y2:1,
+        stop:0 rgba(0, 0, 0, 0),
+        stop:0.4 rgba(6, 8, 14, 0.55),
+        stop:1 rgba(6, 8, 14, 0.88)
+    );
+    border: none;
+}
+
+QFrame#playerInnerDivider {
+    background: rgba(255, 255, 255, 0.07);
+    border: none;
+    max-height: 1px;
+}
+
+#coverLabel {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+#trackTitle[playing="true"] {
+    color: #00e5ff;
+}

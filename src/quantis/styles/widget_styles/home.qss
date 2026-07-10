@@ -1,1 +1,121 @@
-/* home layout in design.qss */
+/* Главная — иерархия и карточки */
+
+QWidget#homePage,
+QWidget#homeScrollContent {
+    background: transparent;
+}
+
+QScrollArea#homeScroll {
+    background: transparent;
+    border: none;
+}
+
+QLabel#homeGreeting {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.6px;
+    color: #f8fafc;
+    padding: 4px 0 0 0;
+}
+
+QLabel#homeGreetingSub {
+    font-size: 13px;
+    font-weight: 400;
+    color: rgba(248, 250, 252, 0.5);
+    padding: 0 0 16px 0;
+}
+
+QLabel#homeSectionTitle {
+    font-size: 18px;
+    font-weight: 700;
+    color: #f8fafc;
+    letter-spacing: -0.2px;
+}
+
+QLabel#homeSectionSubtitle {
+    font-size: 12px;
+    color: rgba(248, 250, 252, 0.48);
+}
+
+QLabel#homeEmptyHint {
+    font-size: 13px;
+    color: rgba(248, 250, 252, 0.4);
+    padding: 8px 4px;
+}
+
+QScrollArea#homeSectionScroll {
+    background: transparent;
+    border: none;
+}
+
+QWidget#homeSectionStrip {
+    background: transparent;
+}
+
+QFrame#playlistCard {
+    background: rgba(11, 13, 22, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+}
+
+QFrame#playlistCard:hover {
+    background: rgba(18, 20, 30, 0.88);
+    border-color: rgba(0, 229, 255, 0.22);
+}
+
+QLabel#playlistCardTitle {
+    font-size: 13px;
+    font-weight: 600;
+    color: #f8fafc;
+}
+
+QLabel#playlistCardMeta {
+    font-size: 11px;
+    color: rgba(248, 250, 252, 0.48);
+}
+
+QFrame#quickPickTile {
+    background: rgba(11, 13, 22, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 8px;
+}
+
+QFrame#quickPickTile:hover {
+    background: rgba(18, 20, 30, 0.88);
+    border-color: rgba(0, 229, 255, 0.2);
+}
+
+QLabel#quickPickTitle {
+    font-size: 13px;
+    font-weight: 600;
+    color: #f8fafc;
+}
+
+QLabel#quickPickMeta {
+    font-size: 11px;
+    color: rgba(248, 250, 252, 0.45);
+}
+
+QTableView#homeTrackList {
+    background: transparent;
+    border: none;
+    outline: none;
+}
+
+QTableView#homeTrackList::item {
+    border: none;
+    padding: 0;
+    background: transparent;
+}
+
+QTableView#homeTrackList::item:selected {
+    background: transparent;
+}
+
+QFrame#featuredPanel {
+    background: rgba(11, 13, 22, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    min-height: 200px;
+    max-height: 260px;
+}
