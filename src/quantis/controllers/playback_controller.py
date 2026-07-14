@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from quantis.core.async_bridge import AsyncBridge
 from quantis.models import Track
@@ -10,6 +11,8 @@ from quantis.providers import PlaylistManager
 from quantis.services import MusicService, TrackHistoryService
 
 logger = logging.getLogger(__name__)
+
+
 class PlaybackController:
     """Медиатор логики воспроизведения."""
 
@@ -34,18 +37,32 @@ class PlaybackController:
     def current_track(self) -> Track | None:
         return self._current_track
 
+    def _local_path_if_ready(self, track: Track) -> str | None:
+        extension = getattr(track, "extension", None)
+        path = (
+            self.music.provider.get_track_path(track, extension)
+            if extension
+            else self.music.provider.get_track_path(track)
+        )
+        file_path = Path(path)
+        if not file_path.is_file():
+            return None
+        try:
+            if file_path.stat().st_size <= 0:
+                return None
+        except OSError:
+            return None
+        return path
+
     async def play_track(self, track: Track | None) -> None:
         if not track:
             return
 
+        source: str | None = None
         if track.downloaded:
-            extension = getattr(track, "extension", None)
-            source = (
-                self.music.provider.get_track_path(track, extension)
-                if extension
-                else self.music.provider.get_track_path(track)
-            )
-        else:
+            source = self._local_path_if_ready(track)
+
+        if source is None:
             source = await self.music.streamer.get_stream_url(track)
 
         if not source:
@@ -70,7 +87,8 @@ class PlaybackController:
             self._current_track = track
             self.player.current_track = track
             self.player.play(source)
-            if resume_ms > 0:
+            # Не seek'аем HTTP-стримы сразу — ломает буфер FFmpeg.
+            if resume_ms > 0 and not str(source).startswith(("http://", "https://")):
                 self.player.time = resume_ms
             if self._event_bus is not None:
                 self._event_bus.track_changed.emit(track)

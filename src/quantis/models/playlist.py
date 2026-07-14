@@ -272,6 +272,28 @@ class LikedPlaylist(Playlist):
         return tuple(self.tracks.values)
 
 
+class WavePlaylist(Playlist):
+    """Моя волна — персональное радио (Yandex / позже YouTube)."""
+
+    def __init__(
+        self,
+        name: str = "Моя волна",
+        tracks: Iterable[Track] | None = None,
+        cover_path: str = get_asset_path("assets/icons/radio.svg"),
+        *,
+        source: str = "yandex",
+        station: str = "user:onyourwave",
+        batch_id: str | None = None,
+    ) -> None:
+        super().__init__(name, tracks or (), cover_path)
+        self.source = source
+        self.station = station
+        self.batch_id = batch_id
+
+    def get_tracks(self) -> Tuple[Track, ...]:
+        return tuple(self.tracks.values)
+
+
 class UserPlaylist(Playlist):
     @classmethod
     def get_playlist_from_path(cls, path_to_playlist: str) -> "UserPlaylist | None":

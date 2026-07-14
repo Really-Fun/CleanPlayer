@@ -36,6 +36,7 @@ class Player:
         media_player = self._engine.media_player
         media_player.mediaStatusChanged.connect(self._on_media_status)
         media_player.playbackStateChanged.connect(self._on_playback_state_changed)
+        media_player.errorOccurred.connect(self._on_player_error)
 
     def on_source_changed(self, callback: Callable[[str], None]) -> None:
         self._source_changed_callbacks.append(callback)
@@ -118,11 +119,33 @@ class Player:
         media_player = self._engine.media_player
         duration = media_player.duration()
         position = media_player.position()
-        if duration > 1000 and position < duration - 1000:
+        # Обрыв CDN/preview: длительность в метаданных полная, а поток кончился ~на 30с.
+        truncated = duration > 60_000 and 15_000 <= position <= 45_000
+        if duration > 1000 and position < duration - 1000 and not truncated:
             return
+        if truncated:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "Поток оборвался рано (%sms из %sms) — preview или обрыв CDN",
+                position,
+                duration,
+            )
 
         self._playback_active = False
         self._trigger_finished_callbacks()
+
+    def _on_player_error(self, error: QMediaPlayer.Error, message: str) -> None:
+        import logging
+
+        if error == QMediaPlayer.Error.NoError:
+            return
+        logging.getLogger(__name__).warning(
+            "QMediaPlayer error=%s message=%s source=%s",
+            error,
+            message,
+            self.current_source,
+        )
 
     def _on_playback_state_changed(self, state: QMediaPlayer.PlaybackState) -> None:
         previous = self._last_playback_state

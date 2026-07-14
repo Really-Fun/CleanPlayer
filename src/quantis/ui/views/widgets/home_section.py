@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from PySide6.QtWidgets import QLabel, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 
 class HomeSection(QWidget):
-    """Секция главной: заголовок + контент без вложенного скролла."""
+    """Секция главной: заголовок в стиле «shelf» + контент."""
 
     def __init__(
         self,
@@ -18,17 +19,29 @@ class HomeSection(QWidget):
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(12)
+        root.setSpacing(14)
 
-        header = QVBoxLayout()
-        header.setSpacing(3)
+        header = QHBoxLayout()
+        header.setSpacing(12)
+        header.setContentsMargins(0, 0, 0, 0)
+
+        text = QVBoxLayout()
+        text.setSpacing(2)
         self._title = QLabel(title)
         self._title.setObjectName("homeSectionTitle")
-        header.addWidget(self._title)
+        text.addWidget(self._title)
         self._subtitle = QLabel(subtitle)
         self._subtitle.setObjectName("homeSectionSubtitle")
         self._subtitle.setVisible(bool(subtitle))
-        header.addWidget(self._subtitle)
+        text.addWidget(self._subtitle)
+        header.addLayout(text, stretch=1)
+
+        self._badge = QLabel()
+        self._badge.setObjectName("homeSectionBadge")
+        self._badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._badge.hide()
+        header.addWidget(self._badge, 0, Qt.AlignmentFlag.AlignTop)
+
         root.addLayout(header)
 
         self._body = QWidget()
@@ -46,8 +59,14 @@ class HomeSection(QWidget):
         self._subtitle.setText(text)
         self._subtitle.setVisible(bool(text))
 
+    def set_badge(self, text: str) -> None:
+        if text:
+            self._badge.setText(text)
+            self._badge.show()
+        else:
+            self._badge.hide()
+
     def add_widget_block(self, widget: QWidget) -> None:
-        """Контент секции на всю ширину (сетка / таблица)."""
         while self._body_layout.count():
             item = self._body_layout.takeAt(0)
             old = item.widget()

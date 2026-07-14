@@ -59,7 +59,8 @@ class AsyncYandexDownloader(AsyncDownloaderInterface):
             is_authorized = bool(getattr(self.client, "token", None))
 
             if is_authorized:
-                await current_track.download_async(file_path)
+                # Полный битрейт — не preview
+                await current_track.download_async(file_path, bitrate_in_kbps=320)
             else:
                 await current_track.download_async(file_path, bitrate_in_kbps=192)
         except Exception:

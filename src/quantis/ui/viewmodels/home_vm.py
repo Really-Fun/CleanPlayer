@@ -16,14 +16,17 @@ from quantis.models import (
     RecentlyPlayedPlaylist,
     Track,
     UserPlaylist,
+    WavePlaylist,
 )
 from quantis.models.playlist import Playlist, RecommendationPlaylist
 from quantis.providers.path_provider import PathProvider
 from quantis.services import MusicService, TrackHistoryService
 from quantis.services.liked_tracks import LikedTracksService
+from quantis.config.credentials import yandex_token
 from quantis.ui.cover_prefetch import schedule_cover_prefetch
 from quantis.ui.models import TrackListModel
 from quantis.ui.viewmodels.base_viewmodel import BaseViewModel
+from quantis.utils import get_asset_path
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +60,9 @@ class HomeSnapshot:
     library_playlists: tuple[Playlist, ...]
     recommendation_tracks: tuple[Track, ...]
     recent_tracks: tuple[Track, ...]
+    wave_ready: bool = False
+    wave_track_count: int = 0
+    wave_source: str = "yandex"
 
 
 class HomeViewModel(BaseViewModel):
@@ -88,6 +94,7 @@ class HomeViewModel(BaseViewModel):
             recent_tracks=(),
         )
         self._recommendation_playlist: RecommendationPlaylist | None = None
+        self._wave_playlist: WavePlaylist | None = None
         self._load_started = False
         self._bridge: AsyncBridge | None = None
 
@@ -151,6 +158,7 @@ class HomeViewModel(BaseViewModel):
                 downloaded=downloaded,
                 user_playlists=user_playlists,
                 recommendation_tracks=(),
+                wave_playlist=None,
             )
 
             def apply_fast() -> None:
@@ -175,18 +183,21 @@ class HomeViewModel(BaseViewModel):
             recommendation_tracks, recommendation_playlist = await self._load_recommendations(
                 recent_tracks
             )
+            wave_playlist = await self._load_wave()
             full_snapshot = self._build_snapshot(
                 recent_tracks=recent_tracks,
                 liked_tracks=liked_tracks,
                 downloaded=downloaded,
                 user_playlists=user_playlists,
                 recommendation_tracks=tuple(recommendation_tracks),
+                wave_playlist=wave_playlist,
             )
 
             def apply_recommendations() -> None:
                 self._snapshot = full_snapshot
                 self._recommendation_playlist = recommendation_playlist
                 self._recommendation_model.set_tracks(list(recommendation_tracks))
+                self._wave_playlist = wave_playlist
                 self.home_changed.emit()
 
             bridge.invoke_main(apply_recommendations)
@@ -197,6 +208,14 @@ class HomeViewModel(BaseViewModel):
                 on_done=lambda: self.home_changed.emit(),
                 limit=16,
             )
+            if wave_playlist is not None:
+                schedule_cover_prefetch(
+                    list(wave_playlist.tracks.values),
+                    self._music.downloader,
+                    bridge,
+                    on_done=lambda: self.home_changed.emit(),
+                    limit=12,
+                )
         except Exception as exc:
             logger.exception("Не удалось загрузить главную страницу")
             bridge.invoke_main(lambda: self.emit_error(str(exc)))
@@ -211,8 +230,23 @@ class HomeViewModel(BaseViewModel):
         downloaded: list[Track] | tuple[Track, ...],
         user_playlists: list[UserPlaylist],
         recommendation_tracks: tuple[Track, ...],
+        wave_playlist: WavePlaylist | None = None,
     ) -> HomeSnapshot:
         library_playlists: list[Playlist] = []
+
+        wave = wave_playlist or self._wave_playlist
+        wave_count = len(wave) if wave is not None else 0
+        # Карточка волны всегда первая, если есть токен (даже до загрузки — count 0).
+        if yandex_token() or wave_count:
+            library_playlists.append(
+                _CountedShell(
+                    "Моя волна",
+                    count=wave_count,
+                    cover_path=get_asset_path("assets/icons/radio.svg"),
+                    kind="wave",
+                )
+            )
+
         if recent_tracks:
             library_playlists.append(
                 _CountedShell(
@@ -248,6 +282,9 @@ class HomeViewModel(BaseViewModel):
             library_playlists=tuple(library_playlists),
             recommendation_tracks=recommendation_tracks,
             recent_tracks=tuple(recent_tracks),
+            wave_ready=bool(wave_count),
+            wave_track_count=wave_count,
+            wave_source=(wave.source if wave is not None else "yandex"),
         )
 
     async def refresh_recent(self, bridge: AsyncBridge) -> None:
@@ -294,6 +331,9 @@ class HomeViewModel(BaseViewModel):
                 library_playlists=tuple(library_playlists),
                 recommendation_tracks=snap.recommendation_tracks,
                 recent_tracks=tuple(recent_tracks),
+                wave_ready=snap.wave_ready,
+                wave_track_count=snap.wave_track_count,
+                wave_source=snap.wave_source,
             )
 
             def apply() -> None:
@@ -305,6 +345,58 @@ class HomeViewModel(BaseViewModel):
             bridge.invoke_main(apply)
         except Exception:
             logger.exception("Не удалось обновить недавние треки")
+
+    async def _load_wave(self) -> WavePlaylist | None:
+        if not yandex_token():
+            return None
+        try:
+            return await self._music.wave.start_yandex_wave()
+        except Exception:
+            logger.exception("Не удалось загрузить Мою волну")
+            return None
+
+    async def ensure_wave(self) -> WavePlaylist | None:
+        """Вернуть загруженную волну или запросить заново."""
+        if self._wave_playlist is not None and len(self._wave_playlist):
+            return self._wave_playlist
+        playlist = await self._load_wave()
+        if playlist is not None:
+            self._wave_playlist = playlist
+
+            def apply() -> None:
+                snap = self._snapshot
+                # Обновляем shell «Моя волна» в снимке.
+                library: list[Playlist] = []
+                wave_shell = _CountedShell(
+                    "Моя волна",
+                    count=len(playlist),
+                    cover_path=get_asset_path("assets/icons/radio.svg"),
+                    kind="wave",
+                )
+                replaced = False
+                for pl in snap.library_playlists:
+                    if isinstance(pl, _CountedShell) and pl.kind == "wave":
+                        library.append(wave_shell)
+                        replaced = True
+                    else:
+                        library.append(pl)
+                if not replaced:
+                    library.insert(0, wave_shell)
+                self._snapshot = HomeSnapshot(
+                    greeting=snap.greeting,
+                    quick_playlists=tuple(library[:6]),
+                    library_playlists=tuple(library),
+                    recommendation_tracks=snap.recommendation_tracks,
+                    recent_tracks=snap.recent_tracks,
+                    wave_ready=True,
+                    wave_track_count=len(playlist),
+                    wave_source=playlist.source,
+                )
+                self.home_changed.emit()
+
+            if self._bridge is not None:
+                self._bridge.invoke_main(apply)
+        return playlist
 
     async def _load_recommendations(
         self, recent_tracks: list[Track]
@@ -352,6 +444,15 @@ class HomeViewModel(BaseViewModel):
             working = DownloadPlaylist(name=playlist.name, tracks=tracks)
         elif isinstance(playlist, UserPlaylist):
             working = UserPlaylist(playlist.name, tracks, playlist.cover_path)
+        elif isinstance(playlist, WavePlaylist):
+            working = WavePlaylist(
+                playlist.name,
+                tracks,
+                playlist.cover_path,
+                source=playlist.source,
+                station=playlist.station,
+                batch_id=playlist.batch_id,
+            )
         elif isinstance(playlist, RecommendationPlaylist):
             working = RecommendationPlaylist(playlist.name, tracks, playlist.cover_path)
         else:
@@ -369,7 +470,24 @@ class HomeViewModel(BaseViewModel):
                 return LikedPlaylist(tracks=self._liked_model.all_tracks())
             if playlist.kind == "downloaded":
                 return DownloadPlaylist(tracks=self._downloaded_model.all_tracks())
+            if playlist.kind == "wave":
+                if self._wave_playlist is not None and len(self._wave_playlist):
+                    return self._wave_playlist
+                return WavePlaylist(tracks=())
         return playlist
+
+    async def open_wave(self) -> WavePlaylist | None:
+        """Загрузить волну (если нужно) и вернуть готовый плейлист."""
+        playlist = await self.ensure_wave()
+        if playlist is None or not len(playlist):
+            return None
+        return playlist
+
+    async def play_wave(self) -> None:
+        playlist = await self.open_wave()
+        if playlist is None:
+            return
+        await self.play_playlist(playlist, start_index=0)
 
     async def refresh_liked(self, bridge: AsyncBridge | None = None) -> None:
         bridge = bridge or self._bridge
@@ -412,6 +530,9 @@ class HomeViewModel(BaseViewModel):
                 library_playlists=tuple(library),
                 recommendation_tracks=snap.recommendation_tracks,
                 recent_tracks=snap.recent_tracks,
+                wave_ready=snap.wave_ready,
+                wave_track_count=snap.wave_track_count,
+                wave_source=snap.wave_source,
             )
             self.home_changed.emit()
 

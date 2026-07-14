@@ -1,24 +1,24 @@
 QFrame#sideNavRail {
-    border-top: 2px solid rgba(0, 229, 255, 0.28);
+    border: 1px solid rgba(46, 230, 255, 0.14);
 }
 
 QToolButton#navIconButton {
     background: transparent;
     border: none;
-    border-radius: 12px;
-    padding: 10px;
-    min-width: 44px;
-    min-height: 44px;
+    border-radius: 14px;
+    padding: 11px;
+    min-width: 46px;
+    min-height: 46px;
 }
 
 QToolButton#navIconButton:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.07);
 }
 
 QToolButton#navIconButton:checked {
-    background: rgba(0, 229, 255, 0.14);
+    background: transparent;
 }
 
 QToolButton#navIconButton:pressed {
-    background: rgba(255, 42, 127, 0.12);
+    background: rgba(255, 92, 122, 0.14);
 }

@@ -1,7 +1,7 @@
-/* Глобальная типографика и каркас */
+/* Глобальная типографика и каркас — геометричный display + чистый UI */
 
 * {
-    font-family: "Segoe UI", "Inter", sans-serif;
+    font-family: "Bahnschrift", "Segoe UI Variable Display", "Segoe UI", sans-serif;
 }
 
 QWidget#appShell,
@@ -40,15 +40,30 @@ QListView#trackList::item:selected {
     background: transparent;
 }
 
-/* Кастомная панель окна */
 QFrame#appHeader {
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    min-height: 52px;
 }
 
 QFrame#appHeader QLabel#headerGreeting {
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: 650;
+    letter-spacing: 0.2px;
+}
+
+QLabel#headerSub {
+    font-size: 11px;
+    color: rgba(226, 232, 240, 0.45);
+    letter-spacing: 0.4px;
+}
+
+QLabel#headerBrandWordmark {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 2.4px;
+    color: #f8fafc;
+    background: transparent;
 }
 
 QToolButton#windowMinBtn,
@@ -56,14 +71,14 @@ QToolButton#windowMaxBtn,
 QToolButton#windowCloseBtn {
     background: transparent;
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
     padding: 0;
     margin: 0;
 }
 
 QToolButton#windowMinBtn:hover,
 QToolButton#windowMaxBtn:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.1);
 }
 
 QToolButton#windowCloseBtn:hover {
@@ -74,7 +89,8 @@ QToolButton#windowCloseBtn:pressed {
     background: #bf0f1d;
 }
 
-QLabel#headerBrandLogo {
+QLabel#headerBrandLogo,
+QLabel#headerBrandMark {
     background: transparent;
     border: none;
 }

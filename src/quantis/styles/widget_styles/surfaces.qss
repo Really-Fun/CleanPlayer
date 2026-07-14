@@ -1,35 +1,45 @@
-/* Design system — единые поверхности и отступы */
+/* Design system — жидкое стекло, крупные радиусы */
 
 QFrame#PlayMenu,
 QFrame#TrackListPanel,
 QFrame#glassPanel,
 QFrame#sideNavRail {
-    background-color: rgba(11, 13, 22, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.09);
-    border-radius: 14px;
+    background-color: rgba(8, 12, 22, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 22px;
+}
+
+QFrame#sideNavRail {
+    background-color: rgba(6, 10, 20, 0.78);
+    border: 1px solid rgba(46, 230, 255, 0.12);
 }
 
 QFrame#playerDock {
     background: qlineargradient(
         x1:0, y1:0, x2:0, y2:1,
         stop:0 rgba(0, 0, 0, 0),
-        stop:0.4 rgba(6, 8, 14, 0.55),
-        stop:1 rgba(6, 8, 14, 0.88)
+        stop:0.35 rgba(3, 5, 12, 0.45),
+        stop:1 rgba(3, 5, 12, 0.92)
     );
     border: none;
 }
 
 QFrame#playerInnerDivider {
-    background: rgba(255, 255, 255, 0.07);
+    background: qlineargradient(
+        x1:0, y1:0, x2:1, y2:0,
+        stop:0 rgba(46, 230, 255, 0),
+        stop:0.5 rgba(46, 230, 255, 0.28),
+        stop:1 rgba(255, 92, 122, 0)
+    );
     border: none;
     max-height: 1px;
 }
 
 #coverLabel {
     background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 #trackTitle[playing="true"] {
-    color: #00e5ff;
+    color: #2ee6ff;
 }

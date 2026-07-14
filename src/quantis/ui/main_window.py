@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, Qt
+from PySide6.QtCore import QEvent, QPropertyAnimation, Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication,
+    QGraphicsOpacityEffect,
     QHBoxLayout,
     QMainWindow,
     QStackedWidget,
@@ -51,7 +52,11 @@ class QuantisMainWindow(QMainWindow):
     def __init__(self, bundle: ApplicationBundle, parent=None) -> None:
         super().__init__(parent)
 
-        app_font = QFont("Segoe UI", 10)
+        app_font = QFont("Bahnschrift", 10)
+        if not app_font.exactMatch():
+            app_font = QFont("Segoe UI Variable Display", 10)
+        if not app_font.exactMatch():
+            app_font = QFont("Segoe UI", 10)
         QApplication.setFont(app_font)
 
         self._bundle = bundle
@@ -113,8 +118,8 @@ class QuantisMainWindow(QMainWindow):
             variant=self._ui_prefs.ui_theme,
         )
         body = self._body_shell.layout_host
-        body.setContentsMargins(8, 8, 8, 0)
-        body.setSpacing(8)
+        body.setContentsMargins(10, 10, 10, 0)
+        body.setSpacing(10)
 
         self._nav = SideNavRail()
         self._nav.page_changed.connect(self._on_page_changed)
@@ -240,12 +245,30 @@ class QuantisMainWindow(QMainWindow):
         self._current_page = page_id
         self._stack.setCurrentIndex(page_id)
         self._nav.set_active_page(page_id)
+        self._fade_current_page()
         title, subtitle = self._PAGE_META.get(page_id, ("Quantis", ""))
         self._header.set_page(title, subtitle)
         if previous == self.PAGE_SEARCH and page_id != self.PAGE_SEARCH:
             self._search_vm.clear_results()
         if page_id in (self.PAGE_HOME, self.PAGE_LIBRARY):
             self._home_vm.request_load(self._bridge)
+
+    def _fade_current_page(self) -> None:
+        page = self._stack.currentWidget()
+        if page is None:
+            return
+        effect = page.graphicsEffect()
+        if not isinstance(effect, QGraphicsOpacityEffect):
+            effect = QGraphicsOpacityEffect(page)
+            page.setGraphicsEffect(effect)
+        effect.setOpacity(0.0)
+        anim = QPropertyAnimation(effect, b"opacity", page)
+        anim.setDuration(180)
+        anim.setStartValue(0.0)
+        anim.setEndValue(1.0)
+        anim.start()
+        # Держим ссылку, иначе GC остановит анимацию
+        page._quantis_fade = anim  # type: ignore[attr-defined]
 
     def _open_playlist_page(self, playlist) -> None:
         page = self._ensure_playlist_page()

@@ -5,7 +5,7 @@ QWidget#playlistPage {
 }
 
 #TrackListPanel {
-    border-top: 2px solid rgba(0, 229, 255, 0.28);
+    border-top: 1px solid rgba(46, 230, 255, 0.22);
 }
 
 #listDivider {

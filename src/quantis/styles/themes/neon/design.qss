@@ -1,62 +1,80 @@
-/* Neon — cyan + magenta, выразительное свечение */
+/* Neon — Aurora Pulse: ink + cyan + coral */
 
 QWidget {
-    color: #f1f5f9;
+    color: #eef4f8;
 }
 
 QFrame#glassPanel {
-    background: rgba(11, 13, 22, 0.88);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 14px;
+    background: rgba(8, 12, 24, 0.78);
+    border: 1px solid rgba(46, 230, 255, 0.14);
+    border-radius: 22px;
 }
 
 QFrame#appHeader {
-    background: rgba(6, 6, 14, 0.55);
+    background: qlineargradient(
+        x1:0, y1:0, x2:0, y2:1,
+        stop:0 rgba(4, 8, 18, 0.72),
+        stop:1 rgba(4, 8, 18, 0.28)
+    );
     border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 #headerGreeting {
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: 650;
+    color: #f4f8fb;
+    letter-spacing: 0.15px;
+}
+
+#headerBrandWordmark {
     color: #f8fafc;
-    letter-spacing: -0.2px;
 }
 
 #sectionTitle {
-    font-size: 12px;
-    font-weight: 600;
-    color: rgba(0, 229, 255, 0.8);
-    letter-spacing: 1px;
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(46, 230, 255, 0.85);
+    letter-spacing: 1.8px;
     text-transform: uppercase;
 }
 
 #searchInput {
-    background: rgba(0, 0, 0, 0.35);
-    border: none;
-    border-radius: 10px;
-    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 13px 16px;
     font-size: 14px;
     color: #f8fafc;
-    selection-background-color: rgba(255, 42, 127, 0.35);
+    selection-background-color: rgba(255, 92, 122, 0.35);
 }
 #searchInput:focus {
-    background: rgba(8, 6, 18, 0.72);
+    background: rgba(8, 14, 28, 0.85);
+    border-color: rgba(46, 230, 255, 0.45);
 }
 
 QPushButton#searchButton {
-    background: rgba(255, 42, 127, 0.22);
+    background: qlineargradient(
+        x1:0, y1:0, x2:1, y2:1,
+        stop:0 rgba(255, 92, 122, 0.85),
+        stop:1 rgba(46, 230, 255, 0.75)
+    );
     border: none;
-    border-radius: 10px;
-    color: #f8fafc;
-    font-weight: 600;
-    padding: 8px 16px;
+    border-radius: 14px;
+    color: #041018;
+    font-weight: 700;
+    padding: 10px 18px;
 }
 QPushButton#searchButton:hover {
-    background: rgba(0, 229, 255, 0.22);
+    background: qlineargradient(
+        x1:0, y1:0, x2:1, y2:1,
+        stop:0 rgba(255, 120, 145, 0.95),
+        stop:1 rgba(90, 240, 255, 0.9)
+    );
 }
 
 #searchStatus {
-    color: rgba(248, 250, 252, 0.4);
+    color: rgba(238, 244, 248, 0.42);
     font-size: 11px;
     min-height: 16px;
 }
@@ -64,45 +82,49 @@ QPushButton#searchButton:hover {
 QLabel#settingsSectionLabel {
     font-size: 11px;
     font-weight: 700;
-    color: rgba(255, 42, 127, 0.75);
-    letter-spacing: 1.5px;
+    color: rgba(46, 230, 255, 0.8);
+    letter-spacing: 1.8px;
     text-transform: uppercase;
 }
 
-QLabel#settingsRowTitle { color: #f8fafc; font-size: 14px; font-weight: 600; }
-QLabel#settingsRowDesc { color: rgba(248, 250, 252, 0.4); font-size: 12px; }
+QLabel#settingsRowTitle { color: #f8fafc; font-size: 14px; font-weight: 650; }
+QLabel#settingsRowDesc { color: rgba(238, 244, 248, 0.5); font-size: 12px; }
 QCheckBox#settingsCheck { font-size: 13px; color: #e2e8f0; spacing: 8px; }
 
 QComboBox#themeCombo,
 QLineEdit#settingLineEdit {
-    background: rgba(0, 0, 0, 0.35);
-    border: none;
-    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
     padding: 10px 12px;
     color: #f8fafc;
 }
 QComboBox#themeCombo:hover,
 QLineEdit#settingLineEdit:focus {
-    background: rgba(8, 6, 18, 0.65);
+    border-color: rgba(46, 230, 255, 0.4);
+    background: rgba(8, 14, 28, 0.7);
 }
 QComboBox#themeCombo QAbstractItemView {
-    background: #0a0816;
+    background: #080e18;
     color: #f8fafc;
-    border: none;
-    selection-background-color: rgba(255, 42, 127, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    selection-background-color: rgba(46, 230, 255, 0.28);
 }
 
 QFrame#featuredPanel {
-    background: rgba(11, 13, 22, 0.82);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 14px;
+    background: transparent;
+    border: none;
+    border-radius: 24px;
 }
 
-QScrollBar:vertical { width: 4px; background: transparent; }
+QScrollBar:vertical { width: 5px; background: transparent; margin: 8px 2px; }
 QScrollBar::handle:vertical {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ff2a7f, stop:1 #00e5ff);
-    min-height: 40px;
-    border-radius: 2px;
+    background: qlineargradient(
+        x1:0, y1:0, x2:0, y2:1,
+        stop:0 #ff5c7a, stop:1 #2ee6ff
+    );
+    min-height: 48px;
+    border-radius: 3px;
 }
 QScrollBar::add-line:vertical,
 QScrollBar::sub-line:vertical { height: 0; }

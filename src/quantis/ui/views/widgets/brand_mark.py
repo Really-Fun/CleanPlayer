@@ -10,7 +10,7 @@ from quantis.ui import resources
 class BrandMark(QLabel):
     """Компактный логотип Quantis из assets/icons/logo.png."""
 
-    SIZE = 40
+    SIZE = 36
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)

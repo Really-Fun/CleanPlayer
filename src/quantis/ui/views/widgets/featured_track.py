@@ -1,14 +1,23 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter
-from PySide6.QtWidgets import QFrame, QPushButton, QVBoxLayout
+from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPen
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSizePolicy,
+    QVBoxLayout,
+)
 
 from quantis.models import Track
+from quantis.ui.views.widgets.cover_art import load_track_cover, track_cover_file
+from quantis.ui.views.widgets.playlist_card import GradientCover
 
 
 class FeaturedTrackPanel(QFrame):
-    """Крупная карточка «сейчас слушай» — главная фишка домашней страницы."""
+    """Hero «Продолжить» — обложка + мета + CTA (стриминговый стиль)."""
 
     play_requested = Signal(int)
 
@@ -16,93 +25,93 @@ class FeaturedTrackPanel(QFrame):
         super().__init__(parent)
         self.setObjectName("featuredPanel")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
-        self.setMinimumWidth(300)
+        self.setMinimumHeight(196)
+        self.setMaximumHeight(220)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._track: Track | None = None
         self._index = 0
         self._is_playing = False
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 28, 28, 28)
-        layout.setSpacing(0)
-        layout.addStretch()
+        root = QHBoxLayout(self)
+        root.setContentsMargins(22, 22, 22, 22)
+        root.setSpacing(22)
+
+        self._cover = GradientCover("Quantis", size=152, radius=18)
+        root.addWidget(self._cover, 0, Qt.AlignmentFlag.AlignVCenter)
+
+        col = QVBoxLayout()
+        col.setSpacing(6)
+        col.setContentsMargins(0, 8, 0, 8)
+
+        self._eyebrow = QLabel("ПРОДОЛЖИТЬ СЛУШАТЬ")
+        self._eyebrow.setObjectName("featuredEyebrow")
+        col.addWidget(self._eyebrow)
+
+        self._title = QLabel("Выбери трек")
+        self._title.setObjectName("featuredTitle")
+        self._title.setWordWrap(True)
+        col.addWidget(self._title)
+
+        self._author = QLabel("Открой поиск или плейлист — и волна начнётся")
+        self._author.setObjectName("featuredAuthor")
+        self._author.setWordWrap(True)
+        col.addWidget(self._author)
+
+        col.addStretch(1)
 
         self._play_btn = QPushButton("▶  Слушать")
         self._play_btn.setObjectName("featuredPlayBtn")
         self._play_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._play_btn.clicked.connect(lambda: self.play_requested.emit(self._index))
-        layout.addWidget(self._play_btn, 0, Qt.AlignmentFlag.AlignLeft)
+        col.addWidget(self._play_btn, 0, Qt.AlignmentFlag.AlignLeft)
+
+        root.addLayout(col, stretch=1)
 
     def set_track(self, track: Track | None, index: int = 0, *, playing: bool = False) -> None:
         self._track = track
         self._index = index
         self._is_playing = playing
         self._play_btn.setEnabled(track is not None)
-        self._play_btn.setText("▶  Слушать" if not playing else "❚❚  Пауза")
+        self._play_btn.setText("❚❚  Пауза" if playing else "▶  Слушать")
+
+        if track is None:
+            self._title.setText("Готов к сессии")
+            self._author.setText("Открой поиск или плейлист — и волна начнётся")
+            self._cover.set_content("Quantis", None)
+        else:
+            self._title.setText(track.title)
+            self._author.setText(track.author)
+            path = str(track_cover_file(track))
+            # Прогрев кэша
+            load_track_cover(track, 152)
+            self._cover.set_content(track.title, path)
         self.update()
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         rect = self.rect().adjusted(1, 1, -1, -1)
+        path = QPainterPath()
+        path.addRoundedRect(rect, 28, 28)
 
-        painter.fillRect(rect, QColor(12, 12, 14))
-
+        fill = QLinearGradient(rect.topLeft(), rect.bottomRight())
         if self._is_playing:
-            glow = QLinearGradient(rect.topLeft(), rect.bottomRight())
-            glow.setColorAt(0.0, QColor(0, 229, 255, 28))
-            glow.setColorAt(0.5, QColor(230, 59, 46, 22))
-            glow.setColorAt(1.0, QColor(255, 42, 127, 12))
-            painter.fillRect(rect, glow)
+            fill.setColorAt(0.0, QColor(18, 42, 58, 235))
+            fill.setColorAt(0.55, QColor(36, 18, 40, 230))
+            fill.setColorAt(1.0, QColor(10, 12, 24, 240))
+        else:
+            fill.setColorAt(0.0, QColor(12, 18, 32, 235))
+            fill.setColorAt(1.0, QColor(8, 10, 20, 245))
+        painter.fillPath(path, fill)
 
-        painter.fillRect(rect.left(), rect.top() + 24, 3, 48, QColor(0, 229, 255, 200))
-        painter.fillRect(rect.left() + 3, rect.top() + 24, 2, 48, QColor(230, 59, 46, 200))
+        bloom = QLinearGradient(rect.topLeft(), rect.bottomRight())
+        bloom.setColorAt(0.0, QColor(46, 230, 255, 40 if self._is_playing else 18))
+        bloom.setColorAt(0.5, QColor(255, 92, 122, 22 if self._is_playing else 10))
+        bloom.setColorAt(1.0, QColor(46, 230, 255, 0))
+        painter.fillPath(path, bloom)
 
-        mono = QFont("Cascadia Mono", 9)
-        mono.setWeight(QFont.Weight.Medium)
-        painter.setFont(mono)
-        painter.setPen(QColor(0, 229, 255) if self._is_playing else QColor(230, 59, 46))
-        painter.drawText(rect.adjusted(20, 24, -20, 0), Qt.AlignmentFlag.AlignTop, "СЕЙЧАС")
-
-        if self._track is None:
-            display = QFont("Georgia", 28)
-            display.setWeight(QFont.Weight.Normal)
-            painter.setFont(display)
-            painter.setPen(QColor(242, 240, 235, 90))
-            painter.drawText(
-                rect.adjusted(20, 56, -20, -80),
-                Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap,
-                "Выбери трек\nиз списка →",
-            )
-            painter.end()
-            return
-
-        idx_font = QFont("Georgia", 64)
-        idx_font.setWeight(QFont.Weight.Light)
-        painter.setFont(idx_font)
-        painter.setPen(QColor(255, 255, 255, 12))
-        painter.drawText(
-            rect.adjusted(20, 48, -20, -100),
-            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight,
-            f"{self._index + 1:02d}",
-        )
-
-        title_font = QFont("Georgia", 26)
-        title_font.setWeight(QFont.Weight.Normal)
-        painter.setFont(title_font)
-        painter.setPen(QColor(242, 240, 235))
-        title_rect = rect.adjusted(20, 52, -20, -90)
-        painter.drawText(
-            title_rect,
-            Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap,
-            self._track.title,
-        )
-
-        painter.setFont(mono)
-        painter.setPen(QColor(242, 240, 235, 120))
-        painter.drawText(
-            rect.adjusted(20, 0, -20, 72),
-            Qt.AlignmentFlag.AlignBottom,
-            self._track.author.upper(),
-        )
-
+        pen = QPen(QColor(46, 230, 255, 80 if self._is_playing else 42))
+        pen.setWidthF(1.2)
+        painter.setPen(pen)
+        painter.drawPath(path)
         painter.end()

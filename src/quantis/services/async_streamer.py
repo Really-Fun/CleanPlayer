@@ -13,6 +13,7 @@ from abc import ABC, abstractmethod
 from asyncio import get_running_loop
 from concurrent.futures import ThreadPoolExecutor
 from time import time
+from typing import Any
 
 from yt_dlp import YoutubeDL
 
@@ -26,7 +27,9 @@ def cached_stream_url(func: callable) -> callable:
     """Декоратор для кэширования прямых URL треков внутри методов класса Streamer."""
 
     @functools.wraps(func)
-    async def wrapper(self: AsyncStreamerInterface, track: Track, *args: tuple, **kwargs: dict) -> str | None:
+    async def wrapper(
+        self: AsyncStreamerInterface, track: Track, *args: tuple, **kwargs: dict
+    ) -> str | None:
         from collections import OrderedDict
 
         track_key = f"{track.source}:{track.track_id}"
@@ -34,7 +37,6 @@ def cached_stream_url(func: callable) -> callable:
         ttl = getattr(self, "_URL_CACHE_TTL_SEC", 30 * 60)
         max_size = getattr(self, "_URL_CACHE_MAX", 64)
 
-        # Гарантируем OrderedDict для LRU.
         if not isinstance(self._cache, OrderedDict):
             self._cache = OrderedDict(self._cache)
 
@@ -43,7 +45,6 @@ def cached_stream_url(func: callable) -> callable:
             self._cache.move_to_end(track_key)
             return cached[0]
 
-        # Чистим просроченные.
         expired = [k for k, (_, ts) in self._cache.items() if now - ts >= ttl]
         for key in expired:
             self._cache.pop(key, None)
@@ -82,6 +83,27 @@ class AsyncYandexStreamer(AsyncStreamerInterface):
 
         return get_password(SERVICE_NAME_YANDEX, USER)
 
+    @staticmethod
+    def _pick_best_download_info(infos: list[Any]) -> Any | None:
+        """Полный трек (не preview), предпочтительно mp3 с макс. bitrate.
+
+        ``download_info[0]`` часто preview (~30с) — из‑за этого обрыв на 27–30 сек.
+        """
+        if not infos:
+            return None
+        full = [item for item in infos if not bool(getattr(item, "preview", False))]
+        candidates = full or list(infos)
+
+        def score(item: Any) -> tuple[int, int, int]:
+            preview = 1 if bool(getattr(item, "preview", False)) else 0
+            codec = str(getattr(item, "codec", "") or "").lower()
+            # mp3 надёжнее для Qt/FFmpeg, чем aac/he-aac по http
+            codec_rank = 2 if codec == "mp3" else (1 if codec in ("aac", "mp4") else 0)
+            bitrate = int(getattr(item, "bitrate_in_kbps", 0) or 0)
+            return (-preview, codec_rank, bitrate)
+
+        return max(candidates, key=score)
+
     def _sync_get_stream_url(self, track: Track) -> str | None:
         token = self._yandex_token()
         if not token:
@@ -90,13 +112,30 @@ class AsyncYandexStreamer(AsyncStreamerInterface):
             from yandex_music import Client
 
             track_id = int(track.track_id)
-            track_info = Client(token).tracks(track_id)
+            client = Client(token)
+            track_info = client.tracks(track_id)
             if not track_info:
                 return None
             download_info = track_info[0].get_download_info()
-            if not download_info:
+            chosen = self._pick_best_download_info(list(download_info or []))
+            if chosen is None:
                 return None
-            return download_info[0].get_direct_link()
+            if bool(getattr(chosen, "preview", False)):
+                logger.warning(
+                    "Yandex отдал только preview (~30с) для «%s» — "
+                    "нужен Plus / валидный токен. codec=%s bitrate=%s",
+                    track.title,
+                    getattr(chosen, "codec", "?"),
+                    getattr(chosen, "bitrate_in_kbps", "?"),
+                )
+            else:
+                logger.info(
+                    "Yandex stream «%s»: codec=%s bitrate=%s",
+                    track.title,
+                    getattr(chosen, "codec", "?"),
+                    getattr(chosen, "bitrate_in_kbps", "?"),
+                )
+            return chosen.get_direct_link()
         except Exception:
             logger.exception("Не удалось получить URL потока Яндекс.Музыки: %s", track)
             return None
@@ -242,6 +281,10 @@ class AsyncStreamer(AsyncStreamerInterface):
             None,
         )
         return str(youtube_hit.track_id) if youtube_hit else None
+
+    def invalidate(self, track: Track) -> None:
+        key = f"{track.source}:{track.track_id}"
+        self._cache.pop(key, None)
 
     def shutdown(self) -> None:
         if self._owns_executor:

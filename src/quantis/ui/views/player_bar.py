@@ -54,15 +54,15 @@ class PlayerBar(QFrame):
         self.setObjectName("playerDock")
 
         dock = QVBoxLayout(self)
-        dock.setContentsMargins(14, 6, 14, 12)
+        dock.setContentsMargins(12, 4, 12, 14)
         dock.setSpacing(0)
 
         card = QFrame()
         card.setObjectName("PlayMenu")
 
         card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(16, 10, 16, 10)
-        card_layout.setSpacing(8)
+        card_layout.setContentsMargins(18, 12, 18, 12)
+        card_layout.setSpacing(10)
 
         seek_row = QHBoxLayout()
         seek_row.setSpacing(10)
@@ -94,7 +94,7 @@ class PlayerBar(QFrame):
 
         self._cover = QLabel()
         self._cover.setObjectName("coverLabel")
-        self._cover.setFixedSize(48, 48)
+        self._cover.setFixedSize(52, 52)
         self._cover.setScaledContents(True)
 
         meta = QVBoxLayout()

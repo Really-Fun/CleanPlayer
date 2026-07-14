@@ -16,8 +16,7 @@ from quantis.ui.views.widgets.brand_mark import BrandMark
 
 
 class AppHeader(QFrame):
-    """Кастомная шапка: заголовок страницы +
-    кнопки окна (свернуть / развернуть / закрыть)."""
+    """Шапка: бренд QUANTIS + заголовок страницы + chrome окна."""
 
     minimize_requested = Signal()
     maximize_requested = Signal()
@@ -26,22 +25,26 @@ class AppHeader(QFrame):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("appHeader")
-        self.setFixedHeight(40)
+        self.setFixedHeight(52)
         self._drag_offset: QPoint | None = None
         self._maximized = False
 
         row = QHBoxLayout(self)
-        row.setContentsMargins(14, 0, 0, 0)
-        row.setSpacing(10)
+        row.setContentsMargins(16, 0, 0, 0)
+        row.setSpacing(12)
 
         self._brand = BrandMark()
         row.addWidget(self._brand, 0, Qt.AlignmentFlag.AlignVCenter)
 
+        self._wordmark = QLabel("QUANTIS")
+        self._wordmark.setObjectName("headerBrandWordmark")
+        row.addWidget(self._wordmark, 0, Qt.AlignmentFlag.AlignVCenter)
+
         text_col = QVBoxLayout()
         text_col.setSpacing(0)
-        text_col.setContentsMargins(0, 0, 0, 0)
+        text_col.setContentsMargins(8, 0, 0, 0)
 
-        self._title = QLabel("Quantis")
+        self._title = QLabel("Главная")
         self._title.setObjectName("headerGreeting")
         self._subtitle = QLabel("")
         self._subtitle.setObjectName("headerSub")
@@ -92,7 +95,7 @@ class AppHeader(QFrame):
         button.setToolTip(tooltip)
         button.setCursor(Qt.CursorShape.PointingHandCursor)
         button.setAutoRaise(True)
-        button.setFixedSize(46, 32)
+        button.setFixedSize(46, 36)
         button.clicked.connect(on_click)
         return button
 

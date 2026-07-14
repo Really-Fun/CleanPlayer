@@ -5,6 +5,7 @@ from quantis.services.async_downloader import AsyncDownloader
 from quantis.services.async_finder import AsyncFinder
 from quantis.services.async_recommendation import AsyncRecommendation
 from quantis.services.async_streamer import AsyncStreamer
+from quantis.services.async_wave import AsyncWaveService
 
 
 class MusicService:
@@ -20,6 +21,7 @@ class MusicService:
         self._downloader = downloader or AsyncDownloader()
         self._provider = provider or PathProvider()
         self._recommendation = AsyncRecommendation(self._finder.youtube)
+        self._wave = AsyncWaveService()
 
     @property
     def downloader(self) -> AsyncDownloader:
@@ -32,6 +34,10 @@ class MusicService:
     @property
     def recommendation(self) -> AsyncRecommendation:
         return self._recommendation
+
+    @property
+    def wave(self) -> AsyncWaveService:
+        return self._wave
 
     @property
     def streamer(self) -> AsyncStreamer:

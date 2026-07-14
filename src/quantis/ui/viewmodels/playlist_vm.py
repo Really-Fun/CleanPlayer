@@ -12,6 +12,7 @@ from quantis.models import (
     RecentlyPlayedPlaylist,
     Track,
     UserPlaylist,
+    WavePlaylist,
 )
 from quantis.models.playlist import Playlist, RecommendationPlaylist
 from quantis.ui.cover_prefetch import schedule_cover_prefetch
@@ -135,4 +136,13 @@ class PlaylistViewModel(BaseViewModel):
             return UserPlaylist(playlist.name, tracks, playlist.cover_path)
         if isinstance(playlist, RecommendationPlaylist):
             return RecommendationPlaylist(playlist.name, tracks, playlist.cover_path)
+        if isinstance(playlist, WavePlaylist):
+            return WavePlaylist(
+                playlist.name,
+                tracks,
+                playlist.cover_path,
+                source=playlist.source,
+                station=playlist.station,
+                batch_id=playlist.batch_id,
+            )
         return RecommendationPlaylist(playlist.name, tracks, playlist.cover_path)

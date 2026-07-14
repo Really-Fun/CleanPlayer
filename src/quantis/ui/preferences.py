@@ -89,11 +89,8 @@ class UiPreferences(QObject):
     def show_home_featured_panel(self) -> bool:
 
         return self._read_bool(
-
-            self._settings.value(self._KEY_HOME_FEATURED, False),
-
-            False,
-
+            self._settings.value(self._KEY_HOME_FEATURED, True),
+            True,
         )
 
 

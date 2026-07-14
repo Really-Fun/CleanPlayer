@@ -5,6 +5,7 @@ from .playlist import (
     RecentlyPlayedPlaylist,
     RecommendationPlaylist,
     UserPlaylist,
+    WavePlaylist,
 )
 from .track import Track, TrackSource, YandexTrack, YoutubeTrack
 
@@ -19,4 +20,5 @@ __all__ = [
     "RecentlyPlayedPlaylist",
     "RecommendationPlaylist",
     "LikedPlaylist",
+    "WavePlaylist",
 ]
