@@ -25,31 +25,43 @@ class SideNavRail(QFrame):
         self._group = QButtonGroup(self)
         self._group.setExclusive(True)
 
-        self._items: list[tuple[str, str, int]] = [
+        # Верх: основные разделы. Низ: Member + Настройки.
+        top_items: list[tuple[str, str, int]] = [
             ("recent.svg", "Главная", 0),
             ("search.svg", "Поиск", 1),
             ("download.svg", "Библиотека", 2),
-            ("settings.svg", "Настройки", 3),
         ]
+        bottom_items: list[tuple[str, str, int]] = [
+            ("member.svg", "Member", 3),
+            ("settings.svg", "Настройки", 4),
+        ]
+        self._items = top_items + bottom_items
 
-        for index, (icon, tooltip, page_id) in enumerate(self._items):
-            button = QToolButton()
-            button.setObjectName("navIconButton")
-            button.setCheckable(True)
-            button.setAutoRaise(True)
-            button.setToolTip(tooltip)
-            button.setIcon(resources.load_icon(icon))
-            button.setIconSize(QSize(20, 20))
-            button.setCursor(Qt.CursorShape.PointingHandCursor)
-            button.setProperty("navIndex", index)
-            button.clicked.connect(
-                lambda checked=False, pid=page_id: self.page_changed.emit(pid)
-            )
-            self._group.addButton(button, page_id)
-            layout.addWidget(button, 0, Qt.AlignmentFlag.AlignHCenter)
+        for icon, tooltip, page_id in top_items:
+            layout.addWidget(self._make_button(icon, tooltip, page_id), 0, Qt.AlignmentFlag.AlignHCenter)
 
         layout.addStretch()
+
+        for icon, tooltip, page_id in bottom_items:
+            layout.addWidget(self._make_button(icon, tooltip, page_id), 0, Qt.AlignmentFlag.AlignHCenter)
+
         self.set_active_page(0)
+
+    def _make_button(self, icon: str, tooltip: str, page_id: int) -> QToolButton:
+        button = QToolButton()
+        button.setObjectName("navIconButton")
+        button.setCheckable(True)
+        button.setAutoRaise(True)
+        button.setToolTip(tooltip)
+        button.setIcon(resources.load_icon(icon))
+        button.setIconSize(QSize(20, 20))
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button.setProperty("navIndex", page_id)
+        button.clicked.connect(
+            lambda checked=False, pid=page_id: self.page_changed.emit(pid)
+        )
+        self._group.addButton(button, page_id)
+        return button
 
     def set_active_page(self, page_id: int) -> None:
         button = self._group.button(page_id)

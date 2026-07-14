@@ -17,16 +17,19 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 def resolve_plugins_dir() -> Path:
-    """Каталог пользовательских плагинов в корне проекта (или cwd)."""
-    project_root = Path(__file__).resolve().parents[3]
+    """Каталог пользовательских плагинов рядом с exe / в корне проекта."""
+    from quantis.utils.resource_path import app_dir
+
     candidates = (
         Path.cwd() / "plugins_dir",
-        project_root / "plugins_dir",
+        app_dir() / "plugins_dir",
     )
     for path in candidates:
         if path.is_dir():
             return path
-    return project_root / "plugins_dir"
+    target = app_dir() / "plugins_dir"
+    target.mkdir(parents=True, exist_ok=True)
+    return target
 
 
 DEFAULT_PLUGIN_DIR = resolve_plugins_dir()

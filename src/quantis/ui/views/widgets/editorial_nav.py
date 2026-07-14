@@ -13,7 +13,8 @@ class EditorialNavRail(QFrame):
         ("01", "Главная", 0),
         ("02", "Поиск", 1),
         ("03", "Библиотека", 2),
-        ("04", "Настройки", 3),
+        ("04", "Member", 3),
+        ("05", "Настройки", 4),
     )
 
     def __init__(self, parent: QWidget | None = None) -> None:

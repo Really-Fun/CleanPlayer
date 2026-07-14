@@ -1,4 +1,4 @@
-/* Главная — иерархия и карточки */
+/* Главная — без вложенных скроллов, плотная сетка */
 
 QWidget#homePage,
 QWidget#homeScrollContent {
@@ -11,89 +11,97 @@ QScrollArea#homeScroll {
 }
 
 QLabel#homeGreeting {
-    font-size: 28px;
-    font-weight: 700;
-    letter-spacing: -0.6px;
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: -0.7px;
     color: #f8fafc;
-    padding: 4px 0 0 0;
+    padding: 6px 0 0 0;
+    background: transparent;
 }
 
 QLabel#homeGreetingSub {
     font-size: 13px;
     font-weight: 400;
-    color: rgba(248, 250, 252, 0.5);
-    padding: 0 0 16px 0;
+    color: rgba(226, 232, 240, 0.55);
+    padding: 0 0 8px 0;
+    background: transparent;
+}
+
+QWidget#homeSection {
+    background: transparent;
+}
+
+QWidget#homeSectionBody {
+    background: transparent;
 }
 
 QLabel#homeSectionTitle {
-    font-size: 18px;
-    font-weight: 700;
+    font-size: 20px;
+    font-weight: 750;
     color: #f8fafc;
-    letter-spacing: -0.2px;
+    letter-spacing: -0.3px;
+    background: transparent;
 }
 
 QLabel#homeSectionSubtitle {
     font-size: 12px;
-    color: rgba(248, 250, 252, 0.48);
+    color: rgba(226, 232, 240, 0.5);
+    background: transparent;
 }
 
 QLabel#homeEmptyHint {
     font-size: 13px;
-    color: rgba(248, 250, 252, 0.4);
-    padding: 8px 4px;
-}
-
-QScrollArea#homeSectionScroll {
-    background: transparent;
-    border: none;
-}
-
-QWidget#homeSectionStrip {
+    color: rgba(226, 232, 240, 0.45);
+    padding: 12px 4px;
     background: transparent;
 }
 
 QFrame#playlistCard {
-    background: rgba(11, 13, 22, 0.72);
+    background: rgba(15, 18, 28, 0.88);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 12px;
+    border-radius: 14px;
 }
 
 QFrame#playlistCard:hover {
-    background: rgba(18, 20, 30, 0.88);
-    border-color: rgba(0, 229, 255, 0.22);
+    background: rgba(22, 26, 40, 0.95);
+    border-color: rgba(34, 211, 238, 0.35);
 }
 
 QLabel#playlistCardTitle {
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 650;
     color: #f8fafc;
+    background: transparent;
 }
 
 QLabel#playlistCardMeta {
     font-size: 11px;
-    color: rgba(248, 250, 252, 0.48);
+    color: rgba(226, 232, 240, 0.5);
+    background: transparent;
 }
 
 QFrame#quickPickTile {
-    background: rgba(11, 13, 22, 0.72);
+    background: rgba(15, 18, 28, 0.88);
     border: 1px solid rgba(255, 255, 255, 0.07);
-    border-radius: 8px;
+    border-radius: 10px;
 }
 
 QFrame#quickPickTile:hover {
-    background: rgba(18, 20, 30, 0.88);
-    border-color: rgba(0, 229, 255, 0.2);
+    background: rgba(22, 26, 40, 0.95);
+    border-color: rgba(34, 211, 238, 0.3);
 }
 
 QLabel#quickPickTitle {
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 650;
     color: #f8fafc;
+    background: transparent;
 }
 
 QLabel#quickPickMeta {
     font-size: 11px;
-    color: rgba(248, 250, 252, 0.45);
+    color: rgba(226, 232, 240, 0.48);
+    background: transparent;
 }
 
 QTableView#homeTrackList {
@@ -112,10 +120,17 @@ QTableView#homeTrackList::item:selected {
     background: transparent;
 }
 
+QTableView#homeTrackList QScrollBar:vertical,
+QTableView#homeTrackList QScrollBar:horizontal {
+    width: 0;
+    height: 0;
+    background: transparent;
+}
+
 QFrame#featuredPanel {
-    background: rgba(11, 13, 22, 0.82);
+    background: rgba(15, 18, 28, 0.9);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 14px;
-    min-height: 200px;
-    max-height: 260px;
+    min-height: 180px;
+    max-height: 240px;
 }

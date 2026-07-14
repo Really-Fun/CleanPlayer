@@ -1,0 +1,99 @@
+/* Настройки — читаемые блоки поверх тёмного/стеклянного фона */
+
+QWidget#settingsPage {
+    background: transparent;
+}
+
+QScrollArea#settingsScroll {
+    background: transparent;
+    border: none;
+}
+
+QFrame#settingsPanel {
+    background: rgba(10, 12, 20, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 18px;
+}
+
+QLabel#settingsSectionLabel {
+    color: #7dd3fc;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    padding: 10px 0 2px 0;
+    background: transparent;
+}
+
+QFrame#settingsRow {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 14px;
+    padding: 14px 16px;
+}
+
+QLabel#settingsRowTitle {
+    color: #f8fafc;
+    font-size: 15px;
+    font-weight: 700;
+    background: transparent;
+}
+
+QLabel#settingsRowDesc {
+    color: rgba(226, 232, 240, 0.72);
+    font-size: 12px;
+    background: transparent;
+}
+
+QCheckBox#settingsCheck {
+    color: #e2e8f0;
+    font-size: 14px;
+    font-weight: 560;
+    spacing: 10px;
+    padding: 4px 2px;
+    background: transparent;
+}
+
+QCheckBox#settingsCheck::indicator {
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    background: rgba(0, 0, 0, 0.35);
+}
+
+QCheckBox#settingsCheck::indicator:checked {
+    background: #22d3ee;
+    border-color: #22d3ee;
+}
+
+QComboBox#themeCombo,
+QLineEdit#settingLineEdit {
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 10px 12px;
+    color: #f8fafc;
+    font-size: 13px;
+    min-height: 20px;
+}
+
+QComboBox#themeCombo:hover,
+QLineEdit#settingLineEdit:focus {
+    border-color: rgba(34, 211, 238, 0.55);
+    background: rgba(0, 0, 0, 0.55);
+}
+
+QComboBox#themeCombo::drop-down {
+    border: none;
+    width: 28px;
+}
+
+QComboBox#themeCombo QAbstractItemView {
+    background: #0b0f18;
+    color: #f8fafc;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    selection-background-color: rgba(34, 211, 238, 0.28);
+    outline: none;
+    padding: 4px;
+}

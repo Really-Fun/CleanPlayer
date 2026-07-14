@@ -184,6 +184,32 @@ class AsyncDownloader(AsyncDownloaderInterface):
             case TrackSource.YOUTUBE:
                 await self._youtube_downloader.download_cover(track)
 
+    async def ensure_cover(self, track: Track) -> bool:
+        """Скачивает обложку, если файла ещё нет. True если файл есть/появился."""
+        PathProvider.ensure_storage_dirs()
+        cover_path = Path(self._yandex_downloader.path_provider.get_cover_path(track))
+        if cover_path.is_file() and cover_path.stat().st_size > 0:
+            return True
+        await self.download_cover(track)
+        return cover_path.is_file() and cover_path.stat().st_size > 0
+
+    async def ensure_covers(self, tracks: list[Track], *, limit: int = 40) -> int:
+        """Подгружает обложки для списка треков. Возвращает число скачанных."""
+        downloaded = 0
+        seen: set[str] = set()
+        for track in tracks[: max(0, limit)]:
+            key = f"{track.source}:{track.track_id}"
+            if key in seen:
+                continue
+            seen.add(key)
+            path = Path(self._yandex_downloader.path_provider.get_cover_path(track))
+            if path.is_file() and path.stat().st_size > 0:
+                continue
+            ok = await self.ensure_cover(track)
+            if ok:
+                downloaded += 1
+        return downloaded
+
     def shutdown(self) -> None:
         self._youtube_downloader.shutdown()
 

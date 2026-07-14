@@ -16,6 +16,7 @@ def _connect(db_path: Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA synchronous=NORMAL;")
+    conn.execute("PRAGMA cache_size=-8000;")
     return conn
 
 
@@ -40,7 +41,79 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
         ON track_history(last_played_at DESC);
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS liked_tracks (
+            track_key TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            author TEXT NOT NULL,
+            source TEXT NOT NULL,
+            liked_at INTEGER NOT NULL
+        );
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_liked_tracks_liked_at
+        ON liked_tracks(liked_at DESC);
+        """
+    )
     conn.commit()
+
+
+def fetch_liked_entries(db_path: Path = DEFAULT_DB_PATH) -> list[dict[str, Any]]:
+    with _connect(db_path) as conn:
+        ensure_schema(conn)
+        cursor = conn.execute(
+            """
+            SELECT track_key, title, author, source, liked_at
+            FROM liked_tracks
+            ORDER BY liked_at DESC;
+            """
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def is_track_liked(track_key: str, db_path: Path = DEFAULT_DB_PATH) -> bool:
+    with _connect(db_path) as conn:
+        ensure_schema(conn)
+        cursor = conn.execute(
+            "SELECT 1 FROM liked_tracks WHERE track_key = ? LIMIT 1;",
+            (track_key,),
+        )
+        return cursor.fetchone() is not None
+
+
+def set_track_liked(
+    *,
+    track_key: str,
+    title: str,
+    author: str,
+    source: str,
+    liked: bool,
+    db_path: Path = DEFAULT_DB_PATH,
+) -> None:
+    with _connect(db_path) as conn:
+        ensure_schema(conn)
+        if liked:
+            conn.execute(
+                """
+                INSERT INTO liked_tracks (track_key, title, author, source, liked_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(track_key) DO UPDATE SET
+                    title = excluded.title,
+                    author = excluded.author,
+                    source = excluded.source,
+                    liked_at = excluded.liked_at;
+                """,
+                (track_key, title, author, source, int(time())),
+            )
+        else:
+            conn.execute(
+                "DELETE FROM liked_tracks WHERE track_key = ?;",
+                (track_key,),
+            )
+        conn.commit()
 
 
 def fetch_recent_entries(

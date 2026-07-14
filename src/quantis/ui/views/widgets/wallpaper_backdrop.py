@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 from pathlib import Path
+from time import monotonic
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QColor, QImage, QPainter, QPixmap, QRadialGradient
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer, QVideoFrame, QVideoSink
 from PySide6.QtWidgets import QHBoxLayout, QWidget
+
+from quantis.ui.views.widgets.cover_art import load_wallpaper_pixmap
+
+# Лимит fps для видео-фона: меньше кадров → меньше QImage в ОЗУ/CPU.
+_VIDEO_MIN_INTERVAL_SEC = 1.0 / 15.0
+_WALLPAPER_MAX_SIDE = 1920
 
 
 class _VideoSurface(QWidget):
@@ -15,8 +22,9 @@ class _VideoSurface(QWidget):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self._sink = QVideoSink(self)
-        self._image = QImage()
+        self._scaled = QImage()
         self._opacity = 0.28
+        self._last_frame_at = 0.0
         self._sink.videoFrameChanged.connect(self._on_frame)
 
     @property
@@ -28,37 +36,58 @@ class _VideoSurface(QWidget):
         self.update()
 
     def clear(self) -> None:
-        self._image = QImage()
+        self._scaled = QImage()
+        self._last_frame_at = 0.0
         self.update()
 
     def _on_frame(self, frame: QVideoFrame) -> None:
         if not frame.isValid():
             return
+        now = monotonic()
+        if now - self._last_frame_at < _VIDEO_MIN_INTERVAL_SEC:
+            return
+        self._last_frame_at = now
+
         mapped = QVideoFrame(frame)
         if not mapped.map(QVideoFrame.MapMode.ReadOnly):
             return
         try:
-            self._image = mapped.toImage()
+            image = mapped.toImage()
         finally:
             mapped.unmap()
+
+        if image.isNull():
+            return
+
+        target = self.size()
+        if target.width() <= 0 or target.height() <= 0:
+            return
+
+        # Сразу даунскейл до размера виджета — полный кадр не храним.
+        self._scaled = image.scaled(
+            target,
+            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+            Qt.TransformationMode.FastTransformation,
+        )
         self.update()
 
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        # Размер изменился — следующий кадр пересоберёт scaled под новый size.
+        if not self._scaled.isNull():
+            self._scaled = QImage()
+
     def paintEvent(self, event) -> None:
-        if self._image.isNull():
+        if self._scaled.isNull():
             return
 
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         painter.setOpacity(self._opacity)
         rect = self.rect()
-        scaled = self._image.scaled(
-            rect.size(),
-            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-            Qt.TransformationMode.SmoothTransformation,
-        )
-        x = (rect.width() - scaled.width()) // 2
-        y = (rect.height() - scaled.height()) // 2
-        painter.drawImage(x, y, scaled)
+        x = (rect.width() - self._scaled.width()) // 2
+        y = (rect.height() - self._scaled.height()) // 2
+        painter.drawImage(x, y, self._scaled)
         painter.setOpacity(1.0)
 
         radius = max(rect.width(), rect.height()) * 0.7
@@ -83,7 +112,7 @@ class WallpaperBackdrop(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self._variant = variant
-        self._wallpaper = QPixmap(str(wallpaper)) if wallpaper else QPixmap()
+        self._wallpaper_path: str | None = str(wallpaper) if wallpaper else None
         self._cached = QPixmap()
         self._cache_size = (0, 0)
         self._dynamic_enabled = False
@@ -104,21 +133,22 @@ class WallpaperBackdrop(QWidget):
             self._video_player.mediaStatusChanged.connect(self._loop_video)
         self._video_player.errorOccurred.connect(self._on_video_error)
 
+        if self._wallpaper_path:
+            self._rebuild_cache(force=True)
+
     def set_variant(self, variant: str) -> None:
         if self._variant != variant:
             self._variant = variant
             self.update()
 
     def set_wallpaper(self, path: str | Path | None) -> None:
-        pixmap = QPixmap()
-        if path:
-            file_path = Path(path)
-            if file_path.is_file():
-                pixmap = QPixmap(str(file_path))
-        self._wallpaper = pixmap
+        new_path = str(path) if path else None
+        if new_path == self._wallpaper_path and not self._cached.isNull():
+            return
+        self._wallpaper_path = new_path
         self._cache_size = (0, 0)
         self._cached = QPixmap()
-        self._rebuild_cache()
+        self._rebuild_cache(force=True)
         self.update()
 
     def set_dynamic_wallpaper_enabled(self, enabled: bool) -> None:
@@ -126,12 +156,17 @@ class WallpaperBackdrop(QWidget):
         if not enabled:
             self.stop_video()
         else:
+            # Видео активно — освобождаем статичный кэш.
+            self._cached = QPixmap()
+            self._cache_size = (0, 0)
             self.update()
 
     def play_video_url(self, url: str) -> None:
         if not self._dynamic_enabled or not url:
             return
         self._video_active = True
+        self._cached = QPixmap()
+        self._cache_size = (0, 0)
         self._video_surface.show()
         self.lower()
         self._video_player.setSource(QUrl(url))
@@ -143,12 +178,15 @@ class WallpaperBackdrop(QWidget):
         self._video_player.stop()
         self._video_surface.clear()
         self._video_surface.hide()
+        if not self._dynamic_enabled:
+            self._rebuild_cache(force=True)
         self.update()
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._video_surface.setGeometry(self.rect())
-        self._rebuild_cache()
+        if not self._video_active and not self._dynamic_enabled:
+            self._rebuild_cache()
 
     def _loop_video(self, status: QMediaPlayer.MediaStatus) -> None:
         if status == QMediaPlayer.MediaStatus.EndOfMedia:
@@ -161,17 +199,27 @@ class WallpaperBackdrop(QWidget):
         logging.getLogger(__name__).warning("Видео-фон: %s", message)
         self.stop_video()
 
-    def _rebuild_cache(self) -> None:
+    def _rebuild_cache(self, *, force: bool = False) -> None:
         size = self.size()
-        if size.width() <= 0 or size.height() <= 0 or self._wallpaper.isNull():
+        if size.width() <= 0 or size.height() <= 0 or not self._wallpaper_path:
             self._cached = QPixmap()
             return
-        if (size.width(), size.height()) == self._cache_size and not self._cached.isNull():
+        if (
+            not force
+            and (size.width(), size.height()) == self._cache_size
+            and not self._cached.isNull()
+        ):
             return
-        self._cached = self._wallpaper.scaled(
+
+        # Декод с лимитом стороны, сразу в размер окна — полный 4K не держим.
+        source = load_wallpaper_pixmap(self._wallpaper_path, _WALLPAPER_MAX_SIDE)
+        if source.isNull():
+            self._cached = QPixmap()
+            return
+        self._cached = source.scaled(
             size,
             Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-            Qt.TransformationMode.SmoothTransformation,
+            Qt.TransformationMode.FastTransformation,
         )
         self._cache_size = (size.width(), size.height())
 
@@ -188,8 +236,8 @@ class WallpaperBackdrop(QWidget):
         if self._video_active:
             return
 
-        if self._cached.isNull() and not self._wallpaper.isNull():
-            self._rebuild_cache()
+        if self._cached.isNull() and self._wallpaper_path and not self._dynamic_enabled:
+            self._rebuild_cache(force=True)
 
         if self._dynamic_enabled or self._variant == "editorial" or self._cached.isNull():
             return

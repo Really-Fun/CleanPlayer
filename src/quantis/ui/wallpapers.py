@@ -10,7 +10,9 @@ _IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 
 
 def project_root() -> Path:
-    return Path(__file__).resolve().parents[3]
+    from quantis.utils.resource_path import app_dir
+
+    return app_dir()
 
 
 def user_backgrounds_dir() -> Path:

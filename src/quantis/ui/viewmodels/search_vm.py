@@ -54,6 +54,15 @@ class SearchViewModel(BaseViewModel):
             return
         self._debounce.start()
 
+    def clear_results(self) -> None:
+        """Освобождает результаты поиска при уходе со страницы."""
+        self._debounce.stop()
+        self._pending_query = ""
+        self._search_generation += 1
+        self._model.clear()
+        self.set_loading(False)
+        self.results_changed.emit()
+
     def search_now(self) -> None:
         self._debounce.stop()
         self._run_search()

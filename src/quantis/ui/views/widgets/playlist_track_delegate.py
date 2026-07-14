@@ -1,12 +1,12 @@
 """Делегат строки плейлиста: # / обложка / название / источник."""
 
 from PySide6.QtCore import QRect, QSize, Qt
-from PySide6.QtGui import QColor, QFontMetrics, QPainter, QPixmap
+from PySide6.QtGui import QColor, QFontMetrics, QPainter
 from PySide6.QtWidgets import QStyle, QStyledItemDelegate
 
 from quantis.models.track import Track
 from quantis.ui.models import TrackListModel
-from quantis.ui.views.widgets.cover_art import load_cover_pixmap, paint_rounded_cover, track_cover_file
+from quantis.ui.views.widgets.cover_art import load_track_cover, paint_rounded_cover
 from quantis.ui.views.widgets.delegate_paint_kit import (
     C_ACCENT,
     C_BG_ALT,
@@ -40,7 +40,6 @@ class PlaylistTrackDelegate(QStyledItemDelegate):
         self._fm_title = QFontMetrics(FONT_TITLE)
         self._fm_author = QFontMetrics(FONT_AUTHOR)
         self._fm_index = QFontMetrics(FONT_INDEX)
-        self._cover_cache: dict[str, QPixmap | None] = {}
 
     def sizeHint(self, option, index) -> QSize:
         width = 320
@@ -49,11 +48,8 @@ class PlaylistTrackDelegate(QStyledItemDelegate):
             width = max(view.viewport().width(), width)
         return QSize(width, self.ROW_HEIGHT)
 
-    def _cover_pixmap(self, track: Track) -> QPixmap | None:
-        key = f"{track.source}:{track.track_id}"
-        if key not in self._cover_cache:
-            self._cover_cache[key] = load_cover_pixmap(track_cover_file(track), self.COVER_SIZE)
-        return self._cover_cache[key]
+    def _cover_pixmap(self, track: Track):
+        return load_track_cover(track, self.COVER_SIZE)
 
     def paint(self, painter: QPainter, option, index) -> None:
         track = index.data(TrackListModel.TrackRole)

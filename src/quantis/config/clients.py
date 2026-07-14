@@ -17,7 +17,6 @@ from ytmusicapi.exceptions import YTMusicError
 
 from quantis.config.constants import (
     SERVICE_NAME_YANDEX,
-    SERVICE_NAME_YOUTUBE_COOKIE,
     USER,
 )
 
@@ -67,10 +66,18 @@ class Clients:
 
     @staticmethod
     def _init_youtube() -> YTMusic:
-        try:
-            cookie = get_password(SERVICE_NAME_YOUTUBE_COOKIE, USER)
-            if cookie:
+        from quantis.config.credentials import yotube_cookie
+
+        cookie = yotube_cookie()
+        if cookie:
+            try:
                 return YTMusic(auth=cookie, language="ru", location="")
+            except (YTMusicError, ValueError, TypeError, OSError) as e:
+                print(f"Ошибка инициализации YTMusic с auth: {e}")
+            except Exception as e:
+                # Битый JSON в credentials/youtube_cookies.txt не должен валить старт
+                print(f"Ошибка инициализации YTMusic с auth: {e}")
+        try:
             return YTMusic(language="ru", location="")
         except YTMusicError as e:
             print(f"Ошибка инициализации YTMusic: {e}")

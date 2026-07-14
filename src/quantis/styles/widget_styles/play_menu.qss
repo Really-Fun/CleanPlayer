@@ -57,3 +57,7 @@ QWidget#playerRight {
 #PlayMenu QLabel {
     background: transparent;
 }
+
+#controlButton[liked="true"] {
+    background: rgba(255, 77, 109, 0.18);
+}

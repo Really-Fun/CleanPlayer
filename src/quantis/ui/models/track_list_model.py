@@ -84,13 +84,17 @@ class TrackListModel(QAbstractTableModel):
         self.endInsertRows()
 
     def set_tracks(self, tracks: list[Track]) -> None:
+        # Передаём ownership списка — без лишнего list()-копирования.
         self.beginResetModel()
-        self._tracks = list(tracks)
+        self._tracks = tracks if isinstance(tracks, list) else list(tracks)
         self._loaded_count = min(len(self._tracks), self._batch_size)
         self.endResetModel()
 
     def all_tracks(self) -> list[Track]:
-        return list(self._tracks)
+        return self._tracks
+
+    def clear(self) -> None:
+        self.set_tracks([])
 
     def get_track(self, index: int) -> Track | None:
         if 0 <= index < len(self._tracks):

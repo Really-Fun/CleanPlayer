@@ -14,6 +14,7 @@ htmlcov/
 *.pem
 *.key
 cookies.txt
+credentials/
 
 # User config
 config.json

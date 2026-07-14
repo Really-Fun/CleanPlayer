@@ -21,6 +21,7 @@ from quantis.ui.viewmodels.search_vm import SearchViewModel
 from quantis.ui.viewmodels.playlist_vm import PlaylistViewModel
 from quantis.ui.views.home_page import HomePage
 from quantis.ui.views.library_page import LibraryPage
+from quantis.ui.views.member_page import MemberPage
 from quantis.ui.views.playlist_page import PlaylistPage
 from quantis.ui.views.player_bar import PlayerBar
 from quantis.ui.views.search_page import SearchPage
@@ -35,13 +36,15 @@ class QuantisMainWindow(QMainWindow):
     PAGE_HOME = 0
     PAGE_SEARCH = 1
     PAGE_LIBRARY = 2
-    PAGE_SETTINGS = 3
-    PAGE_PLAYLIST = 4
+    PAGE_MEMBER = 3
+    PAGE_SETTINGS = 4
+    PAGE_PLAYLIST = 5
 
     _PAGE_META = {
         PAGE_HOME: ("Главная", ""),
         PAGE_SEARCH: ("Поиск", ""),
         PAGE_LIBRARY: ("Библиотека", ""),
+        PAGE_MEMBER: ("Member", ""),
         PAGE_SETTINGS: ("Настройки", ""),
     }
 
@@ -79,9 +82,14 @@ class QuantisMainWindow(QMainWindow):
             bundle.music,
             parent=self,
         )
-        self._playlist_vm = PlaylistViewModel(bundle.playback, parent=self)
+        self._playlist_vm = PlaylistViewModel(
+            bundle.playback,
+            bridge=self._bridge,
+            parent=self,
+        )
         self._ui_prefs = UiPreferences()
         self._return_page_id = self.PAGE_HOME
+        self._applied_theme = ""
 
         shell = BackgroundFrame(
             resources.wallpaper_path(),
@@ -120,21 +128,31 @@ class QuantisMainWindow(QMainWindow):
         self._stack.setObjectName("pageStack")
 
         self._home_page = HomePage(self._home_vm, self._bridge, self._ui_prefs)
-        self._search_page = SearchPage(self._search_vm, self._bridge)
         self._library_page = LibraryPage(self._home_vm, self._bridge)
-        self._settings_page = SettingsPage(self._ui_prefs, self._bridge)
-        self._playlist_page = PlaylistPage(self._playlist_vm, self._bridge)
+        # Search / Member / Settings / Playlist — лениво при первом открытии.
+        self._search_page: SearchPage | None = None
+        self._member_page: MemberPage | None = None
+        self._settings_page: SettingsPage | None = None
+        self._playlist_page: PlaylistPage | None = None
 
         self._stack.addWidget(self._home_page)
-        self._stack.addWidget(self._search_page)
+        self._stack.addWidget(QWidget())  # PAGE_SEARCH placeholder
         self._stack.addWidget(self._library_page)
-        self._stack.addWidget(self._settings_page)
-        self._stack.addWidget(self._playlist_page)
+        self._stack.addWidget(QWidget())  # PAGE_MEMBER placeholder
+        self._stack.addWidget(QWidget())  # PAGE_SETTINGS placeholder
+        self._stack.addWidget(QWidget())  # PAGE_PLAYLIST placeholder
 
         self._home_page.playlist_open_requested.connect(self._open_playlist_page)
-        self._playlist_page.back_requested.connect(self._close_playlist_page)
 
-        self._player_bar = PlayerBar(self._player_vm, bundle.music.provider)
+        self._player_bar = PlayerBar(
+            self._player_vm,
+            bundle.music.provider,
+            bridge=self._bridge,
+            music=bundle.music,
+            on_liked_changed=lambda: self._bridge.schedule(
+                self._home_vm.refresh_liked(self._bridge)
+            ),
+        )
 
         content.addWidget(self._stack, stretch=1)
         content.addWidget(self._player_bar)
@@ -173,6 +191,38 @@ class QuantisMainWindow(QMainWindow):
             return
         self._apply_page(page_id)
 
+    def _replace_stack_page(self, index: int, widget: QWidget) -> None:
+        old = self._stack.widget(index)
+        self._stack.removeWidget(old)
+        self._stack.insertWidget(index, widget)
+        if old is not None:
+            old.deleteLater()
+
+    def _ensure_search_page(self) -> SearchPage:
+        if self._search_page is None:
+            self._search_page = SearchPage(self._search_vm, self._bridge)
+            self._replace_stack_page(self.PAGE_SEARCH, self._search_page)
+        return self._search_page
+
+    def _ensure_member_page(self) -> MemberPage:
+        if self._member_page is None:
+            self._member_page = MemberPage(self._bridge)
+            self._replace_stack_page(self.PAGE_MEMBER, self._member_page)
+        return self._member_page
+
+    def _ensure_settings_page(self) -> SettingsPage:
+        if self._settings_page is None:
+            self._settings_page = SettingsPage(self._ui_prefs, self._bridge)
+            self._replace_stack_page(self.PAGE_SETTINGS, self._settings_page)
+        return self._settings_page
+
+    def _ensure_playlist_page(self) -> PlaylistPage:
+        if self._playlist_page is None:
+            self._playlist_page = PlaylistPage(self._playlist_vm, self._bridge)
+            self._playlist_page.back_requested.connect(self._close_playlist_page)
+            self._replace_stack_page(self.PAGE_PLAYLIST, self._playlist_page)
+        return self._playlist_page
+
     def _apply_page(self, page_id: int) -> None:
         if page_id < 0 or page_id >= self._stack.count():
             return
@@ -180,26 +230,38 @@ class QuantisMainWindow(QMainWindow):
             return
         if page_id == self._current_page:
             return
+        if page_id == self.PAGE_SEARCH:
+            self._ensure_search_page()
+        elif page_id == self.PAGE_MEMBER:
+            self._ensure_member_page()
+        elif page_id == self.PAGE_SETTINGS:
+            self._ensure_settings_page()
+        previous = self._current_page
         self._current_page = page_id
         self._stack.setCurrentIndex(page_id)
         self._nav.set_active_page(page_id)
         title, subtitle = self._PAGE_META.get(page_id, ("Quantis", ""))
         self._header.set_page(title, subtitle)
+        if previous == self.PAGE_SEARCH and page_id != self.PAGE_SEARCH:
+            self._search_vm.clear_results()
         if page_id in (self.PAGE_HOME, self.PAGE_LIBRARY):
             self._home_vm.request_load(self._bridge)
 
     def _open_playlist_page(self, playlist) -> None:
+        page = self._ensure_playlist_page()
         self._return_page_id = self._current_page
         self._playlist_vm.set_playlist(playlist)
         self._stack.setCurrentIndex(self.PAGE_PLAYLIST)
         count = len(playlist)
         self._header.set_page(playlist.name, f"{count} треков")
+        _ = page
 
     def _close_playlist_page(self) -> None:
         if self._return_page_id == self.PAGE_PLAYLIST:
             self._return_page_id = self.PAGE_HOME
         page_id = self._return_page_id
         self._current_page = -1
+        self._playlist_vm.clear()
         self._apply_page(page_id)
 
     def _sync_playing_track(self, track) -> None:
@@ -207,7 +269,8 @@ class QuantisMainWindow(QMainWindow):
         self._home_vm.recent_model.set_playing_track(track)
         self._home_vm.recommendation_model.set_playing_track(track)
         self._library_page.set_playing_track(track)
-        self._playlist_page.set_playing_track(track)
+        if self._playlist_page is not None:
+            self._playlist_page.set_playing_track(track)
         self._home_page.refresh_featured()
 
     def _on_history_updated(self) -> None:
@@ -216,7 +279,9 @@ class QuantisMainWindow(QMainWindow):
         schedule(self._home_vm.refresh_recent(self._bridge), self._bridge)
 
     def _on_prefs_changed(self) -> None:
-        self._apply_ui_theme(self._ui_prefs.ui_theme)
+        theme = self._ui_prefs.ui_theme
+        if theme != self._applied_theme:
+            self._apply_ui_theme(theme)
         self._apply_wallpaper()
         self._player_bar.refresh_theme()
         if self._ui_prefs.dynamic_wallpaper_enabled:
@@ -227,6 +292,7 @@ class QuantisMainWindow(QMainWindow):
         self._body_shell.set_wallpaper(path or None)
 
     def _apply_ui_theme(self, theme_id: str) -> None:
+        self._applied_theme = theme_id
         self.setStyleSheet(resources.load_stylesheet(theme_id))
         self._shell.set_variant(theme_id)
         self._body_shell.set_variant(theme_id)

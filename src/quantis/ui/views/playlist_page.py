@@ -14,9 +14,9 @@ from PySide6.QtWidgets import (
 )
 
 from quantis.core.async_bridge import AsyncBridge
-from quantis.providers.path_provider import PathProvider
 from quantis.ui.async_ui import schedule
 from quantis.ui.viewmodels.playlist_vm import PlaylistViewModel
+from quantis.ui.views.widgets.cover_art import playlist_cover_path
 from quantis.ui.views.widgets.playlist_card import GradientCover
 from quantis.ui.views.widgets.playlist_track_delegate import PlaylistTrackDelegate
 
@@ -98,6 +98,7 @@ class PlaylistPage(QWidget):
         root.addWidget(panel, stretch=1)
 
         self._vm.playlist_changed.connect(self._sync_header)
+        self._vm.covers_ready.connect(self._on_covers_ready)
 
     def _build_header(self) -> QHBoxLayout:
         row = QHBoxLayout()
@@ -197,10 +198,11 @@ class PlaylistPage(QWidget):
             return
         self._name.setText(playlist.name)
         self._count.setText(self._tracks_label(self._vm.track_count))
-        cover_path = playlist.cover_path
-        if not cover_path and playlist.tracks.values:
-            cover_path = PathProvider().get_cover_path(playlist.tracks.values[0])
-        self._cover.set_content(playlist.name, cover_path)
+        self._cover.set_content(playlist.name, playlist_cover_path(playlist))
+
+    def _on_covers_ready(self) -> None:
+        self._sync_header()
+        self._table.viewport().update()
 
     def showEvent(self, event: QEvent) -> None:
         super().showEvent(event)

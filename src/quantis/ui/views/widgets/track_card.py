@@ -10,6 +10,7 @@ from quantis.models import Track, TrackSource
 from quantis.ui.models import TrackListModel
 from quantis.ui.preferences import UiPreferences
 from quantis.ui.resources import THEME_EDITORIAL
+from quantis.ui.views.widgets.cover_art import load_track_cover
 from quantis.ui.views.widgets.delegate_paint_kit import (
     C_ACCENT,
     C_TITLE,
@@ -170,21 +171,28 @@ class TrackCardDelegate(QStyledItemDelegate):
             self.COVER_SIZE,
             self.COVER_SIZE,
         )
-        c1, c2 = (
-            self._GRAD_YT
-            if str(track.source).lower() == TrackSource.YOUTUBE
-            else self._GRAD_YA
-        )
-        grad = QLinearGradient(cover_rect.topLeft(), cover_rect.bottomRight())
-        grad.setColorAt(0.0, c1)
-        grad.setColorAt(1.0, c2)
-        painter.setBrush(grad)
-        painter.drawRoundedRect(cover_rect, 8, 8)
-
-        initial = (track.title or "?")[0].upper()
-        painter.setPen(self._C_COVER_TEXT)
-        painter.setFont(FONT_COVER)
-        painter.drawText(cover_rect, Qt.AlignmentFlag.AlignCenter, initial)
+        cover = load_track_cover(track, self.COVER_SIZE)
+        if cover is not None and not cover.isNull():
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setClipRect(cover_rect)
+            painter.drawPixmap(cover_rect, cover)
+            painter.setClipping(False)
+        else:
+            c1, c2 = (
+                self._GRAD_YT
+                if str(track.source).lower() == TrackSource.YOUTUBE
+                else self._GRAD_YA
+            )
+            grad = QLinearGradient(cover_rect.topLeft(), cover_rect.bottomRight())
+            grad.setColorAt(0.0, c1)
+            grad.setColorAt(1.0, c2)
+            painter.setBrush(grad)
+            painter.drawRoundedRect(cover_rect, 8, 8)
+            initial = (track.title or "?")[0].upper()
+            painter.setPen(self._C_COVER_TEXT)
+            painter.setFont(FONT_COVER)
+            painter.drawText(cover_rect, Qt.AlignmentFlag.AlignCenter, initial)
 
         action_w = self.ACTION_SIZE + 16 if self._on_download else 8
         text_left = cover_rect.right() + 12

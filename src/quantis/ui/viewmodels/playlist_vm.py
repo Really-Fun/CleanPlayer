@@ -5,8 +5,16 @@ import random
 from PySide6.QtCore import QObject, Signal
 
 from quantis.controllers.playback_controller import PlaybackController
-from quantis.models import DownloadPlaylist, RecentlyPlayedPlaylist, Track, UserPlaylist
+from quantis.core.async_bridge import AsyncBridge
+from quantis.models import (
+    DownloadPlaylist,
+    LikedPlaylist,
+    RecentlyPlayedPlaylist,
+    Track,
+    UserPlaylist,
+)
 from quantis.models.playlist import Playlist, RecommendationPlaylist
+from quantis.ui.cover_prefetch import schedule_cover_prefetch
 from quantis.ui.models import TrackListModel
 from quantis.ui.viewmodels.base_viewmodel import BaseViewModel
 
@@ -15,15 +23,18 @@ class PlaylistViewModel(BaseViewModel):
     """ViewModel страницы плейлиста с ленивой подгрузкой треков."""
 
     playlist_changed = Signal()
+    covers_ready = Signal()
     PLAYLIST_BATCH_SIZE = 5
 
     def __init__(
         self,
         playback: PlaybackController,
+        bridge: AsyncBridge | None = None,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
         self._playback = playback
+        self._bridge = bridge
         self._playlist: Playlist | None = None
         self._model = TrackListModel(batch_size=self.PLAYLIST_BATCH_SIZE)
 
@@ -41,9 +52,33 @@ class PlaylistViewModel(BaseViewModel):
             return 0
         return len(self._playlist)
 
+    def set_bridge(self, bridge: AsyncBridge) -> None:
+        self._bridge = bridge
+
     def set_playlist(self, playlist: Playlist) -> None:
+        from quantis.ui.views.widgets.cover_art import clear_cover_cache
+
         self._playlist = playlist
-        self._model.set_tracks(list(playlist.tracks.values))
+        tracks = list(playlist.tracks.values)
+        self._model.set_tracks(tracks)
+        clear_cover_cache()
+        self.playlist_changed.emit()
+        if self._bridge is not None and tracks:
+            schedule_cover_prefetch(
+                tracks,
+                self._playback.music.downloader,
+                self._bridge,
+                on_done=lambda: self.covers_ready.emit(),
+                limit=60,
+            )
+
+    def clear(self) -> None:
+        """Освобождает треки при уходе со страницы плейлиста."""
+        from quantis.ui.views.widgets.cover_art import clear_cover_cache
+
+        self._playlist = None
+        self._model.set_tracks([])
+        clear_cover_cache()
         self.playlist_changed.emit()
 
     def set_playing_track(self, track: Track | None) -> None:
@@ -92,6 +127,8 @@ class PlaylistViewModel(BaseViewModel):
     def _clone_playlist(playlist: Playlist, tracks: list[Track]) -> Playlist:
         if isinstance(playlist, RecentlyPlayedPlaylist):
             return RecentlyPlayedPlaylist(name=playlist.name, tracks=tracks)
+        if isinstance(playlist, LikedPlaylist):
+            return LikedPlaylist(name=playlist.name, tracks=tracks)
         if isinstance(playlist, DownloadPlaylist):
             return DownloadPlaylist(name=playlist.name, tracks=tracks)
         if isinstance(playlist, UserPlaylist):

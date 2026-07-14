@@ -8,27 +8,24 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFrame,
-    QHBoxLayout,
     QLabel,
-    QLineEdit,
-    QPushButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,
 )
 
-from quantis.config.credentials import save_yandex_token, yandex_token
 from quantis.core.async_bridge import AsyncBridge
 from quantis.plugins import PluginRegistry
 from quantis.plugins.loader import resolve_plugins_dir
 from quantis.ui.preferences import UiPreferences
 from quantis.ui.resources import UI_THEME_LABELS
+from quantis.ui.views.widgets.glass_panel import GlassPanel
 from quantis.ui.wallpapers import (
     scan_wallpapers,
     user_backgrounds_dir,
     wallpaper_display_name,
 )
-from quantis.ui.views.widgets.glass_panel import GlassPanel
+
 
 class SettingsPage(QWidget):
     def __init__(
@@ -55,9 +52,10 @@ class SettingsPage(QWidget):
         layout.setSpacing(12)
 
         panel = GlassPanel()
+        panel.setObjectName("settingsPanel")
         panel_layout = QVBoxLayout(panel)
-        panel_layout.setContentsMargins(24, 22, 24, 22)
-        panel_layout.setSpacing(20)
+        panel_layout.setContentsMargins(22, 20, 22, 22)
+        panel_layout.setSpacing(14)
 
         panel_layout.addWidget(QLabel("Интерфейс", objectName="settingsSectionLabel"))
 
@@ -71,59 +69,55 @@ class SettingsPage(QWidget):
         theme_body.addWidget(self._theme_combo)
         panel_layout.addWidget(theme_row)
 
+        featured_row, featured_body = self._row(
+            "Главная",
+            "Дополнительная панель текущего трека",
+        )
         self._home_featured_cb = QCheckBox("Панель «Сейчас» на главной")
         self._home_featured_cb.setObjectName("settingsCheck")
         self._home_featured_cb.setCursor(Qt.CursorShape.PointingHandCursor)
         self._home_featured_cb.toggled.connect(self._on_home_featured_toggled)
-        panel_layout.addWidget(self._home_featured_cb)
+        featured_body.addWidget(self._home_featured_cb)
+        panel_layout.addWidget(featured_row)
 
         static_wall_row, static_wall_body = self._row(
             "Обои",
-            f"Положите jpg/png в папку: {user_backgrounds_dir()}",
+            "По умолчанию фон без картинки — экономия ОЗУ",
         )
+        self._wallpaper_enabled_cb = QCheckBox("Показывать статичные обои")
+        self._wallpaper_enabled_cb.setObjectName("settingsCheck")
+        self._wallpaper_enabled_cb.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._wallpaper_enabled_cb.toggled.connect(self._on_wallpaper_enabled_toggled)
+        static_wall_body.addWidget(self._wallpaper_enabled_cb)
+
+        self._wallpaper_picker = QWidget()
+        picker_layout = QVBoxLayout(self._wallpaper_picker)
+        picker_layout.setContentsMargins(0, 4, 0, 0)
+        picker_layout.setSpacing(8)
+
         self._wallpaper_combo = QComboBox()
         self._wallpaper_combo.setObjectName("themeCombo")
         self._wallpaper_combo.setCursor(Qt.CursorShape.PointingHandCursor)
         self._wallpaper_combo.currentIndexChanged.connect(self._on_wallpaper_changed)
-        static_wall_body.addWidget(self._wallpaper_combo)
+        picker_layout.addWidget(self._wallpaper_combo)
+
         self._wallpaper_status = QLabel()
         self._wallpaper_status.setObjectName("settingsRowDesc")
-        static_wall_body.addWidget(self._wallpaper_status)
+        self._wallpaper_status.setWordWrap(True)
+        picker_layout.addWidget(self._wallpaper_status)
+        static_wall_body.addWidget(self._wallpaper_picker)
         panel_layout.addWidget(static_wall_row)
 
         wallpaper_row, wallpaper_body = self._row(
             "Динамические обои",
-            "Видео-клип YouTube вместо jpg-фона (зона под страницами, без звука)",
+            "Видео-клип YouTube вместо статичного фона (без звука)",
         )
-        self._dynamic_wallpaper_cb = QCheckBox("Включить видео-фон при воспроизведении")
+        self._dynamic_wallpaper_cb = QCheckBox("Видео-фон при воспроизведении")
         self._dynamic_wallpaper_cb.setObjectName("settingsCheck")
         self._dynamic_wallpaper_cb.setCursor(Qt.CursorShape.PointingHandCursor)
         self._dynamic_wallpaper_cb.toggled.connect(self._on_dynamic_wallpaper_toggled)
         wallpaper_body.addWidget(self._dynamic_wallpaper_cb)
         panel_layout.addWidget(wallpaper_row)
-
-        panel_layout.addWidget(QLabel("Сервисы", objectName="settingsSectionLabel"))
-
-        yandex_row, yandex_body = self._row(
-            "Yandex Music",
-            "Токен хранится в системном keyring",
-        )
-        token_row = QHBoxLayout()
-        self._yandex_token = QLineEdit()
-        self._yandex_token.setObjectName("settingLineEdit")
-        self._yandex_token.setPlaceholderText("Вставьте OAuth-токен")
-        self._yandex_token.setEchoMode(QLineEdit.EchoMode.Password)
-        self._save_token_btn = QPushButton("Сохранить")
-        self._save_token_btn.setObjectName("searchButton")
-        self._save_token_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._save_token_btn.clicked.connect(self._on_save_yandex_token)
-        token_row.addWidget(self._yandex_token, stretch=1)
-        token_row.addWidget(self._save_token_btn)
-        yandex_body.addLayout(token_row)
-        self._token_status = QLabel()
-        self._token_status.setObjectName("settingsRowDesc")
-        yandex_body.addWidget(self._token_status)
-        panel_layout.addWidget(yandex_row)
 
         panel_layout.addWidget(QLabel("Плагины", objectName="settingsSectionLabel"))
 
@@ -165,7 +159,7 @@ class SettingsPage(QWidget):
         frame = QFrame()
         frame.setObjectName("settingsRow")
         col = QVBoxLayout(frame)
-        col.setContentsMargins(0, 0, 0, 0)
+        col.setContentsMargins(14, 12, 14, 12)
         col.setSpacing(8)
         col.addWidget(QLabel(title, objectName="settingsRowTitle"))
         col.addWidget(QLabel(desc, objectName="settingsRowDesc"))
@@ -175,6 +169,11 @@ class SettingsPage(QWidget):
         self._home_featured_cb.blockSignals(True)
         self._home_featured_cb.setChecked(self._prefs.show_home_featured_panel)
         self._home_featured_cb.blockSignals(False)
+
+        self._wallpaper_enabled_cb.blockSignals(True)
+        self._wallpaper_enabled_cb.setChecked(self._prefs.wallpaper_enabled)
+        self._wallpaper_enabled_cb.blockSignals(False)
+        self._wallpaper_picker.setVisible(self._prefs.wallpaper_enabled)
 
         self._dynamic_wallpaper_cb.blockSignals(True)
         self._dynamic_wallpaper_cb.setChecked(self._prefs.dynamic_wallpaper_enabled)
@@ -187,21 +186,25 @@ class SettingsPage(QWidget):
         self._theme_combo.blockSignals(False)
 
         self._refresh_wallpapers(block_signals=True)
-        self._update_token_status()
-
-    def _update_token_status(self) -> None:
-        if yandex_token():
-            self._token_status.setText("Токен сохранён")
-        else:
-            self._token_status.setText("Без токена поиск Yandex недоступен")
 
     def _on_home_featured_toggled(self, checked: bool) -> None:
         self._prefs.set_show_home_featured_panel(checked)
+
+    def _on_wallpaper_enabled_toggled(self, checked: bool) -> None:
+        self._wallpaper_picker.setVisible(checked)
+        self._prefs.set_wallpaper_enabled(checked)
+        if checked:
+            self._refresh_wallpapers()
 
     def _on_dynamic_wallpaper_toggled(self, checked: bool) -> None:
         self._prefs.set_dynamic_wallpaper_enabled(checked)
 
     def _refresh_wallpapers(self, *, block_signals: bool = False) -> None:
+        if not self._prefs.wallpaper_enabled:
+            self._wallpaper_picker.hide()
+            return
+
+        self._wallpaper_picker.show()
         if block_signals:
             self._wallpaper_combo.blockSignals(True)
 
@@ -216,16 +219,19 @@ class SettingsPage(QWidget):
                 str(path.resolve()),
             )
 
+        folder = user_backgrounds_dir()
         if not files:
             self._wallpaper_status.setText(
-                "В папке background/user пока нет изображений — добавьте jpg или png"
+                f"Пока пусто. Положите jpg/png в:\n{folder}"
             )
         else:
             user_count = sum(
-                1 for p in files if str(p.parent.resolve()) == str(user_backgrounds_dir().resolve())
+                1
+                for p in files
+                if str(p.parent.resolve()) == str(folder.resolve())
             )
             self._wallpaper_status.setText(
-                f"Найдено обоев: {len(files)} (ваших: {user_count})"
+                f"Найдено: {len(files)} · ваших: {user_count}\nПапка: {folder}"
             )
 
         index = self._wallpaper_combo.findData(current)
@@ -245,16 +251,6 @@ class SettingsPage(QWidget):
         theme_id = self._theme_combo.itemData(index)
         if theme_id:
             self._prefs.set_ui_theme(str(theme_id))
-
-    def _on_save_yandex_token(self) -> None:
-        try:
-            save_yandex_token(self._yandex_token.text())
-            self._yandex_token.clear()
-            self._token_status.setText("Токен сохранён")
-        except ValueError as exc:
-            self._token_status.setText(str(exc))
-        except Exception as exc:
-            self._token_status.setText(f"Ошибка: {exc}")
 
     def _on_plugin_registry_changed(self, _plugin_id: str) -> None:
         self._refresh_plugins()

@@ -112,11 +112,14 @@ poetry run quantis
 poetry run python -m quantis.main
 ```
 
-### Yandex Music (опционально)
+### Yandex Music / YouTube (опционально)
 
 Без токена работает поиск и воспроизведение **YouTube**.  
-Для **Яндекс.Музыки** добавь OAuth-токен — в приложении: **Настройки → Yandex Music**,  
-или через keyring:
+Токены и cookies — во вкладке **Member**:
+- **Yandex Music** — OAuth-токен в keyring (и статус Яндекс Плюс)
+- **YouTube Music** — cookies в `credentials/youtube_cookies.txt` (keyring на Windows не принимает большие blob'ы)
+
+Или вручную:
 
 ```python
 import keyring
@@ -124,16 +127,21 @@ import keyring
 keyring.set_password("YANDEX_TOKEN_NEON_APP", "NEON_APP", "<ваш_oauth_токен>")
 ```
 
-Другие записи keyring (для будущих интеграций): `LASTFM_API_NEON_APP`, `LASTFM_SECRET_NEON_APP`.
+Cookies YouTube положите в файл `credentials/youtube_cookies.txt` рядом с приложением.
 
 ### Сборка exe (Windows)
 
 ```bat
 poetry install --with dev
-poetry run pyinstaller main.spec
+poetry run pyinstaller main.spec --noconfirm
 ```
 
 Артефакты: `dist\Quantis\Quantis.exe`
+
+Рядом с exe автоматически используются (создаются при первом запуске):
+- `plugins_dir/` — плагины
+- `background/user/` — пользовательские обои
+- `music/`, `covers/`, `player_history.db` — данные плеера
 
 ---
 

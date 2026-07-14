@@ -5,7 +5,7 @@ from PySide6.QtGui import QPainter, QPixmap
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget, QSizePolicy
 
 from quantis.models.playlist import Playlist
-from quantis.ui.views.widgets.cover_art import load_cover_pixmap, paint_rounded_cover
+from quantis.ui.views.widgets.cover_art import load_cover_pixmap, paint_rounded_cover, playlist_cover_path
 
 
 class GradientCover(QWidget):
@@ -75,7 +75,7 @@ class PlaylistCard(QFrame):
         self._cover = GradientCover(
             playlist.name,
             size=120,
-            image_path=playlist.cover_path,
+            image_path=playlist_cover_path(playlist),
         )
         layout.addWidget(self._cover, alignment=Qt.AlignmentFlag.AlignHCenter)
 
@@ -134,7 +134,7 @@ class QuickPickTile(QFrame):
         self._thumb = GradientCover(
             playlist.name,
             size=64,
-            image_path=playlist.cover_path,
+            image_path=playlist_cover_path(playlist),
         )
         layout.addWidget(self._thumb)
 

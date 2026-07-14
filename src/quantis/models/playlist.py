@@ -241,7 +241,7 @@ class RecentlyPlayedPlaylist(Playlist):
         self,
         name: str = "Недавно прослушанные",
         tracks: Iterable[Track] | None = None,
-        cover_path: str = "assets/icons/recent.svg",
+        cover_path: str = get_asset_path("assets/icons/recent.svg"),
     ) -> None:
         super().__init__(name, tracks or (), cover_path)
 
@@ -255,6 +255,21 @@ class RecentlyPlayedPlaylist(Playlist):
     ) -> "RecentlyPlayedPlaylist | None":
         """Плейлист строится из БД, поэтому чтение с диска не используется."""
         return None
+
+
+class LikedPlaylist(Playlist):
+    """Системный плейлист любимых треков."""
+
+    def __init__(
+        self,
+        name: str = "Любимые",
+        tracks: Iterable[Track] | None = None,
+        cover_path: str = get_asset_path("assets/icons/heart.svg"),
+    ) -> None:
+        super().__init__(name, tracks or (), cover_path)
+
+    def get_tracks(self) -> Tuple[Track, ...]:
+        return tuple(self.tracks.values)
 
 
 class UserPlaylist(Playlist):

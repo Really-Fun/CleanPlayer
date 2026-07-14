@@ -27,16 +27,34 @@ def cached_stream_url(func: callable) -> callable:
 
     @functools.wraps(func)
     async def wrapper(self: AsyncStreamerInterface, track: Track, *args: tuple, **kwargs: dict) -> str | None:
+        from collections import OrderedDict
+
         track_key = f"{track.source}:{track.track_id}"
+        now = time()
+        ttl = getattr(self, "_URL_CACHE_TTL_SEC", 30 * 60)
+        max_size = getattr(self, "_URL_CACHE_MAX", 64)
+
+        # Гарантируем OrderedDict для LRU.
+        if not isinstance(self._cache, OrderedDict):
+            self._cache = OrderedDict(self._cache)
 
         cached = self._cache.get(track_key)
-        if cached is not None and (time() - cached[1] < self._URL_CACHE_TTL_SEC):
+        if cached is not None and (now - cached[1] < ttl):
+            self._cache.move_to_end(track_key)
             return cached[0]
+
+        # Чистим просроченные.
+        expired = [k for k, (_, ts) in self._cache.items() if now - ts >= ttl]
+        for key in expired:
+            self._cache.pop(key, None)
 
         url = await func(self, track, *args, **kwargs)
 
         if url is not None:
-            self._cache[track_key] = (url, time())
+            self._cache[track_key] = (url, now)
+            self._cache.move_to_end(track_key)
+            while len(self._cache) > max_size:
+                self._cache.popitem(last=False)
 
         return url
 
@@ -172,15 +190,18 @@ class AsyncStreamer(AsyncStreamerInterface):
     """Фасад над Yandex и YouTube стримерами с кэшированием URL через декоратор."""
 
     _URL_CACHE_TTL_SEC = 30 * 60  # 30 минут
+    _URL_CACHE_MAX = 64
 
     def __init__(self, executor: ThreadPoolExecutor | None = None) -> None:
+        from collections import OrderedDict
+
         self._owns_executor = executor is None
         self._executor = executor or ThreadPoolExecutor(
             max_workers=4, thread_name_prefix="StreamerPool"
         )
         self._yandex = AsyncYandexStreamer(self._executor)
         self._youtube = AsyncYoutubeStreamer(self._executor)
-        self._cache: dict[str, tuple[str, float]] = {}
+        self._cache: OrderedDict[str, tuple[str, float]] = OrderedDict()
 
     @cached_stream_url
     async def get_stream_url(self, track: Track) -> str | None:

@@ -1,5 +1,6 @@
 from .playlist import (
     DownloadPlaylist,
+    LikedPlaylist,
     Playlist,
     RecentlyPlayedPlaylist,
     RecommendationPlaylist,
@@ -17,4 +18,5 @@ __all__ = [
     "UserPlaylist",
     "RecentlyPlayedPlaylist",
     "RecommendationPlaylist",
+    "LikedPlaylist",
 ]

@@ -39,7 +39,8 @@ dev = [
     "mypy (>=2.1.0,<3.0.0)",
     "pytest (>=9.1.1,<10.0.0)",
     "pytest-asyncio (>=1.4.0,<2.0.0)",
-    "pyinstaller (>=6.21.0,<7.0.0)"
+    "pyinstaller (>=6.21.0,<7.0.0)",
+    "Pillow"
 ]
 
 [tool.pytest.ini_options]

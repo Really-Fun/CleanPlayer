@@ -43,6 +43,12 @@ _SHARED_WIDGET_STYLES = (
 
 
 def styles_dir() -> Path:
+    from quantis.utils.resource_path import package_root
+
+    root = package_root()
+    for candidate in (root / "styles", root / "quantis" / "styles"):
+        if candidate.is_dir():
+            return candidate
     return Path(__file__).resolve().parent.parent / "styles"
 
 
@@ -50,8 +56,16 @@ def icon_path(name: str) -> str:
     return get_asset_path(f"assets/icons/{name}")
 
 
+_ICON_CACHE: dict[str, QIcon] = {}
+
+
 def load_icon(name: str) -> QIcon:
-    return QIcon(icon_path(name))
+    cached = _ICON_CACHE.get(name)
+    if cached is not None:
+        return cached
+    icon = QIcon(icon_path(name))
+    _ICON_CACHE[name] = icon
+    return icon
 
 
 def load_theme(theme: str = "dark") -> str:
@@ -73,6 +87,8 @@ def load_widget_styles(ui_theme: str = DEFAULT_UI_THEME) -> str:
 
     widget_dir = styles_dir() / "widget_styles"
     for name in _SHARED_WIDGET_STYLES:
+        if name == "settings.qss":
+            continue
         path = widget_dir / name
         if path.is_file():
             parts.append(path.read_text(encoding="utf-8"))
@@ -82,6 +98,11 @@ def load_widget_styles(ui_theme: str = DEFAULT_UI_THEME) -> str:
         for path in sorted(theme_dir.glob("*.qss")):
             parts.append(path.read_text(encoding="utf-8"))
 
+    # Настройки поверх тем — иначе подписи остаются бледными.
+    settings_qss = widget_dir / "settings.qss"
+    if settings_qss.is_file():
+        parts.append(settings_qss.read_text(encoding="utf-8"))
+
     return "\n".join(parts)
 
 
@@ -90,6 +111,8 @@ def wallpaper_path() -> str:
     from quantis.ui.wallpapers import resolve_wallpaper_path
 
     prefs = UiPreferences()
+    if not prefs.wallpaper_enabled:
+        return ""
     return resolve_wallpaper_path(prefs.wallpaper_path or None)
 
 
