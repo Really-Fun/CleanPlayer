@@ -22,7 +22,9 @@ from quantis.ui.views.widgets.delegate_paint_kit import (
     FONT_EDITORIAL_INDEX,
     FONT_EDITORIAL_TITLE,
     FONT_TITLE,
+    SOURCE_LABELS,
 )
+from quantis.ui.views.widgets.source_badge import paint_source_badge
 
 
 class TrackCardDelegate(QStyledItemDelegate):
@@ -46,8 +48,8 @@ class TrackCardDelegate(QStyledItemDelegate):
     _C_EDITORIAL_IDX = QColor(255, 255, 255, 10)
     _C_EDITORIAL_AUTHOR = QColor(242, 240, 235, 100)
     _C_EDITORIAL_TITLE = QColor(242, 240, 235)
-    _GRAD_YT = (QColor(220, 50, 50), QColor(140, 30, 30))
-    _GRAD_YA = (QColor(0, 180, 220), QColor(80, 60, 200))
+    _GRAD_YT = (QColor(255, 78, 69), QColor(140, 30, 30))
+    _GRAD_YA = (QColor(255, 219, 77), QColor(160, 120, 20))
 
     def __init__(
         self,
@@ -194,6 +196,14 @@ class TrackCardDelegate(QStyledItemDelegate):
             painter.setFont(FONT_COVER)
             painter.drawText(cover_rect, Qt.AlignmentFlag.AlignCenter, initial)
 
+        paint_source_badge(painter, cover_rect, str(track.source))
+
+        if hovered and not is_playing:
+            painter.fillRect(cover_rect, QColor(0, 0, 0, 110))
+            painter.setPen(QColor(255, 255, 255))
+            painter.setFont(FONT_COVER)
+            painter.drawText(cover_rect, Qt.AlignmentFlag.AlignCenter, "▶")
+
         action_w = self.ACTION_SIZE + 16 if self._on_download else 8
         text_left = cover_rect.right() + 12
         text_right = rect.right() - action_w
@@ -209,12 +219,18 @@ class TrackCardDelegate(QStyledItemDelegate):
             self._fm_title.elidedText(track.title, Qt.TextElideMode.ElideRight, text_w),
         )
 
+        source_key = str(track.source).lower()
+        badge = SOURCE_LABELS.get(source_key, "")
+        subtitle = track.author or ""
+        if badge:
+            subtitle = f"{subtitle} · {badge}" if subtitle else badge
+
         painter.setPen(self._C_AUTHOR)
         painter.setFont(FONT_AUTHOR)
         painter.drawText(
             author_rect,
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-            self._fm_author.elidedText(track.author, Qt.TextElideMode.ElideRight, text_w),
+            self._fm_author.elidedText(subtitle, Qt.TextElideMode.ElideRight, text_w),
         )
 
     def _paint_editorial(

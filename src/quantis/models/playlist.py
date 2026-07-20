@@ -293,6 +293,15 @@ class WavePlaylist(Playlist):
     def get_tracks(self) -> Tuple[Track, ...]:
         return tuple(self.tracks.values)
 
+    def append_tracks(self, tracks: Iterable[Track]) -> int:
+        """Добавляет новые треки в конец (без дублей). Возвращает число добавленных."""
+        existing = {str(t.track_id) for t in self.tracks.values}
+        extra = [t for t in tracks if str(t.track_id) not in existing]
+        if not extra:
+            return 0
+        self.tracks.values = tuple(list(self.tracks.values) + extra)
+        return len(extra)
+
 
 class UserPlaylist(Playlist):
     @classmethod

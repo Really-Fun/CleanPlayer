@@ -16,7 +16,7 @@ from quantis.providers import PlaylistManager
 async def test_play_track_sets_current_and_emits_event() -> None:
     player = MagicMock()
     music = MagicMock()
-    music.streamer.get_stream_url = AsyncMock(return_value="http://stream")
+    music.streamer.open_playback = AsyncMock(return_value="http://stream")
     music.provider.get_track_path = MagicMock(return_value="/path")
     event_bus = EventBus()
     bridge = MagicMock()

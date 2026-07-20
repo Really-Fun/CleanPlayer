@@ -12,6 +12,7 @@ import logging
 from abc import ABC, abstractmethod
 from asyncio import get_running_loop
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from time import time
 from typing import Any
 
@@ -129,7 +130,7 @@ class AsyncYandexStreamer(AsyncStreamerInterface):
                     getattr(chosen, "bitrate_in_kbps", "?"),
                 )
             else:
-                logger.info(
+                logger.debug(
                     "Yandex stream «%s»: codec=%s bitrate=%s",
                     track.title,
                     getattr(chosen, "codec", "?"),
@@ -143,96 +144,216 @@ class AsyncYandexStreamer(AsyncStreamerInterface):
 
 class AsyncYoutubeStreamer(AsyncStreamerInterface):
     def __init__(self, executor: ThreadPoolExecutor) -> None:
-        self.opts = {
+        self._common = {
             "user_agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                 "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
             ),
-            "quiet": False,
+            "quiet": True,
             "noplaylist": True,
             "extract_flat": False,
             "no_warnings": True,
             "nocheckcertificate": True,
             "postprocessors": [],
-            "format": "m4a/bestaudio[ext=m4a]",
             "skip_download": True,
+            "ignore_no_formats_error": True,
         }
-        self.yt = YoutubeDL(self.opts)
-        self._video_opts = {
-            **self.opts,
-            "format": (
-                "18/22/b[ext=mp4][vcodec!=none][height<=720]/"
-                "best[vcodec!=none][height<=720][ext=mp4]"
-            ),
-        }
-        self._video_yt = YoutubeDL(self._video_opts)
         self._executor = executor
+
+    def _attempt_opts(self, *, video: bool = False) -> list[dict]:
+        """Несколько стратегий: cookies сейчас часто ломают android-клиент,
+        а web без JS-runtime не отдаёт аудио (только storyboard).
+        """
+        from quantis.config.credentials import youtube_yt_dlp_cookiefile
+
+        cookiefile = youtube_yt_dlp_cookiefile()
+        fmt = (
+            (
+                "best[vcodec!=none][acodec!=none][height<=720]/"
+                "best[height<=720]/best"
+            )
+            if video
+            else "bestaudio/best/bestvideo+bestaudio/best"
+        )
+
+        attempts: list[dict] = []
+
+        # 1) android без cookies — часто даёт progressive URL без JS-solver
+        attempts.append(
+            {
+                **self._common,
+                "format": fmt if not video else "18/best[height<=720]/best",
+                "extractor_args": {"youtube": {"player_client": ["android"]}},
+            }
+        )
+        # 2) дефолтный клиент без cookies — обычно есть m4a/opus
+        attempts.append({**self._common, "format": fmt})
+
+        # 3) с cookies (возраст/приват), без android/ios (они cookies не поддерживают)
+        if cookiefile:
+            attempts.append(
+                {
+                    **self._common,
+                    "format": fmt,
+                    "cookiefile": cookiefile,
+                    "extractor_args": {"youtube": {"player_client": ["web", "mweb"]}},
+                }
+            )
+            attempts.append(
+                {
+                    **self._common,
+                    "format": "best/worst",
+                    "cookiefile": cookiefile,
+                }
+            )
+
+        return attempts
+
+    @staticmethod
+    def _is_playable_format(fmt: dict) -> bool:
+        if not fmt.get("url"):
+            return False
+        protocol = str(fmt.get("protocol") or "")
+        if protocol.startswith("mhtml") or protocol == "mhtml":
+            return False
+        ext = str(fmt.get("ext") or "").lower()
+        if ext in ("mhtml", "jpg", "png", "webp"):
+            return False
+        # storyboard format ids
+        fid = str(fmt.get("format_id") or "")
+        if fid.startswith("sb"):
+            return False
+        return True
+
+    @classmethod
+    def _pick_stream_url(
+        cls, info: dict[str, Any] | None, *, prefer_video: bool = False
+    ) -> str | None:
+        if not info:
+            return None
+
+        formats = [f for f in (info.get("formats") or []) if cls._is_playable_format(f)]
+        top_url = info.get("url")
+        if top_url and cls._is_playable_format(
+            {
+                "url": top_url,
+                "protocol": info.get("protocol"),
+                "ext": info.get("ext"),
+                "format_id": info.get("format_id"),
+                "vcodec": info.get("vcodec"),
+                "acodec": info.get("acodec"),
+            }
+        ):
+            # Если это уже выбранный bestaudio/best — ок
+            if not prefer_video:
+                vcodec = str(info.get("vcodec") or "none")
+                acodec = str(info.get("acodec") or "none")
+                if acodec not in ("", "none") or vcodec not in ("", "none"):
+                    return str(top_url)
+
+        if not formats:
+            # иногда url есть только на верхнем уровне
+            return str(top_url) if top_url else None
+
+        def score(fmt: dict) -> tuple:
+            vcodec = str(fmt.get("vcodec") or "none")
+            acodec = str(fmt.get("acodec") or "none")
+            has_audio = acodec not in ("", "none")
+            has_video = vcodec not in ("", "none")
+            audio_only = has_audio and not has_video
+            progressive = has_audio and has_video
+            ext = str(fmt.get("ext") or "").lower()
+            abr = int(fmt.get("abr") or fmt.get("tbr") or 0)
+            height = int(fmt.get("height") or 0)
+            if prefer_video:
+                return (
+                    1 if progressive else 0,
+                    1 if has_video else 0,
+                    -abs(height - 720) if height else -9999,
+                    abr,
+                )
+            return (
+                1 if audio_only else (1 if progressive else 0),
+                2 if ext in ("m4a", "mp4") else (1 if ext in ("webm", "opus") else 0),
+                abr,
+            )
+
+        best = max(formats, key=score)
+        return str(best.get("url") or "") or None
 
     async def get_stream_url(self, track: Track) -> str | None:
         return await get_running_loop().run_in_executor(
-            self._executor, self.sync_stream, self.yt, track.track_id
+            self._executor, self.sync_stream, track.track_id
         )
 
     async def get_video_url(self, video_id: str) -> str | None:
         return await get_running_loop().run_in_executor(
-            self._executor, self.sync_video_stream, self._video_yt, video_id
+            self._executor, self.sync_video_stream, video_id
         )
 
-    @staticmethod
-    def sync_stream(yt: YoutubeDL, track_id: str) -> str | None:
-        try:
-            info = yt.extract_info(
-                f"https://www.youtube.com/watch?v={track_id}", download=False
+    def sync_stream(self, track_id: str) -> str | None:
+        url = f"https://www.youtube.com/watch?v={track_id}"
+        last_exc: BaseException | None = None
+        for opts in self._attempt_opts(video=False):
+            try:
+                with YoutubeDL(opts) as yt:
+                    info = yt.extract_info(url, download=False)
+                picked = self._pick_stream_url(info, prefer_video=False)
+                if picked:
+                    logger.info(
+                        "YouTube stream %s via format=%s clients=%s",
+                        track_id,
+                        opts.get("format"),
+                        (opts.get("extractor_args") or {})
+                        .get("youtube", {})
+                        .get("player_client"),
+                    )
+                    return picked
+            except Exception as exc:
+                last_exc = exc
+                logger.debug(
+                    "YouTube stream attempt failed (%s): %s",
+                    opts.get("format"),
+                    track_id,
+                    exc_info=True,
+                )
+        if last_exc is not None:
+            logger.error(
+                "Не удалось получить URL потока YouTube: %s",
+                track_id,
+                exc_info=last_exc,
             )
-            if info is None:
-                return None
-            return info.get("url")
-        except Exception:
-            logger.exception("Не удалось получить URL потока YouTube: %s", track_id)
-            return None
+        else:
+            logger.warning("YouTube: нет playable formats для %s", track_id)
+        return None
 
-    @staticmethod
-    def sync_video_stream(yt: YoutubeDL, track_id: str) -> str | None:
-        try:
-            info = yt.extract_info(
-                f"https://www.youtube.com/watch?v={track_id}", download=False
-            )
-            if info is None:
-                return None
-
-            url = info.get("url")
-            vcodec = info.get("vcodec")
-            if url and vcodec not in (None, "none"):
-                return url
-
-            progressive: str | None = None
-            fallback: str | None = None
-            for fmt in info.get("formats") or []:
-                fmt_url = fmt.get("url")
-                if not fmt_url:
-                    continue
-                if fmt.get("vcodec") in (None, "none"):
-                    continue
-                if fmt.get("acodec") not in (None, "none"):
-                    progressive = fmt_url
-                    break
-                if fallback is None:
-                    fallback = fmt_url
-
-            return progressive or fallback
-        except Exception:
-            logger.exception("Не удалось получить URL видео YouTube: %s", track_id)
-            return None
+    def sync_video_stream(self, track_id: str) -> str | None:
+        url = f"https://www.youtube.com/watch?v={track_id}"
+        for opts in self._attempt_opts(video=True):
+            try:
+                with YoutubeDL(opts) as yt:
+                    info = yt.extract_info(url, download=False)
+                picked = self._pick_stream_url(info, prefer_video=True)
+                if picked:
+                    return picked
+            except Exception:
+                logger.debug(
+                    "YouTube video attempt failed: %s", track_id, exc_info=True
+                )
+        logger.error("Не удалось получить URL видео YouTube: %s", track_id)
+        return None
 
 
 class AsyncStreamer(AsyncStreamerInterface):
     """Фасад над Yandex и YouTube стримерами с кэшированием URL через декоратор."""
 
-    _URL_CACHE_TTL_SEC = 30 * 60  # 30 минут
+    _URL_CACHE_TTL_SEC = 50  # Yandex direct link живёт ~1 мин
     _URL_CACHE_MAX = 64
 
     def __init__(self, executor: ThreadPoolExecutor | None = None) -> None:
         from collections import OrderedDict
+
+        from quantis.services.yandex_progressive_buffer import YandexProgressiveBuffer
 
         self._owns_executor = executor is None
         self._executor = executor or ThreadPoolExecutor(
@@ -240,6 +361,8 @@ class AsyncStreamer(AsyncStreamerInterface):
         )
         self._yandex = AsyncYandexStreamer(self._executor)
         self._youtube = AsyncYoutubeStreamer(self._executor)
+        self._yandex_buffer = YandexProgressiveBuffer(self._yandex)
+        self._buffer_loop: Any = None
         self._cache: OrderedDict[str, tuple[str, float]] = OrderedDict()
 
     @cached_stream_url
@@ -253,6 +376,17 @@ class AsyncStreamer(AsyncStreamerInterface):
             return await self._yandex.get_stream_url(track)
 
         raise ValueError(f"Неизвестный источник платформы у трека: {track.source!r}")
+
+    async def open_playback(self, track: Track) -> str | None:
+        """Источник для плеера: Yandex — прогрессивный temp, остальное — URL."""
+        self._buffer_loop = get_running_loop()
+        source_type = str(track.source).lower()
+        if source_type == TrackSource.YANDEX:
+            path = await self._yandex_buffer.open(track)
+            if path:
+                self._yandex_buffer.cleanup_old_files(keep=Path(path))
+            return path
+        return await self.get_stream_url(track)
 
     async def get_video_url(self, track: Track, finder: object | None = None) -> str | None:
         """Прямой URL видео для динамических обоев (стрим, без сохранения на диск)."""
@@ -287,5 +421,18 @@ class AsyncStreamer(AsyncStreamerInterface):
         self._cache.pop(key, None)
 
     def shutdown(self) -> None:
+        if self._buffer_loop is not None:
+            from concurrent.futures import TimeoutError as FuturesTimeoutError
+
+            future = __import__("asyncio").run_coroutine_threadsafe(
+                self._yandex_buffer.close(),
+                self._buffer_loop,
+            )
+            try:
+                future.result(timeout=3)
+            except FuturesTimeoutError:
+                logger.debug("Таймаут остановки Yandex buffer")
+            except Exception:
+                logger.debug("Ошибка остановки Yandex buffer", exc_info=True)
         if self._owns_executor:
             self._executor.shutdown(wait=False)

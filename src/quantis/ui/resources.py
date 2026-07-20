@@ -4,20 +4,24 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QColor, QIcon
 
+from quantis.ui.design_tokens import ACCENT_FALLBACK
 from quantis.utils import get_asset_path
 
 THEME_CLASSIC = "classic"
-THEME_NEON = "neon"
+THEME_NEON = "neon"  # Aurora (база)
+THEME_AURORA = THEME_NEON
+THEME_GLASS = "glass"
 THEME_EDITORIAL = "editorial"
 THEME_LIGHT = "light"
 THEME_YELLOW_DARK = "yellow_dark"
 DEFAULT_UI_THEME = THEME_NEON
 
 UI_THEME_LABELS: dict[str, str] = {
+    THEME_NEON: "Aurora",
+    THEME_GLASS: "Glass",
     THEME_CLASSIC: "Классическая",
-    THEME_NEON: "Неоновая",
     THEME_EDITORIAL: "Редакционная",
     THEME_LIGHT: "Светлая",
     THEME_YELLOW_DARK: "Тёмно-жёлтая",
@@ -26,6 +30,7 @@ UI_THEME_LABELS: dict[str, str] = {
 UI_THEME_BASE_QSS: dict[str, str] = {
     THEME_CLASSIC: "dark",
     THEME_NEON: "dark",
+    THEME_GLASS: "dark",
     THEME_EDITORIAL: "dark",
     THEME_LIGHT: "light",
     THEME_YELLOW_DARK: "yellow_dark",
@@ -78,6 +83,8 @@ def load_theme(theme: str = "dark") -> str:
 def normalize_ui_theme(ui_theme: str | None) -> str:
     if ui_theme in UI_THEME_LABELS:
         return ui_theme
+    if ui_theme == "aurora":
+        return THEME_NEON
     return DEFAULT_UI_THEME
 
 
@@ -98,7 +105,6 @@ def load_widget_styles(ui_theme: str = DEFAULT_UI_THEME) -> str:
         for path in sorted(theme_dir.glob("*.qss")):
             parts.append(path.read_text(encoding="utf-8"))
 
-    # Настройки поверх тем — иначе подписи остаются бледными.
     settings_qss = widget_dir / "settings.qss"
     if settings_qss.is_file():
         parts.append(settings_qss.read_text(encoding="utf-8"))
@@ -116,10 +122,44 @@ def wallpaper_path() -> str:
     return resolve_wallpaper_path(prefs.wallpaper_path or None)
 
 
-def load_stylesheet(ui_theme: str = DEFAULT_UI_THEME) -> str:
+def dynamic_accent_qss(accent: QColor | None = None) -> str:
+    """Runtime-фрагмент QSS с динамическим акцентом из обложки."""
+    if accent is None or not accent.isValid():
+        accent = QColor(ACCENT_FALLBACK)
+    rgb = f"rgb({accent.red()}, {accent.green()}, {accent.blue()})"
+    rgba14 = f"rgba({accent.red()}, {accent.green()}, {accent.blue()}, 36)"
+    rgba40 = f"rgba({accent.red()}, {accent.green()}, {accent.blue()}, 102)"
+    return f"""
+#controlButton[accent=true] {{
+    background: {rgb};
+    border-radius: 22px;
+}}
+#controlButton[accent=true]:hover {{
+    background: {rgba40};
+}}
+#trackTitle[playing="true"] {{ color: {rgb}; }}
+#nowPlayingAccent {{ color: {rgb}; }}
+#sideNavRail {{ border-color: {rgba14}; }}
+#seekSlider::sub-page:horizontal {{
+    background: {rgb};
+    border-radius: 2px;
+}}
+#seekSlider::handle:horizontal {{
+    border: 2px solid {rgb};
+}}
+"""
+
+
+def load_stylesheet(
+    ui_theme: str = DEFAULT_UI_THEME,
+    *,
+    accent: QColor | None = None,
+) -> str:
     theme_id = normalize_ui_theme(ui_theme)
     base = UI_THEME_BASE_QSS.get(theme_id, "dark")
-    return load_theme(base) + "\n" + load_widget_styles(theme_id)
+    sheet = load_theme(base) + "\n" + load_widget_styles(theme_id)
+    sheet += "\n" + dynamic_accent_qss(accent)
+    return sheet
 
 
 def format_ms(ms: int) -> str:

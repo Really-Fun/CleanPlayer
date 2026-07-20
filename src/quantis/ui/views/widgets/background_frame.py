@@ -6,9 +6,11 @@ from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QColor, QLinearGradient, QPainter, QRadialGradient
 from PySide6.QtWidgets import QFrame, QWidget
 
+from quantis.ui.design_tokens import ACCENT_FALLBACK, BG
+
 
 class BackgroundFrame(QFrame):
-    """Каркас окна: атмосфера темы + медленный aurora-pulse."""
+    """Каркас окна: Aurora / Glass атмосфера + pulse от динамического акцента."""
 
     def __init__(
         self,
@@ -21,6 +23,7 @@ class BackgroundFrame(QFrame):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
         self._variant = variant
         self._phase = 0.0
+        self._accent = QColor(ACCENT_FALLBACK)
         _ = wallpaper
 
         self._content = QWidget(self)
@@ -42,8 +45,13 @@ class BackgroundFrame(QFrame):
             self._variant = variant
             self.update()
 
+    def set_accent(self, color: QColor) -> None:
+        if color.isValid() and color != self._accent:
+            self._accent = QColor(color)
+            self.update()
+
     def _tick(self) -> None:
-        if self._variant not in ("neon", "yellow_dark", "classic"):
+        if self._variant not in ("neon", "glass", "yellow_dark", "classic"):
             return
         self._phase = (self._phase + 0.012) % (math.tau)
         self.update()
@@ -59,15 +67,15 @@ class BackgroundFrame(QFrame):
         w, h = rect.width(), rect.height()
 
         bases = {
-            "light": QColor(210, 216, 226),
+            "light": QColor(250, 251, 252),
             "yellow_dark": QColor(14, 10, 5),
             "editorial": QColor(10, 10, 12),
             "classic": QColor(10, 12, 16),
-            "neon": QColor(3, 5, 12),
+            "neon": QColor(BG),
+            "glass": QColor(11, 13, 18),
         }
-        painter.fillRect(rect, bases.get(self._variant, QColor(5, 6, 12)))
+        painter.fillRect(rect, bases.get(self._variant, QColor(BG)))
 
-        # Мягкий вертикальный «глубинный» градиент
         depth = QLinearGradient(0, 0, 0, h)
         if self._variant == "light":
             depth.setColorAt(0.0, QColor(255, 255, 255, 40))
@@ -75,8 +83,11 @@ class BackgroundFrame(QFrame):
         elif self._variant == "yellow_dark":
             depth.setColorAt(0.0, QColor(40, 24, 8, 50))
             depth.setColorAt(1.0, QColor(0, 0, 0, 90))
+        elif self._variant == "glass":
+            depth.setColorAt(0.0, QColor(20, 24, 33, 30))
+            depth.setColorAt(1.0, QColor(0, 0, 0, 80))
         else:
-            depth.setColorAt(0.0, QColor(20, 40, 70, 45))
+            depth.setColorAt(0.0, QColor(20, 28, 48, 40))
             depth.setColorAt(0.55, QColor(0, 0, 0, 0))
             depth.setColorAt(1.0, QColor(0, 0, 0, 110))
         painter.fillRect(rect, depth)
@@ -87,30 +98,43 @@ class BackgroundFrame(QFrame):
 
         pulse = 0.5 + 0.5 * math.sin(self._phase)
         pulse2 = 0.5 + 0.5 * math.sin(self._phase + 2.1)
+        accent = self._accent
 
-        if self._variant == "neon":
-            # Aurora — верхний правый cyan, нижний левый coral
+        if self._variant in ("neon", "glass"):
             cx = w * (0.78 + 0.06 * math.sin(self._phase * 0.7))
             cy = h * (0.08 + 0.04 * pulse)
             glow = QRadialGradient(cx, cy, w * (0.42 + 0.04 * pulse))
-            glow.setColorAt(0.0, QColor(46, 230, 255, int(34 + 14 * pulse)))
-            glow.setColorAt(0.45, QColor(46, 230, 255, int(10 + 6 * pulse)))
-            glow.setColorAt(1.0, QColor(46, 230, 255, 0))
+            glow.setColorAt(
+                0.0,
+                QColor(accent.red(), accent.green(), accent.blue(), int(36 + 16 * pulse)),
+            )
+            glow.setColorAt(
+                0.45,
+                QColor(accent.red(), accent.green(), accent.blue(), int(12 + 6 * pulse)),
+            )
+            glow.setColorAt(1.0, QColor(accent.red(), accent.green(), accent.blue(), 0))
             painter.fillRect(rect, glow)
 
             mx = w * (0.12 + 0.05 * math.cos(self._phase * 0.55))
             my = h * (0.85 - 0.05 * pulse2)
+            secondary = QColor(
+                min(255, accent.red() + 40),
+                max(0, accent.green() - 20),
+                min(255, accent.blue() + 30),
+            )
             coral = QRadialGradient(mx, my, w * (0.38 + 0.05 * pulse2))
-            coral.setColorAt(0.0, QColor(255, 92, 122, int(28 + 12 * pulse2)))
-            coral.setColorAt(0.5, QColor(255, 92, 122, 8))
-            coral.setColorAt(1.0, QColor(255, 92, 122, 0))
+            coral.setColorAt(
+                0.0,
+                QColor(
+                    secondary.red(),
+                    secondary.green(),
+                    secondary.blue(),
+                    int(24 + 10 * pulse2),
+                ),
+            )
+            coral.setColorAt(0.5, QColor(secondary.red(), secondary.green(), secondary.blue(), 8))
+            coral.setColorAt(1.0, QColor(secondary.red(), secondary.green(), secondary.blue(), 0))
             painter.fillRect(rect, coral)
-
-            # Тонкий центральный teal bloom
-            mid = QRadialGradient(w * 0.5, h * 0.45, w * 0.55)
-            mid.setColorAt(0.0, QColor(20, 180, 200, int(8 + 6 * pulse)))
-            mid.setColorAt(1.0, QColor(20, 180, 200, 0))
-            painter.fillRect(rect, mid)
 
         elif self._variant == "yellow_dark":
             glow = QRadialGradient(w * 0.85, h * 0.05, w * 0.4)
@@ -128,7 +152,6 @@ class BackgroundFrame(QFrame):
             glow.setColorAt(1.0, QColor(90, 130, 180, 0))
             painter.fillRect(rect, glow)
 
-        # Виньетка
         radius = max(w, h) * 0.78
         vignette = QRadialGradient(rect.center(), radius)
         vignette.setColorAt(0.4, QColor(0, 0, 0, 0))

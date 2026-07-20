@@ -18,9 +18,10 @@ from PySide6.QtGui import (
 
 from quantis.models.track import Track
 from quantis.providers.path_provider import PathProvider
+from quantis.ui.design_tokens import BADGE_YANDEX, BADGE_YOUTUBE
 
-_GRAD_YT = (QColor(220, 50, 50), QColor(140, 30, 30))
-_GRAD_YA = (QColor(0, 180, 220), QColor(80, 60, 200))
+_GRAD_YT = (QColor(BADGE_YOUTUBE), QColor(140, 30, 30))
+_GRAD_YA = (QColor(BADGE_YANDEX), QColor(180, 140, 20))
 
 # Общий LRU: ключ "(path|track)|size" → pixmap. Ограничивает рост ОЗУ.
 _COVER_CACHE_MAX = 96
@@ -176,7 +177,10 @@ def paint_rounded_cover(
     pixmap: QPixmap | None = None,
     source_key: str = "",
     radius: int = 8,
+    with_badge: bool = True,
 ) -> None:
+    from quantis.ui.views.widgets.source_badge import paint_source_badge
+
     painter.save()
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
@@ -203,4 +207,6 @@ def paint_rounded_cover(
         painter.setFont(QFont("Segoe UI", max(9, rect.width() // 4), QFont.Weight.Bold))
         painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, initial)
 
+    if with_badge and source_key:
+        paint_source_badge(painter, rect, source_key)
     painter.restore()

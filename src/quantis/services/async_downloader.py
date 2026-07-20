@@ -90,19 +90,40 @@ class AsyncYoutubeDownloader(AsyncDownloaderInterface):
     """Класс для асинхронного скачивания треков и обложек с ютуба"""
 
     def __init__(self) -> None:
-        self.opts = {
+        self._base_opts = {
             "quiet": True,
             "noplaylist": True,
             "extract_flat": False,
             "no_warnings": True,
             "nocheckcertificate": True,
-            "format": "bestaudio",
             "postprocessors": [],
         }
         self.path_provider = PathProvider()
         self._executor = ThreadPoolExecutor(max_workers=10)
         self._session: Optional[aiohttp.ClientSession] = None
         self._semaphore = Semaphore(value=8)
+
+    def _ydl_opts(self, outtmpl: str) -> dict:
+        return {
+            **self._base_opts,
+            "outtmpl": outtmpl,
+            "format": "bestaudio/best",
+            "extractor_args": {"youtube": {"player_client": ["android"]}},
+        }
+
+    def _ydl_opts_fallback(self, outtmpl: str) -> dict:
+        from quantis.config.credentials import youtube_yt_dlp_cookiefile
+
+        opts = {
+            **self._base_opts,
+            "outtmpl": outtmpl,
+            "format": "bestaudio/best",
+        }
+        cookiefile = youtube_yt_dlp_cookiefile()
+        if cookiefile:
+            # cookies только как запасной вариант (нужен JS runtime для web)
+            opts["cookiefile"] = cookiefile
+        return opts
 
     async def get_session(self) -> aiohttp.ClientSession:
         if self._session is None:
@@ -116,12 +137,20 @@ class AsyncYoutubeDownloader(AsyncDownloaderInterface):
         Args:
             track (YoutubeTrack): трек с Ютуба
         """
-        self.opts["outtmpl"] = self.path_provider.get_track_path(
-            track, extension="%(ext)s"
-        )
-        await get_running_loop().run_in_executor(
-            self._executor, self.sync_download, self.opts, track.track_id
-        )
+        outtmpl = self.path_provider.get_track_path(track, extension="%(ext)s")
+        for opts in (self._ydl_opts(outtmpl), self._ydl_opts_fallback(outtmpl)):
+            try:
+                await get_running_loop().run_in_executor(
+                    self._executor, self.sync_download, opts, track.track_id
+                )
+                return
+            except Exception:
+                logger.debug(
+                    "YouTube download attempt failed for %s",
+                    track.track_id,
+                    exc_info=True,
+                )
+        logger.error("Не удалось скачать трек с YouTube: %s", track.track_id)
 
     async def download_cover(self, track:  Track | YandexTrack | YoutubeTrack) -> None:
         """Асинхронное получение обложки с ютуб.
@@ -149,13 +178,10 @@ class AsyncYoutubeDownloader(AsyncDownloaderInterface):
 
     @staticmethod
     def sync_download(opts: dict, track_id: int | str) -> None:
-        try:
-            with YoutubeDL(opts) as ydl:
-                ydl.extract_info(
-                    f"https://youtube.com/watch?v={track_id}", download=True
-                )
-        except Exception:
-            logger.exception("Не удалось скачать трек с YouTube: %s", track_id)
+        with YoutubeDL(opts) as ydl:
+            ydl.extract_info(
+                f"https://youtube.com/watch?v={track_id}", download=True
+            )
 
     async def close(self) -> None:
         if self._session is not None and not self._session.closed:

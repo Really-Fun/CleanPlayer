@@ -5,6 +5,7 @@ from pathlib import Path
 
 from quantis.core.async_bridge import AsyncBridge
 from quantis.models import Track
+from quantis.models.playlist import WavePlaylist
 from quantis.player import Player
 from quantis.plugins.event_bus import EventBus
 from quantis.providers import PlaylistManager
@@ -32,6 +33,7 @@ class PlaybackController:
         self._history = history
         self._bridge = async_bridge
         self._current_track: Track | None = None
+        self._wave_skip_start_feedback = False
 
     @property
     def current_track(self) -> Track | None:
@@ -54,17 +56,19 @@ class PlaybackController:
             return None
         return path
 
+    async def _resolve_source(self, track: Track) -> str | None:
+        if track.downloaded:
+            local = self._local_path_if_ready(track)
+            if local:
+                return local
+
+        return await self.music.streamer.open_playback(track)
+
     async def play_track(self, track: Track | None) -> None:
         if not track:
             return
 
-        source: str | None = None
-        if track.downloaded:
-            source = self._local_path_if_ready(track)
-
-        if source is None:
-            source = await self.music.streamer.get_stream_url(track)
-
+        source = await self._resolve_source(track)
         if not source:
             message = f"Не удалось получить источник для воспроизведения: {track.title}"
             logger.warning(message)
@@ -83,11 +87,17 @@ class PlaybackController:
         if self._history is not None:
             resume_ms = await self._history.get_resume_position(track)
 
+        playlist = self.playlist_manager.current_playlist
+        if (
+            isinstance(playlist, WavePlaylist)
+            and not self._wave_skip_start_feedback
+        ):
+            await self.music.wave.notify_track_started(track, playlist)
+
         def start_playback() -> None:
             self._current_track = track
             self.player.current_track = track
             self.player.play(source)
-            # Не seek'аем HTTP-стримы сразу — ломает буфер FFmpeg.
             if resume_ms > 0 and not str(source).startswith(("http://", "https://")):
                 self.player.time = resume_ms
             if self._event_bus is not None:
@@ -102,8 +112,39 @@ class PlaybackController:
         playlist = self.playlist_manager.current_playlist
         if playlist is None or len(playlist) == 0:
             return
+
+        if isinstance(playlist, WavePlaylist) and playlist.source == "yandex":
+            await self._play_wave_next(playlist)
+            return
+
         track = playlist.move_next_track()
         await self.play_track(track)
+
+    async def _play_wave_next(self, playlist: WavePlaylist) -> None:
+        finished = self._current_track
+        if finished is None:
+            try:
+                finished = playlist.get_current_track()
+            except Exception:
+                finished = None
+        if finished is None:
+            return
+
+        played_seconds = max(0.0, self.player.time / 1000.0)
+        nxt = await self.music.wave.continue_after_finish(
+            playlist,
+            finished,
+            played_seconds=played_seconds,
+        )
+        if nxt is None:
+            logger.info("Моя волна: нет следующего трека")
+            return
+
+        self._wave_skip_start_feedback = True
+        try:
+            await self.play_track(nxt)
+        finally:
+            self._wave_skip_start_feedback = False
 
     async def play_previous(self) -> None:
         playlist = self.playlist_manager.current_playlist
@@ -118,3 +159,4 @@ class PlaybackController:
     async def generate_radio(self, track: Track | None):
         if track:
             return await self.music.recommendation.generate_radio_from_track(track)
+

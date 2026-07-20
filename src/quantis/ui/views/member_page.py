@@ -109,15 +109,26 @@ class MemberPage(QWidget):
 
         cookie_row, cookie_body = self._row(
             "Cookies YouTube Music",
-            "JSON cookies / auth для ytmusicapi (файл credentials/youtube_cookies.txt)",
+            "Лучше: Request Headers с music.youtube.com (Network → browse). "
+            "Также: JSON Cookie-Editor / Netscape. Сохраняется в credentials/youtube_cookies.txt",
         )
         self._youtube_cookie = QPlainTextEdit()
         self._youtube_cookie.setObjectName("settingLineEdit")
         self._youtube_cookie.setPlaceholderText(
-            "Вставьте cookies (JSON) из браузера или auth-файл ytmusicapi"
+            "Вставьте Request Headers с music.youtube.com\n"
+            "или JSON кук Cookie-Editor / EditThisCookie (youtube.com)\n"
+            "или готовый browser.json от ytmusicapi"
         )
-        self._youtube_cookie.setFixedHeight(96)
+        self._youtube_cookie.setFixedHeight(120)
         cookie_body.addWidget(self._youtube_cookie)
+        hint = QLabel(
+            "Куки сохраняются для YouTube Music (поиск) и yt-dlp (воспроизведение). "
+            "Лучше Request Headers с music.youtube.com (Network → POST browse). "
+            "Нужны SAPISID / сессия Music — иначе «Sign in to confirm you’re not a bot»."
+        )
+        hint.setObjectName("settingsRowDesc")
+        hint.setWordWrap(True)
+        cookie_body.addWidget(hint)
         cookie_actions = QHBoxLayout()
         cookie_actions.addStretch()
         self._save_cookie_btn = QPushButton("Сохранить")

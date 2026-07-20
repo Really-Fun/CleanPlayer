@@ -40,6 +40,8 @@ class SearchViewModel(BaseViewModel):
         self._pending_query = ""
         self._search_generation = 0
         self._inflight_searches = 0
+        self._all_tracks: list[Track] = []
+        self._source_filter = "all"  # all | yandex | youtube
 
     @property
     def model(self) -> TrackListModel:
@@ -49,6 +51,7 @@ class SearchViewModel(BaseViewModel):
         self._pending_query = query.strip()
         if not self._pending_query:
             self._debounce.stop()
+            self._all_tracks = []
             self._model.set_tracks([])
             self.results_changed.emit()
             return
@@ -59,9 +62,46 @@ class SearchViewModel(BaseViewModel):
         self._debounce.stop()
         self._pending_query = ""
         self._search_generation += 1
+        self._all_tracks = []
         self._model.clear()
         self.set_loading(False)
         self.results_changed.emit()
+
+    def set_source_filter(self, source: str) -> None:
+        key = (source or "all").lower()
+        if key not in ("all", "yandex", "youtube"):
+            key = "all"
+        if self._source_filter == key:
+            return
+        self._source_filter = key
+        self._apply_filter()
+
+    @property
+    def source_filter(self) -> str:
+        return self._source_filter
+
+    def _filtered_tracks(self) -> list[Track]:
+        if self._source_filter == "all":
+            return list(self._all_tracks)
+        return [
+            t
+            for t in self._all_tracks
+            if str(t.source).lower() == self._source_filter
+        ]
+
+    def _apply_filter(self) -> None:
+        filtered = self._filtered_tracks()
+        self._model.set_tracks(filtered)
+        self.results_changed.emit()
+        if self._all_tracks:
+            ya = sum(1 for t in self._all_tracks if str(t.source).lower() == "yandex")
+            yt = sum(1 for t in self._all_tracks if str(t.source).lower() == "youtube")
+            shown = len(filtered)
+            if self._source_filter == "all":
+                self.status_message.emit(f"Найдено: {shown} (Yandex: {ya}, YouTube: {yt})")
+            else:
+                label = "Yandex" if self._source_filter == "yandex" else "YouTube"
+                self.status_message.emit(f"{label}: {shown} из {len(self._all_tracks)}")
 
     def search_now(self) -> None:
         self._debounce.stop()
@@ -129,7 +169,8 @@ class SearchViewModel(BaseViewModel):
                     items: list[Track] = snapshot,
                     message: str = status,
                 ) -> None:
-                    self._model.set_tracks(items)
+                    self._all_tracks = items
+                    self._model.set_tracks(self._filtered_tracks())
                     self.results_changed.emit()
                     if message:
                         self.status_message.emit(message)
@@ -171,7 +212,7 @@ class SearchViewModel(BaseViewModel):
             bridge.invoke_main(finish)
 
     def _tracks_snapshot(self) -> list[Track]:
-        return self._model.all_tracks()
+        return self._filtered_tracks()
 
     async def play_track(self, track: Track) -> None:
         tracks = self._tracks_snapshot()

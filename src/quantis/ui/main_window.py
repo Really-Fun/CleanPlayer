@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtCore import QEvent, QPropertyAnimation, Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QApplication,
     QGraphicsOpacityEffect,
@@ -15,20 +17,25 @@ from PySide6.QtWidgets import (
 from quantis.core.bootstrap import ApplicationBundle
 from quantis.ui import resources
 from quantis.ui.controllers.dynamic_wallpaper import DynamicWallpaperController
+from quantis.ui.cover_accent import accent_from_cover_path
+from quantis.ui.design_tokens import ACCENT_FALLBACK
 from quantis.ui.preferences import UiPreferences
 from quantis.ui.viewmodels.home_vm import HomeViewModel
 from quantis.ui.viewmodels.player_vm import PlayerViewModel
-from quantis.ui.viewmodels.search_vm import SearchViewModel
 from quantis.ui.viewmodels.playlist_vm import PlaylistViewModel
+from quantis.ui.viewmodels.search_vm import SearchViewModel
 from quantis.ui.views.home_page import HomePage
 from quantis.ui.views.library_page import LibraryPage
 from quantis.ui.views.member_page import MemberPage
-from quantis.ui.views.playlist_page import PlaylistPage
 from quantis.ui.views.player_bar import PlayerBar
+from quantis.ui.views.playlist_page import PlaylistPage
+from quantis.ui.views.plugins_page import PluginsPage
 from quantis.ui.views.search_page import SearchPage
 from quantis.ui.views.settings_page import SettingsPage
 from quantis.ui.views.widgets.app_header import AppHeader
 from quantis.ui.views.widgets.background_frame import BackgroundFrame
+from quantis.ui.views.widgets.now_playing_fullscreen import NowPlayingFullscreen
+from quantis.ui.views.widgets.now_playing_panel import NowPlayingPanel
 from quantis.ui.views.widgets.side_nav import SideNavRail
 from quantis.ui.views.widgets.wallpaper_backdrop import BodyWithWallpaper
 
@@ -37,14 +44,16 @@ class QuantisMainWindow(QMainWindow):
     PAGE_HOME = 0
     PAGE_SEARCH = 1
     PAGE_LIBRARY = 2
-    PAGE_MEMBER = 3
-    PAGE_SETTINGS = 4
-    PAGE_PLAYLIST = 5
+    PAGE_PLUGINS = 3
+    PAGE_MEMBER = 4
+    PAGE_SETTINGS = 5
+    PAGE_PLAYLIST = 6
 
     _PAGE_META = {
         PAGE_HOME: ("Главная", ""),
         PAGE_SEARCH: ("Поиск", ""),
         PAGE_LIBRARY: ("Библиотека", ""),
+        PAGE_PLUGINS: ("Плагины", ""),
         PAGE_MEMBER: ("Member", ""),
         PAGE_SETTINGS: ("Настройки", ""),
     }
@@ -66,9 +75,10 @@ class QuantisMainWindow(QMainWindow):
             Qt.WindowType.Window
             | Qt.WindowType.FramelessWindowHint
         )
-        self.setMinimumSize(960, 640)
-        self.resize(1200, 760)
+        self.setMinimumSize(1024, 640)
+        self.resize(1280, 800)
         self._current_page = -1
+        self._accent = QColor(ACCENT_FALLBACK)
 
         self._player_vm = PlayerViewModel(
             bundle.playback,
@@ -124,6 +134,7 @@ class QuantisMainWindow(QMainWindow):
         self._nav = SideNavRail()
         self._nav.page_changed.connect(self._on_page_changed)
 
+        # Content column
         content_host = QWidget()
         content = QVBoxLayout(content_host)
         content.setContentsMargins(0, 0, 0, 0)
@@ -134,20 +145,49 @@ class QuantisMainWindow(QMainWindow):
 
         self._home_page = HomePage(self._home_vm, self._bridge, self._ui_prefs)
         self._library_page = LibraryPage(self._home_vm, self._bridge)
-        # Search / Member / Settings / Playlist — лениво при первом открытии.
         self._search_page: SearchPage | None = None
+        self._plugins_page: PluginsPage | None = None
         self._member_page: MemberPage | None = None
         self._settings_page: SettingsPage | None = None
         self._playlist_page: PlaylistPage | None = None
 
-        self._stack.addWidget(self._home_page)
-        self._stack.addWidget(QWidget())  # PAGE_SEARCH placeholder
-        self._stack.addWidget(self._library_page)
-        self._stack.addWidget(QWidget())  # PAGE_MEMBER placeholder
-        self._stack.addWidget(QWidget())  # PAGE_SETTINGS placeholder
-        self._stack.addWidget(QWidget())  # PAGE_PLAYLIST placeholder
+        self._stack.addWidget(self._home_page)  # 0
+        self._stack.addWidget(QWidget())  # 1 SEARCH
+        self._stack.addWidget(self._library_page)  # 2
+        self._stack.addWidget(QWidget())  # 3 PLUGINS
+        self._stack.addWidget(QWidget())  # 4 MEMBER
+        self._stack.addWidget(QWidget())  # 5 SETTINGS
+        self._stack.addWidget(QWidget())  # 6 PLAYLIST
 
         self._home_page.playlist_open_requested.connect(self._open_playlist_page)
+
+        content.addWidget(self._stack, stretch=1)
+
+        self._now_playing = NowPlayingPanel(
+            bundle.music.provider,
+            bridge=self._bridge,
+            music=bundle.music,
+        )
+        self._now_playing.lyrics_requested.connect(self._open_now_playing_fullscreen)
+
+        self._np_fullscreen = NowPlayingFullscreen(bundle.music.provider, parent=shell)
+        self._np_fullscreen.closed.connect(self._np_fullscreen.hide)
+        self._np_fullscreen.hide()
+
+        mid = QWidget()
+        mid_layout = QHBoxLayout(mid)
+        mid_layout.setContentsMargins(0, 0, 0, 0)
+        mid_layout.setSpacing(10)
+        mid_layout.addWidget(self._nav)
+        mid_layout.addWidget(content_host, stretch=1)
+        mid_layout.addWidget(self._now_playing)
+
+        columns = QVBoxLayout()
+        columns.setContentsMargins(0, 0, 0, 0)
+        columns.setSpacing(0)
+        columns_host = QWidget()
+        columns_host.setLayout(columns)
+        columns.addWidget(mid, stretch=1)
 
         self._player_bar = PlayerBar(
             self._player_vm,
@@ -158,12 +198,10 @@ class QuantisMainWindow(QMainWindow):
                 self._home_vm.refresh_liked(self._bridge)
             ),
         )
+        self._player_bar.now_playing_toggle_requested.connect(self._toggle_now_playing)
+        columns.addWidget(self._player_bar)
 
-        content.addWidget(self._stack, stretch=1)
-        content.addWidget(self._player_bar)
-
-        body.addWidget(self._nav)
-        body.addWidget(content_host, stretch=1)
+        body.addWidget(columns_host, stretch=1)
         root.addWidget(self._body_shell, stretch=1)
 
         for view_model in (self._player_vm, self._search_vm, self._home_vm, self._playlist_vm):
@@ -185,7 +223,18 @@ class QuantisMainWindow(QMainWindow):
             parent=self,
         )
         self._apply_ui_theme(self._ui_prefs.ui_theme)
+        self._sync_now_playing_visibility()
         self._on_page_changed(self.PAGE_HOME)
+
+    def _toggle_now_playing(self) -> None:
+        self._ui_prefs.set_show_now_playing_panel(
+            not self._ui_prefs.show_now_playing_panel
+        )
+
+    def _sync_now_playing_visibility(self) -> None:
+        wide = self.width() >= 1100
+        show = self._ui_prefs.show_now_playing_panel and wide
+        self._now_playing.setVisible(show)
 
     def _on_page_changed(self, page_id: int) -> None:
         if page_id < 0 or page_id >= self._stack.count():
@@ -208,6 +257,12 @@ class QuantisMainWindow(QMainWindow):
             self._search_page = SearchPage(self._search_vm, self._bridge)
             self._replace_stack_page(self.PAGE_SEARCH, self._search_page)
         return self._search_page
+
+    def _ensure_plugins_page(self) -> PluginsPage:
+        if self._plugins_page is None:
+            self._plugins_page = PluginsPage(self._bridge)
+            self._replace_stack_page(self.PAGE_PLUGINS, self._plugins_page)
+        return self._plugins_page
 
     def _ensure_member_page(self) -> MemberPage:
         if self._member_page is None:
@@ -237,6 +292,8 @@ class QuantisMainWindow(QMainWindow):
             return
         if page_id == self.PAGE_SEARCH:
             self._ensure_search_page()
+        elif page_id == self.PAGE_PLUGINS:
+            self._ensure_plugins_page()
         elif page_id == self.PAGE_MEMBER:
             self._ensure_member_page()
         elif page_id == self.PAGE_SETTINGS:
@@ -267,7 +324,6 @@ class QuantisMainWindow(QMainWindow):
         anim.setStartValue(0.0)
         anim.setEndValue(1.0)
         anim.start()
-        # Держим ссылку, иначе GC остановит анимацию
         page._quantis_fade = anim  # type: ignore[attr-defined]
 
     def _open_playlist_page(self, playlist) -> None:
@@ -295,6 +351,27 @@ class QuantisMainWindow(QMainWindow):
         if self._playlist_page is not None:
             self._playlist_page.set_playing_track(track)
         self._home_page.refresh_featured()
+        self._now_playing.set_track(track)
+        self._np_fullscreen.set_track(track)
+        self._update_accent_from_track(track)
+
+    def _open_now_playing_fullscreen(self) -> None:
+        track = self._bundle.playback.current_track
+        self._np_fullscreen.set_track(track)
+        self._np_fullscreen.setGeometry(self._shell.rect())
+        self._np_fullscreen.raise_()
+        self._np_fullscreen.show()
+
+    def _update_accent_from_track(self, track) -> None:
+        path = Path(self._bundle.music.provider.get_cover_path(track))
+        color = accent_from_cover_path(path if path.is_file() else None)
+        self._accent = color
+        self._shell.set_accent(color)
+        self._nav.set_accent(color)
+        self.setStyleSheet(
+            resources.load_stylesheet(self._applied_theme or self._ui_prefs.ui_theme, accent=color)
+        )
+        self._player_bar.refresh_theme()
 
     def _on_history_updated(self) -> None:
         from quantis.ui.async_ui import schedule
@@ -306,6 +383,7 @@ class QuantisMainWindow(QMainWindow):
         if theme != self._applied_theme:
             self._apply_ui_theme(theme)
         self._apply_wallpaper()
+        self._sync_now_playing_visibility()
         self._player_bar.refresh_theme()
         if self._ui_prefs.dynamic_wallpaper_enabled:
             self._dynamic_wallpaper.refresh_for_track(self._bundle.playback.current_track)
@@ -316,7 +394,7 @@ class QuantisMainWindow(QMainWindow):
 
     def _apply_ui_theme(self, theme_id: str) -> None:
         self._applied_theme = theme_id
-        self.setStyleSheet(resources.load_stylesheet(theme_id))
+        self.setStyleSheet(resources.load_stylesheet(theme_id, accent=self._accent))
         self._shell.set_variant(theme_id)
         self._body_shell.set_variant(theme_id)
         self._player_bar.refresh_theme()
@@ -331,6 +409,12 @@ class QuantisMainWindow(QMainWindow):
         super().changeEvent(event)
         if event.type() == QEvent.Type.WindowStateChange:
             self._header.set_maximized(self.isMaximized())
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._sync_now_playing_visibility()
+        if self._np_fullscreen.isVisible():
+            self._np_fullscreen.setGeometry(self._shell.rect())
 
     def _show_error(self, message: str) -> None:
         import logging

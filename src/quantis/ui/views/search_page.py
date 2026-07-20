@@ -3,10 +3,13 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QButtonGroup,
+    QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
     QTableView,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -46,6 +49,29 @@ class SearchPage(QWidget):
         self._query.textChanged.connect(self._vm.search)
         self._query.returnPressed.connect(self._vm.search_now)
         panel_layout.addWidget(self._query)
+
+        filters = QHBoxLayout()
+        filters.setSpacing(8)
+        self._filter_group = QButtonGroup(self)
+        self._filter_group.setExclusive(True)
+        for key, label in (
+            ("all", "Все"),
+            ("yandex", "Яндекс"),
+            ("youtube", "YouTube"),
+        ):
+            chip = QToolButton()
+            chip.setObjectName("sourceFilterChip")
+            chip.setText(label)
+            chip.setCheckable(True)
+            chip.setCursor(Qt.CursorShape.PointingHandCursor)
+            chip.setProperty("filterKey", key)
+            if key == "all":
+                chip.setChecked(True)
+            self._filter_group.addButton(chip)
+            filters.addWidget(chip)
+            chip.clicked.connect(lambda checked=False, k=key: self._vm.set_source_filter(k))
+        filters.addStretch()
+        panel_layout.addLayout(filters)
 
         self._status = QLabel("")
         self._status.setObjectName("searchStatus")

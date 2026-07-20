@@ -3,8 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtCore import QSize, Qt
-from PySide6.QtGui import QPixmap
+from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtGui import QPainter, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -23,12 +23,40 @@ from quantis.services.liked_tracks import LikedTracksService
 from quantis.services.music_service import MusicService
 from quantis.ui import resources
 from quantis.ui.cover_prefetch import schedule_cover_prefetch
+from quantis.ui.ui_extensions import UiExtensionHost
 from quantis.ui.viewmodels.player_vm import PlayerViewModel
 from quantis.ui.views.widgets.cover_art import load_cover_pixmap
+from quantis.ui.views.widgets.source_badge import paint_source_badge
+
+
+class _PlayerCover(QLabel):
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("coverLabel")
+        self.setFixedSize(56, 56)
+        self._pixmap = QPixmap()
+        self._source: str | None = None
+
+    def set_cover(self, pixmap: QPixmap | None, source: str | None) -> None:
+        self._pixmap = pixmap if pixmap is not None else QPixmap()
+        self._source = source
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        rect = self.rect()
+        if not self._pixmap.isNull():
+            painter.drawPixmap(rect, self._pixmap)
+        if self._source:
+            paint_source_badge(painter, rect, self._source, size=14)
+        painter.end()
 
 
 class PlayerBar(QFrame):
-    """Нижняя панель плеера — трёхколоночная сетка, seek сверху."""
+    """Нижняя панель ~80px: meta | transport+seek | actions."""
+
+    now_playing_toggle_requested = Signal()
 
     def __init__(
         self,
@@ -51,24 +79,65 @@ class PlayerBar(QFrame):
         self._seeking = False
         self._is_playing = False
         self._track_liked = False
+        self._plugin_buttons: list[QToolButton] = []
+        self._extensions = UiExtensionHost.instance()
         self.setObjectName("playerDock")
+        self.setFixedHeight(88)
 
         dock = QVBoxLayout(self)
-        dock.setContentsMargins(12, 4, 12, 14)
+        dock.setContentsMargins(10, 4, 10, 10)
         dock.setSpacing(0)
 
         card = QFrame()
         card.setObjectName("PlayMenu")
 
         card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(18, 12, 18, 12)
-        card_layout.setSpacing(10)
+        card_layout.setContentsMargins(16, 10, 16, 10)
+        card_layout.setSpacing(6)
+
+        # Left: cover + meta
+        self._cover = _PlayerCover()
+        meta = QVBoxLayout()
+        meta.setSpacing(2)
+        meta.setContentsMargins(0, 0, 0, 0)
+        self._title = QLabel("Выберите трек")
+        self._author = QLabel("")
+        self._title.setObjectName("trackTitle")
+        self._author.setObjectName("trackArtist")
+        self._title.setMaximumWidth(220)
+        self._author.setMaximumWidth(220)
+        meta.addWidget(self._title)
+        meta.addWidget(self._author)
+
+        left = QWidget()
+        left.setObjectName("playerLeft")
+        left.setFixedWidth(300)
+        left_layout = QHBoxLayout(left)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(12)
+        left_layout.addWidget(self._cover)
+        left_layout.addLayout(meta, stretch=1)
+
+        # Center: transport + seek
+        self._prev_btn = self._make_button("prev.svg", "Назад", size=34)
+        self._play_btn = self._make_button("play.svg", "Play", accent=True, size=44)
+        self._next_btn = self._make_button("next.svg", "Далее", size=34)
+        self._prev_btn.clicked.connect(self._vm.play_previous)
+        self._play_btn.clicked.connect(self._vm.toggle_pause)
+        self._next_btn.clicked.connect(self._vm.play_next)
+
+        transport = QHBoxLayout()
+        transport.setSpacing(8)
+        transport.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        transport.addWidget(self._prev_btn)
+        transport.addWidget(self._play_btn)
+        transport.addWidget(self._next_btn)
 
         seek_row = QHBoxLayout()
-        seek_row.setSpacing(10)
+        seek_row.setSpacing(8)
         self._elapsed = QLabel("0:00")
         self._elapsed.setObjectName("timeLabel")
-        self._elapsed.setFixedWidth(38)
+        self._elapsed.setFixedWidth(36)
         self._elapsed.setAlignment(
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
@@ -80,99 +149,65 @@ class PlayerBar(QFrame):
         self._position.sliderReleased.connect(self._on_seek_end)
         self._duration_label = QLabel("0:00")
         self._duration_label.setObjectName("timeLabel")
-        self._duration_label.setFixedWidth(38)
-        self._duration_label.setAlignment(
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
-        )
+        self._duration_label.setFixedWidth(36)
         seek_row.addWidget(self._elapsed)
         seek_row.addWidget(self._position, stretch=1)
         seek_row.addWidget(self._duration_label)
 
-        divider = QFrame()
-        divider.setObjectName("playerInnerDivider")
-        divider.setFixedHeight(1)
-
-        self._cover = QLabel()
-        self._cover.setObjectName("coverLabel")
-        self._cover.setFixedSize(52, 52)
-        self._cover.setScaledContents(True)
-
-        meta = QVBoxLayout()
-        meta.setSpacing(2)
-        meta.setContentsMargins(0, 0, 0, 0)
-        meta.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-        self._title = QLabel("Выберите трек")
-        self._author = QLabel("")
-        self._title.setObjectName("trackTitle")
-        self._author.setObjectName("trackArtist")
-        self._title.setMaximumWidth(320)
-        self._author.setMaximumWidth(320)
-        meta.addWidget(self._title)
-        meta.addWidget(self._author)
-
-        self._like_btn = self._make_button("heart.svg", "В любимые", size=32)
-        self._like_btn.clicked.connect(self._on_like_clicked)
-
-        left = QWidget()
-        left.setObjectName("playerLeft")
-        left_layout = QHBoxLayout(left)
-        left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(12)
-        left_layout.addWidget(self._cover)
-        left_layout.addLayout(meta, stretch=1)
-        left_layout.addWidget(self._like_btn)
-
-        self._prev_btn = self._make_button("prev.svg", "Назад", size=34)
-        self._play_btn = self._make_button("play.svg", "Play", accent=True, size=44)
-        self._next_btn = self._make_button("next.svg", "Далее", size=34)
-        self._prev_btn.clicked.connect(self._vm.play_previous)
-        self._play_btn.clicked.connect(self._vm.toggle_pause)
-        self._next_btn.clicked.connect(self._vm.play_next)
-
         center = QWidget()
         center.setObjectName("playerCenter")
-        center_layout = QHBoxLayout(center)
+        center_layout = QVBoxLayout(center)
         center_layout.setContentsMargins(0, 0, 0, 0)
-        center_layout.setSpacing(8)
-        center_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        center_layout.addWidget(self._prev_btn)
-        center_layout.addWidget(self._play_btn)
-        center_layout.addWidget(self._next_btn)
+        center_layout.setSpacing(2)
+        center_layout.addLayout(transport)
+        center_layout.addLayout(seek_row)
 
+        # Right: actions
+        self._like_btn = self._make_button("heart.svg", "В любимые", size=32)
+        self._like_btn.clicked.connect(self._on_like_clicked)
+        self._download_btn = self._make_button("download.svg", "Скачать", size=32)
+        self._download_btn.setEnabled(False)
+        self._download_btn.clicked.connect(self._on_download_clicked)
+        self._now_btn = self._make_button("radio.svg", "Now Playing", size=32)
+        self._now_btn.clicked.connect(self.now_playing_toggle_requested.emit)
         self._volume = QSlider(Qt.Orientation.Horizontal)
         self._volume.setObjectName("volSlider")
-        self._volume.setFixedWidth(84)
+        self._volume.setFixedWidth(72)
         self._volume.setRange(0, 100)
         self._volume.valueChanged.connect(self._vm.set_volume)
 
         right = QWidget()
         right.setObjectName("playerRight")
-        right_layout = QHBoxLayout(right)
-        right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(0)
-        right_layout.setAlignment(
+        right.setFixedWidth(300)
+        self._right_layout = QHBoxLayout(right)
+        self._right_layout.setContentsMargins(0, 0, 0, 0)
+        self._right_layout.setSpacing(4)
+        self._right_layout.setAlignment(
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
-        right_layout.addWidget(self._volume)
+        self._plugin_slot = QHBoxLayout()
+        self._plugin_slot.setSpacing(2)
+        self._right_layout.addLayout(self._plugin_slot)
+        self._right_layout.addWidget(self._now_btn)
+        self._right_layout.addWidget(self._download_btn)
+        self._right_layout.addWidget(self._like_btn)
+        self._right_layout.addWidget(self._volume)
 
         body = QGridLayout()
         body.setContentsMargins(0, 0, 0, 0)
         body.setHorizontalSpacing(12)
-        body.setColumnStretch(0, 1)
-        body.setColumnStretch(1, 0)
-        body.setColumnStretch(2, 1)
-        body.addWidget(
-            left, 0, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
-        )
-        body.addWidget(center, 0, 1, Qt.AlignmentFlag.AlignCenter)
-        body.addWidget(
-            right, 0, 2, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-        )
+        body.setColumnStretch(0, 0)
+        body.setColumnStretch(1, 1)
+        body.setColumnStretch(2, 0)
+        body.addWidget(left, 0, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        body.addWidget(center, 0, 1)
+        body.addWidget(right, 0, 2, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-        card_layout.addLayout(seek_row)
-        card_layout.addWidget(divider)
         card_layout.addLayout(body)
         dock.addWidget(card)
+
+        self._extensions.player_actions_changed.connect(self._rebuild_plugin_actions)
+        self._rebuild_plugin_actions()
 
         self._vm.track_changed.connect(self._on_track_changed)
         self._vm.is_playing_changed.connect(self._on_playing_changed)
@@ -185,6 +220,27 @@ class PlayerBar(QFrame):
         self._vm.set_volume(80)
         self._vm.sync_from_player()
         self._update_like_button()
+
+    def _rebuild_plugin_actions(self) -> None:
+        while self._plugin_slot.count():
+            item = self._plugin_slot.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        self._plugin_buttons.clear()
+        for action in self._extensions.player_actions():
+            btn = QToolButton()
+            btn.setObjectName("controlButton")
+            btn.setProperty("plugin", True)
+            btn.setIcon(action.icon or resources.load_icon("puzzle.svg"))
+            btn.setIconSize(QSize(16, 16))
+            btn.setToolTip(action.tooltip + " · плагин")
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setFixedSize(32, 32)
+            btn.clicked.connect(action.callback)
+            self._repolish(btn)
+            self._plugin_slot.addWidget(btn)
+            self._plugin_buttons.append(btn)
 
     def _make_button(
         self,
@@ -227,9 +283,11 @@ class PlayerBar(QFrame):
 
     def _apply_cover(self, track: Track) -> None:
         cover_path = Path(self._path_provider.get_cover_path(track))
-        size = max(self._cover.width(), self._cover.height(), 48)
-        pixmap = load_cover_pixmap(cover_path, size)
-        self._cover.setPixmap(pixmap if pixmap is not None else QPixmap())
+        pixmap = load_cover_pixmap(cover_path, 56)
+        self._cover.set_cover(
+            pixmap if pixmap is not None else QPixmap(),
+            str(getattr(track, "source", "") or ""),
+        )
 
     def _on_track_changed(self, track) -> None:
         self._current_track = track
@@ -237,6 +295,7 @@ class PlayerBar(QFrame):
         self._author.setText(track.author)
         self._author.setVisible(bool(track.author))
         self._apply_cover(track)
+        self._download_btn.setEnabled(not bool(getattr(track, "downloaded", False)))
         if self._bridge is not None and self._music is not None:
             schedule_cover_prefetch(
                 [track],
@@ -264,6 +323,26 @@ class PlayerBar(QFrame):
         if track is None or self._bridge is None:
             return
         self._bridge.schedule(self._toggle_like(track))
+
+    def _on_download_clicked(self) -> None:
+        track = self._current_track
+        if track is None or self._bridge is None or self._music is None:
+            return
+        if getattr(track, "downloaded", False):
+            return
+        self._bridge.schedule(self._download_track(track))
+
+    async def _download_track(self, track: Track) -> None:
+        try:
+            await self._music.downloader.download_track(track)
+            await self._music.downloader.download_cover(track)
+            track.downloaded = True
+            if self._bridge is not None:
+                self._bridge.invoke_main(lambda: self._download_btn.setEnabled(False))
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).exception("PlayerBar: download failed")
 
     async def _toggle_like(self, track: Track) -> None:
         liked = await self._liked.toggle(track)
@@ -295,7 +374,16 @@ class PlayerBar(QFrame):
         self._vm.seek(self._position.value())
 
     def refresh_theme(self) -> None:
-        for button in (self._prev_btn, self._play_btn, self._next_btn, self._like_btn):
+        buttons = [
+            self._prev_btn,
+            self._play_btn,
+            self._next_btn,
+            self._like_btn,
+            self._download_btn,
+            self._now_btn,
+            *self._plugin_buttons,
+        ]
+        for button in buttons:
             self._repolish(button)
         self._set_title_playing(self._is_playing)
         self._update_like_button()

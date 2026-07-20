@@ -4,19 +4,19 @@ from __future__ import annotations
 
 from PySide6.QtGui import QColor, QFont
 
-# Цвета — Aurora Pulse
+# Цвета — Aurora
 C_BG_HOVER = QColor(255, 255, 255, 16)
-C_BG_PLAYING = QColor(46, 230, 255, 22)
+C_BG_PLAYING = QColor(108, 92, 231, 28)
 C_BG_ALT = QColor(255, 255, 255, 4)
-C_ACCENT = QColor(46, 230, 255)
-C_TITLE = QColor(248, 250, 252)
-C_TITLE_PLAYING = QColor(46, 230, 255)
-C_SUBTITLE = QColor(248, 250, 252, 120)
-C_INDEX = QColor(255, 255, 255, 85)
-C_INDEX_PLAYING = QColor(46, 230, 255)
-C_YT = QColor(255, 92, 122, 190)
-C_YA = QColor(46, 200, 230, 190)
-C_PILL_TEXT = QColor(255, 255, 255, 220)
+C_ACCENT = QColor(108, 92, 231)
+C_TITLE = QColor(242, 244, 248)
+C_TITLE_PLAYING = QColor(108, 92, 231)
+C_SUBTITLE = QColor(138, 146, 166)
+C_INDEX = QColor(138, 146, 166)
+C_INDEX_PLAYING = QColor(108, 92, 231)
+C_YT = QColor(255, 78, 69)
+C_YA = QColor(255, 219, 77)
+C_PILL_TEXT = QColor(20, 22, 28)
 
 _UI = "Bahnschrift"
 FONT_TITLE = QFont(_UI, 10, QFont.Weight.DemiBold)
