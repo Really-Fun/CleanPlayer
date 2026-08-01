@@ -1,23 +1,38 @@
-"""Движок воспроизведения на Qt Multimedia."""
+"""Движок воспроизведения на Qt Multimedia (FFmpeg)."""
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
+from typing import Callable
 
 from PySide6.QtCore import QUrl
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 
+logger = logging.getLogger(__name__)
+
 
 class QtMediaEngine:
-    """Владеет QMediaPlayer и QAudioOutput."""
+    """Владеет QMediaPlayer и QAudioOutput; события — через колбэки."""
 
     def __init__(self) -> None:
         self._player = QMediaPlayer()
         self._audio = QAudioOutput()
         self._player.setAudioOutput(self._audio)
 
+        self._playing_cbs: list[Callable[[], None]] = []
+        self._paused_cbs: list[Callable[[], None]] = []
+        self._stopped_cbs: list[Callable[[], None]] = []
+        self._ended_cbs: list[Callable[[], None]] = []
+        self._error_cbs: list[Callable[[str], None]] = []
+
+        self._player.mediaStatusChanged.connect(self._on_media_status)
+        self._player.playbackStateChanged.connect(self._on_playback_state)
+        self._player.errorOccurred.connect(self._on_error)
+
     @property
     def media_player(self) -> QMediaPlayer:
+        """Совместимость со старым кодом/тестами."""
         return self._player
 
     @property
@@ -42,3 +57,73 @@ class QtMediaEngine:
 
     def stop_media(self) -> None:
         self._player.stop()
+
+    def is_playing(self) -> bool:
+        return (
+            self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState
+        )
+
+    def get_position_ms(self) -> int:
+        return max(0, int(self._player.position()))
+
+    def set_position_ms(self, ms: int) -> None:
+        self._player.setPosition(max(0, int(ms)))
+
+    def get_duration_ms(self) -> int:
+        return max(0, int(self._player.duration()))
+
+    def get_volume(self) -> int:
+        return int(self._audio.volume() * 100)
+
+    def set_volume(self, value: int) -> None:
+        self._audio.setVolume(max(0, min(100, int(value))) / 100.0)
+
+    def on_playing(self, callback: Callable[[], None]) -> None:
+        self._playing_cbs.append(callback)
+
+    def on_paused(self, callback: Callable[[], None]) -> None:
+        self._paused_cbs.append(callback)
+
+    def on_stopped(self, callback: Callable[[], None]) -> None:
+        self._stopped_cbs.append(callback)
+
+    def on_ended(self, callback: Callable[[], None]) -> None:
+        self._ended_cbs.append(callback)
+
+    def on_error(self, callback: Callable[[str], None]) -> None:
+        self._error_cbs.append(callback)
+
+    def _on_media_status(self, status: QMediaPlayer.MediaStatus) -> None:
+        if status != QMediaPlayer.MediaStatus.EndOfMedia:
+            return
+        duration = self.get_duration_ms()
+        position = self.get_position_ms()
+        truncated = duration > 60_000 and 15_000 <= position <= 45_000
+        if duration > 1000 and position < duration - 1000 and not truncated:
+            return
+        if truncated:
+            logger.warning(
+                "Поток оборвался рано (%sms из %sms) — preview или обрыв CDN",
+                position,
+                duration,
+            )
+        for callback in self._ended_cbs:
+            callback()
+
+    def _on_playback_state(self, state: QMediaPlayer.PlaybackState) -> None:
+        if state == QMediaPlayer.PlaybackState.PlayingState:
+            for callback in self._playing_cbs:
+                callback()
+        elif state == QMediaPlayer.PlaybackState.PausedState:
+            for callback in self._paused_cbs:
+                callback()
+        elif state == QMediaPlayer.PlaybackState.StoppedState:
+            for callback in self._stopped_cbs:
+                callback()
+
+    def _on_error(self, error: QMediaPlayer.Error, message: str) -> None:
+        if error == QMediaPlayer.Error.NoError:
+            return
+        text = message or str(error)
+        for callback in self._error_cbs:
+            callback(text)

@@ -67,12 +67,20 @@ class _NavItem(QToolButton):
         if expanded:
             self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
             self.setText(self._label)
-            self.setFixedHeight(44)
+            # Сбрасываем fixed width от свёрнутого режима (иначе подпись клипается).
             self.setMinimumWidth(0)
+            self.setMaximumWidth(16777215)
+            self.setFixedHeight(44)
+            self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         else:
             self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
             self.setText("")
             self.setFixedSize(48, 48)
+        style = self.style()
+        style.unpolish(self)
+        style.polish(self)
+        self.update()
+        self.updateGeometry()
 
 
 class SideNavRail(QFrame):
@@ -232,6 +240,9 @@ class SideNavRail(QFrame):
         style = self.style()
         style.unpolish(self)
         style.polish(self)
+        self._items_layout.invalidate()
+        self.updateGeometry()
+        self.update()
 
     def _on_pin_toggled(self, pinned: bool) -> None:
         self._pinned = pinned
@@ -295,7 +306,7 @@ class SideNavRail(QFrame):
                 ext.tooltip,
                 ext.page_id,
                 from_plugin=True,
-                icon=ext.icon,
+                icon_obj=ext.icon,
             )
             button.set_expanded(self._expanded)
             self._items_layout.insertWidget(insert_at, button)

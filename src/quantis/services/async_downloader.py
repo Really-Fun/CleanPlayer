@@ -12,7 +12,6 @@ from typing import Optional
 
 import aiofiles
 import aiohttp
-from yt_dlp import YoutubeDL
 
 from quantis.config import Clients
 from quantis.models.track import Track, TrackSource, YandexTrack, YoutubeTrack
@@ -38,7 +37,15 @@ class AsyncYandexDownloader(AsyncDownloaderInterface):
 
     def __init__(self) -> None:
         self.path_provider = PathProvider()
-        self.client = Clients().get_yandex_client()
+        self._client = None
+        self._client_ready = False
+
+    @property
+    def client(self):
+        if not self._client_ready:
+            self._client = Clients().get_yandex_client()
+            self._client_ready = True
+        return self._client
 
     async def download_track(self, track: Track | YandexTrack | YoutubeTrack) -> None:
         """Скачивает трек с яндекса. Асинхронное скачивание
@@ -99,7 +106,10 @@ class AsyncYoutubeDownloader(AsyncDownloaderInterface):
             "postprocessors": [],
         }
         self.path_provider = PathProvider()
-        self._executor = ThreadPoolExecutor(max_workers=10)
+        from quantis.core.worker_pool import get_worker_pool
+
+        self._executor = get_worker_pool()
+        self._owns_executor = False
         self._session: Optional[aiohttp.ClientSession] = None
         self._semaphore = Semaphore(value=8)
 
@@ -178,6 +188,8 @@ class AsyncYoutubeDownloader(AsyncDownloaderInterface):
 
     @staticmethod
     def sync_download(opts: dict, track_id: int | str) -> None:
+        from yt_dlp import YoutubeDL
+
         with YoutubeDL(opts) as ydl:
             ydl.extract_info(
                 f"https://youtube.com/watch?v={track_id}", download=True
@@ -189,7 +201,8 @@ class AsyncYoutubeDownloader(AsyncDownloaderInterface):
             self._session = None
 
     def shutdown(self) -> None:
-        self._executor.shutdown(wait=False)
+        # Общий worker pool останавливает MusicService.
+        return
 
 
 class AsyncDownloader(AsyncDownloaderInterface):

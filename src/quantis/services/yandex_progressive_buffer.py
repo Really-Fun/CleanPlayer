@@ -1,8 +1,7 @@
 """Прогрессивный буфер Яндекс.Музыки: фоновая запись в temp, play сразу.
 
-HTTP-склейка сегментов ломает MP3 на границах кадров (invalid new backstep).
-Файл растёт последовательно — Qt читает локальный путь как поток.
-Не пишет в music/, удаляется при смене трека / выходе.
+Не пишет в music/. После стартового запаса качает с паузами (~realtime),
+чтобы не забивать диск/сеть во время игр. Signed URL кэшируется до TTL.
 """
 
 from __future__ import annotations
@@ -33,11 +32,15 @@ _UPSTREAM_HEADERS = {
     "Accept": "*/*",
     "Accept-Encoding": "identity",
 }
-_URL_TTL_SEC = 40.0
-_SEGMENT_BYTES = 512 * 1024
+_URL_TTL_SEC = 45.0
+_SEGMENT_BYTES = 1024 * 1024
 _MAX_SEGMENT_RETRIES = 5
-_MIN_START_BYTES = 128 * 1024
+_MIN_START_BYTES = 192 * 1024
+_AHEAD_BYTES = 2 * 1024 * 1024
 _START_TIMEOUT_SEC = 45.0
+# 320 kbps ≈ 40 KiB/s; чуть быстрее realtime, чтобы не голодать буфер
+_BYTES_PER_SEC_EST = 40_000
+_FLUSH_EVERY_BYTES = 2 * 1024 * 1024
 
 
 def _total_from_content_range(value: str | None) -> int | None:
@@ -48,7 +51,7 @@ def _total_from_content_range(value: str | None) -> int | None:
 
 
 class YandexProgressiveBuffer:
-    """Один активный temp-файл; сегментная загрузка с CDN с обновлением signed URL."""
+    """Один активный temp-файл; сегментная загрузка с CDN."""
 
     def __init__(self, yandex: AsyncYandexStreamer) -> None:
         self._yandex = yandex
@@ -60,6 +63,10 @@ class YandexProgressiveBuffer:
         self._path: Path | None = None
         self._ready = asyncio.Event()
         self._lock = asyncio.Lock()
+        self._eco = False
+
+    def set_eco(self, enabled: bool) -> None:
+        self._eco = enabled
 
     async def _ensure_client(self) -> ClientSession:
         if self._client is None:
@@ -92,7 +99,7 @@ class YandexProgressiveBuffer:
                 logger.debug("Не удалось удалить temp %s", path, exc_info=True)
 
     async def open(self, track: Track) -> str | None:
-        """Старт фоновой загрузки; возвращает путь, когда буфер >= 128 KiB."""
+        """Старт фоновой загрузки; возвращает путь, когда буфер готов к play."""
         async with self._lock:
             await self.cancel()
             path = self._dir / f"yandex_{track.track_id}.mp3"
@@ -183,11 +190,22 @@ class YandexProgressiveBuffer:
                 continue
         raise RuntimeError("upstream segment failed")
 
+    async def _pace_after_segment(self, offset: int, segment_len: int) -> None:
+        """После стартового запаса — не гоняем CDN на полной скорости."""
+        if offset < _AHEAD_BYTES:
+            return
+        factor = 1.15 if self._eco else 1.6
+        delay = segment_len / (_BYTES_PER_SEC_EST * factor)
+        if self._eco:
+            delay = max(delay, 0.35)
+        await asyncio.sleep(delay)
+
     async def _download(self, track: Track, path: Path) -> None:
         track_id = str(track.track_id)
         client = await self._ensure_client()
         offset = 0
         total_size: int | None = None
+        since_flush = 0
 
         try:
             with path.open("wb") as handle:
@@ -206,7 +224,11 @@ class YandexProgressiveBuffer:
                             f"temp write mismatch: file={handle.tell()} offset={offset}"
                         )
                     handle.write(body)
-                    handle.flush()
+                    since_flush += len(body)
+                    done = total_size is not None and offset + len(body) >= total_size
+                    if since_flush >= _FLUSH_EVERY_BYTES or done:
+                        handle.flush()
+                        since_flush = 0
                     offset += len(body)
 
                     if path.stat().st_size >= _MIN_START_BYTES:
@@ -215,7 +237,9 @@ class YandexProgressiveBuffer:
                     if total_size is not None and offset >= total_size:
                         break
 
-                    self._invalidate(track_id)
+                    await self._pace_after_segment(offset, len(body))
+
+                handle.flush()
 
             if offset > 0:
                 self._ready.set()

@@ -55,29 +55,32 @@ class TrackManager:
         return track_id in self.ids
 
     def get_track_from_playlist(
-        self, track_id: str, title: str, author: str
+        self,
+        track_id: str,
+        title: str,
+        author: str,
+        source: str | None = None,
     ) -> YandexTrack | YoutubeTrack:
-        """Получаем трек по его id, названию и автору
-
-        Args:
-            track_id (str): id трека
-            title (str): название трека
-            author (str): автор трека
-
-        Returns:
-            YandexTrack | YoutubeTrack: трек
-        """
-        if track_id.isdigit():
-            return YandexTrack(
-                track_id=int(track_id),
-                title=title,
-                author=author,
-                downloaded=self.is_downloaded(track_id),
-            )
-        else:
+        """Получаем трек по id / названию / автору (и опционально source)."""
+        normalized_source = (source or "").lower().strip()
+        downloaded = self.is_downloaded(str(track_id))
+        if normalized_source in ("youtube", "yt"):
             return YoutubeTrack(
                 track_id=track_id,
                 title=title,
                 author=author,
-                downloaded=self.is_downloaded(track_id),
+                downloaded=downloaded,
             )
+        if normalized_source in ("yandex", "ya") or str(track_id).isdigit():
+            return YandexTrack(
+                track_id=int(track_id) if str(track_id).isdigit() else track_id,
+                title=title,
+                author=author,
+                downloaded=downloaded,
+            )
+        return YoutubeTrack(
+            track_id=track_id,
+            title=title,
+            author=author,
+            downloaded=downloaded,
+        )

@@ -2,10 +2,11 @@ import logging
 import os
 import sys
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
-from quantis.core.bootstrap import build_application, shutdown_application
 from quantis.core.async_bridge import AsyncBridge
+from quantis.core.bootstrap import build_application, shutdown_application
 from quantis.ui import Quantis
 
 
@@ -28,24 +29,33 @@ def main() -> None:
     bridge = AsyncBridge()
     bridge.setParent(app)
     bundle = build_application(bridge)
-    from quantis.plugins import PluginRegistry
 
-    bridge.schedule(PluginRegistry.instance().load_all(bundle.plugin_host))
+    # Сначала окно и первый кадр — плагины/адаптер после show.
     window = Quantis(bundle)
     window.show()
 
-    if os.environ.get("QUANTIS_ENABLE_ADAPTER", "1").lower() in ("1", "true", "yes"):
-        from quantis.adapter import CleanAdapter
+    def _post_show() -> None:
+        from quantis.plugins import PluginRegistry
 
-        try:
-            CleanAdapter(
-                player=bundle.player,
-                event_bus=bundle.event_bus,
-                path_provider=bundle.music.provider,
-                bridge=bridge,
-            )
-        except Exception:
-            logger.exception("Системная интеграция плеера недоступна")
+        bridge.schedule(PluginRegistry.instance().load_all(bundle.plugin_host))
+        if os.environ.get("QUANTIS_ENABLE_ADAPTER", "1").lower() in (
+            "1",
+            "true",
+            "yes",
+        ):
+            try:
+                from quantis.adapter import CleanAdapter
+
+                CleanAdapter(
+                    player=bundle.player,
+                    event_bus=bundle.event_bus,
+                    path_provider=bundle.music.provider,
+                    bridge=bridge,
+                )
+            except Exception:
+                logger.exception("Системная интеграция плеера недоступна")
+
+    QTimer.singleShot(0, _post_show)
 
     try:
         sys.exit(app.exec())

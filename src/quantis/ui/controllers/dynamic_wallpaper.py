@@ -36,16 +36,31 @@ class DynamicWallpaperController(QObject):
         self._bridge = bridge
         self._prefs = preferences
         self._pending_track_key: str | None = None
+        self._eco = False
+        self._paused_for_eco = False
 
         preferences.changed.connect(self._on_preferences_changed)
         event_bus.track_changed.connect(self._on_track_changed)
         self._apply_enabled()
 
+    def set_eco(self, enabled: bool) -> None:
+        """В фоне останавливаем декод видео-обоев (дорого для GPU)."""
+        if self._eco == enabled:
+            return
+        self._eco = enabled
+        if enabled:
+            if self._backdrop.is_video_playing():
+                self._backdrop.pause_video()
+                self._paused_for_eco = True
+        elif self._paused_for_eco:
+            self._paused_for_eco = False
+            self._backdrop.resume_video()
+
     def _on_preferences_changed(self) -> None:
         self._apply_enabled()
 
     def refresh_for_track(self, track: Track | None) -> None:
-        if track is not None and self._prefs.dynamic_wallpaper_enabled:
+        if track is not None and self._prefs.dynamic_wallpaper_enabled and not self._eco:
             self._on_track_changed(track)
 
     def _apply_enabled(self) -> None:
@@ -53,9 +68,10 @@ class DynamicWallpaperController(QObject):
         self._backdrop.set_dynamic_wallpaper_enabled(enabled)
         if not enabled:
             self._pending_track_key = None
+            self._paused_for_eco = False
 
     def _on_track_changed(self, track: Track) -> None:
-        if not self._prefs.dynamic_wallpaper_enabled:
+        if not self._prefs.dynamic_wallpaper_enabled or self._eco:
             return
         self._pending_track_key = _track_key(track)
         self._bridge.schedule(self._load_video(track))

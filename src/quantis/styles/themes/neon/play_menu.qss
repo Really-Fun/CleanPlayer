@@ -59,14 +59,18 @@
 #controlButton {
     background: transparent;
     color: #F2F4F8;
-    border-radius: 12px;
+    border-radius: 20px;
+    padding: 0;
+    margin: 0;
 }
 #controlButton:hover {
     background: rgba(255, 255, 255, 0.08);
 }
 #controlButton[accent=true] {
     background: #6C5CE7;
-    border-radius: 22px;
+    border-radius: 20px;
+    padding: 0;
+    margin: 0;
 }
 #controlButton[accent=true]:hover {
     background: #7F71F0;

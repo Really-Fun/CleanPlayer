@@ -20,6 +20,7 @@ class UiPreferences(QObject):
     _KEY_WALLPAPER = "ui/wallpaper_path"
     _KEY_WALLPAPER_ENABLED = "ui/wallpaper_enabled"
     _KEY_NOW_PLAYING = "ui/show_now_playing_panel"
+    _KEY_BACKGROUND_ECO = "ui/background_eco"
 
     def __new__(cls) -> UiPreferences:
         if cls._instance is None:
@@ -117,4 +118,18 @@ class UiPreferences(QObject):
         if self.wallpaper_enabled == value:
             return
         self._settings.setValue(self._KEY_WALLPAPER_ENABLED, value)
+        self.changed.emit()
+
+    @property
+    def background_eco_enabled(self) -> bool:
+        """Экономия ресурсов, пока окно свёрнуто / не в фокусе (игры)."""
+        return self._read_bool(
+            self._settings.value(self._KEY_BACKGROUND_ECO, True),
+            True,
+        )
+
+    def set_background_eco_enabled(self, value: bool) -> None:
+        if self.background_eco_enabled == value:
+            return
+        self._settings.setValue(self._KEY_BACKGROUND_ECO, value)
         self.changed.emit()

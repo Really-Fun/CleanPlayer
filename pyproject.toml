@@ -42,6 +42,9 @@ dev = [
     "pyinstaller (>=6.21.0,<7.0.0)",
     "Pillow"
 ]
+vlc = [
+    "python-vlc (>=3.0.21203,<4.0.0)",
+]
 
 [tool.pytest.ini_options]
 markers = [

@@ -1,4 +1,4 @@
-"""UI-слоты расширений: nav + player bar (для плагинов и ядра)."""
+"""UI-слоты расширений: nav + player bar + страницы (для плагинов и ядра)."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QWidget
 
 
 @dataclass
@@ -28,11 +29,25 @@ class PlayerActionExtension:
     from_plugin: bool = False
 
 
+@dataclass
+class PageExtension:
+    """Страница плагина в QStackedWidget MainWindow."""
+
+    page_id: str
+    title: str
+    widget: QWidget
+    subtitle: str = ""
+    icon: QIcon | None = None
+    stack_index: int | None = None
+    from_plugin: bool = True
+
+
 class UiExtensionHost(QObject):
-    """Регистрация пунктов sidebar и кнопок player bar."""
+    """Регистрация пунктов sidebar, кнопок player bar и страниц."""
 
     nav_changed = Signal()
     player_actions_changed = Signal()
+    pages_changed = Signal()
 
     _instance: UiExtensionHost | None = None
 
@@ -49,6 +64,7 @@ class UiExtensionHost(QObject):
         super().__init__()
         self._nav: list[NavExtension] = []
         self._player_actions: list[PlayerActionExtension] = []
+        self._pages: list[PageExtension] = []
         self._initialized = True
 
     @classmethod
@@ -81,14 +97,33 @@ class UiExtensionHost(QObject):
         if len(self._player_actions) != before:
             self.player_actions_changed.emit()
 
+    def register_page(self, page: PageExtension) -> None:
+        self._pages = [p for p in self._pages if p.page_id != page.page_id]
+        self._pages.append(page)
+        self.pages_changed.emit()
+
+    def unregister_page(self, page_id: str) -> None:
+        before = len(self._pages)
+        self._pages = [p for p in self._pages if p.page_id != page_id]
+        if len(self._pages) != before:
+            self.pages_changed.emit()
+
     def nav_items(self) -> list[NavExtension]:
         return list(self._nav)
 
     def player_actions(self) -> list[PlayerActionExtension]:
         return list(self._player_actions)
 
+    def pages(self) -> list[PageExtension]:
+        return list(self._pages)
+
+    def get_page(self, page_id: str) -> PageExtension | None:
+        return next((p for p in self._pages if p.page_id == page_id), None)
+
     def clear(self) -> None:
         self._nav.clear()
         self._player_actions.clear()
+        self._pages.clear()
         self.nav_changed.emit()
         self.player_actions_changed.emit()
+        self.pages_changed.emit()

@@ -1,8 +1,16 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller spec для Quantis (Windows onedir → dist/Quantis/Quantis.exe).
+"""PyInstaller: Quantis с выбором медиадвижка.
 
-Сборка:
-    poetry install --with dev
+Сборка Qt (по умолчанию):
+    poetry run python scripts/build_exe.py qt
+
+Сборка VLC:
+    poetry install --with dev,vlc
+    set VLC_HOME=C:\\Program Files\\VideoLAN\\VLC
+    poetry run python scripts/build_exe.py vlc
+
+Или напрямую:
+    set QUANTIS_MEDIA_BACKEND=qt
     poetry run pyinstaller main.spec --noconfirm
 """
 
@@ -14,7 +22,6 @@ from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules
 
-# SPECPATH — каталог со .spec (не путь к файлу)
 try:
     ROOT = Path(SPECPATH).resolve()
 except NameError:
@@ -22,6 +29,13 @@ except NameError:
 
 SRC = ROOT / "src"
 QUANTIS = SRC / "quantis"
+PACKAGING = ROOT / "packaging"
+
+BACKEND = os.environ.get("QUANTIS_MEDIA_BACKEND", "qt").strip().lower()
+if BACKEND not in ("qt", "vlc"):
+    BACKEND = "qt"
+
+APP_NAME = "Quantis" if BACKEND == "qt" else "Quantis-VLC"
 
 _venv = Path(os.environ.get("VIRTUAL_ENV") or (ROOT / ".venv"))
 if sys.platform == "win32":
@@ -37,6 +51,16 @@ else:
 datas: list = []
 binaries: list = []
 hiddenimports: list[str] = []
+runtime_hooks: list[str] = []
+
+rthook = PACKAGING / f"rthook_backend_{BACKEND}.py"
+if rthook.is_file():
+    runtime_hooks.append(str(rthook))
+
+if BACKEND == "vlc":
+    vlc_hook = PACKAGING / "rthook_vlc_path.py"
+    if vlc_hook.is_file():
+        runtime_hooks.append(str(vlc_hook))
 
 # Ресурсы приложения
 if (QUANTIS / "assets").is_dir():
@@ -45,19 +69,16 @@ if (QUANTIS / "assets").is_dir():
 if (QUANTIS / "styles").is_dir():
     datas.append((str(QUANTIS / "styles"), "quantis/styles"))
 
-# Опциональный фон из корня репозитория
 repo_bg = ROOT / "assets" / "background"
 if repo_bg.is_dir():
     datas.append((str(repo_bg), "assets/background"))
 
-# ytmusicapi локали
 if (SITE / "ytmusicapi").is_dir():
     try:
         datas += collect_data_files("ytmusicapi", includes=["locales/**"])
     except Exception:
         pass
 
-# Тяжёлые зависимости с нативными бинарниками
 for pkg in ("PySide6", "shiboken6", "yt_dlp", "certifi"):
     try:
         pkg_datas, pkg_binaries, pkg_hidden = collect_all(pkg)
@@ -94,6 +115,8 @@ hiddenimports += [
     "quantis.adapter",
     "quantis.adapter.clean_adapter",
     "quantis.adapter.windows_adapter",
+    "quantis.player.factory",
+    "quantis.config.media_backend",
     "PySide6.QtCore",
     "PySide6.QtGui",
     "PySide6.QtWidgets",
@@ -102,6 +125,49 @@ hiddenimports += [
     "PySide6.QtNetwork",
     "PySide6.QtSvg",
 ]
+
+excludes = [
+    "tkinter",
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "scipy",
+    "IPython",
+    "notebook",
+    "pytest",
+    "mpris_server",
+]
+
+if BACKEND == "vlc":
+    hiddenimports += ["vlc", "quantis.player.vlc_engine"]
+    vlc_home = Path(
+        os.environ.get("VLC_HOME")
+        or os.environ.get("ProgramFiles", r"C:\Program Files")
+    )
+    if vlc_home.name != "VLC":
+        candidate = vlc_home / "VideoLAN" / "VLC"
+        if candidate.is_dir():
+            vlc_home = candidate
+    if not (vlc_home / "libvlc.dll").is_file():
+        alt = Path(r"C:\Program Files\VideoLAN\VLC")
+        if (alt / "libvlc.dll").is_file():
+            vlc_home = alt
+    if (vlc_home / "libvlc.dll").is_file():
+        print(f"[Quantis] Bundling VLC from: {vlc_home}")
+        for dll_name in ("libvlc.dll", "libvlccore.dll"):
+            dll = vlc_home / dll_name
+            if dll.is_file():
+                binaries.append((str(dll), "."))
+        plugins = vlc_home / "plugins"
+        if plugins.is_dir():
+            datas.append((str(plugins), "plugins"))
+    else:
+        print(
+            "[Quantis] WARNING: VLC_HOME / libvlc.dll not found. "
+            "Install VLC or set VLC_HOME — runtime will need system VLC."
+        )
+else:
+    excludes.append("vlc")
 
 icon_path = QUANTIS / "assets" / "icons" / "logo.png"
 icon = str(icon_path) if icon_path.is_file() else None
@@ -114,18 +180,8 @@ a = Analysis(
     hiddenimports=sorted(set(hiddenimports)),
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
-    excludes=[
-        "tkinter",
-        "matplotlib",
-        "numpy",
-        "pandas",
-        "scipy",
-        "IPython",
-        "notebook",
-        "pytest",
-        "mpris_server",
-    ],
+    runtime_hooks=runtime_hooks,
+    excludes=excludes,
     noarchive=False,
     optimize=0,
 )
@@ -137,7 +193,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="Quantis",
+    name=APP_NAME,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -158,5 +214,5 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name="Quantis",
+    name=APP_NAME,
 )

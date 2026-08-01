@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -16,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from quantis.core.async_bridge import AsyncBridge
 from quantis.ui.async_ui import schedule
+from quantis.ui.playlist_actions import show_add_to_playlist_menu
 from quantis.ui.viewmodels.search_vm import SearchViewModel
 from quantis.ui.views.widgets.glass_panel import GlassPanel
 from quantis.ui.views.widgets.track_card import TrackCardDelegate
@@ -26,11 +29,14 @@ class SearchPage(QWidget):
         self,
         view_model: SearchViewModel,
         bridge: AsyncBridge | None = None,
+        *,
+        on_playlists_changed: Callable[[], None] | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._vm = view_model
         self._bridge = bridge
+        self._on_playlists_changed = on_playlists_changed
         self.setObjectName("searchPage")
 
         layout = QVBoxLayout(self)
@@ -94,6 +100,8 @@ class SearchPage(QWidget):
         )
         self._list.setMouseTracking(True)
         self._list.viewport().setMouseTracking(True)
+        self._list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._list.customContextMenuRequested.connect(self._on_context_menu)
         self._list.doubleClicked.connect(self._on_play_index)
         panel_layout.addWidget(self._list, stretch=1)
 
@@ -132,3 +140,19 @@ class SearchPage(QWidget):
     def _on_download(self, row: int) -> None:
         if self._bridge is not None:
             schedule(self._vm.download_track_at(row), self._bridge)
+
+    def _on_context_menu(self, pos) -> None:
+        if self._bridge is None:
+            return
+        index = self._list.indexAt(pos)
+        if not index.isValid():
+            return
+        track = self._vm.model.get_track(index.row())
+        if track is None:
+            return
+        show_add_to_playlist_menu(
+            track,
+            bridge=self._bridge,
+            parent=self,
+            on_done=self._on_playlists_changed,
+        )

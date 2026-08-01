@@ -104,7 +104,10 @@ class Playlist(ABC):
             track_manager = TrackManager()
             tracks = [
                 track_manager.get_track_from_playlist(
-                    *(track["id"], track["title"], track["author"])
+                    str(track["id"]),
+                    track["title"],
+                    track["author"],
+                    source=track.get("source"),
                 )
                 for track in playlist["tracks"]
             ]

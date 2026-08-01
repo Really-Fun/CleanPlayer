@@ -29,6 +29,7 @@ class PlaybackHistoryWatcher(QObject):
         self._event_bus = event_bus
         self._current: Track | None = None
 
+        self._eco = False
         self._timer = QTimer(self)
         self._timer.setInterval(5000)
         self._timer.timeout.connect(self._on_tick)
@@ -36,6 +37,10 @@ class PlaybackHistoryWatcher(QObject):
         event_bus.track_changed.connect(self._on_track_changed)
         player.on_track_finished(self._on_finished)
         player.on_playback_paused(self._on_pause)
+
+    def set_eco(self, enabled: bool) -> None:
+        self._eco = enabled
+        self._timer.setInterval(20_000 if enabled else 5000)
 
     def _on_track_changed(self, track: Track) -> None:
         previous = self._current

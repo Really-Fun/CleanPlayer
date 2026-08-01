@@ -238,7 +238,7 @@ class PlaylistShelf(QWidget):
                 widget.deleteLater()
 
         if not playlists:
-            empty = QLabel("Добавь плейлисты в playlists/ или послушай что-нибудь")
+            empty = QLabel("Создай плейлист кнопкой «+ Плейлист» или добавь трек из плеера")
             empty.setObjectName("homeEmptyHint")
             self._row.addWidget(empty)
             return

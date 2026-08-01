@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from quantis.config.media_backend import backend_display_name, resolve_media_backend
 from quantis.core.async_bridge import AsyncBridge
 from quantis.ui.preferences import UiPreferences
 from quantis.ui.resources import UI_THEME_LABELS
@@ -126,6 +127,28 @@ class SettingsPage(QWidget):
         wallpaper_body.addWidget(self._dynamic_wallpaper_cb)
         panel_layout.addWidget(wallpaper_row)
 
+        eco_row, eco_body = self._row(
+            "Фоновый режим",
+            "Когда окно свёрнуто или не в фокусе — меньше CPU/GPU "
+            "(удобно при играх). Музыка продолжает играть.",
+        )
+        self._eco_cb = QCheckBox("Экономить ресурсы в фоне")
+        self._eco_cb.setObjectName("settingsCheck")
+        self._eco_cb.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._eco_cb.toggled.connect(self._on_eco_toggled)
+        eco_body.addWidget(self._eco_cb)
+        panel_layout.addWidget(eco_row)
+
+        engine_row, engine_body = self._row(
+            "Медиадвижок",
+            "Задаётся при сборке exe (Quantis / Quantis-VLC) "
+            "или переменной QUANTIS_MEDIA_BACKEND=qt|vlc",
+        )
+        self._engine_label = QLabel(backend_display_name(resolve_media_backend()))
+        self._engine_label.setObjectName("settingsRowDesc")
+        engine_body.addWidget(self._engine_label)
+        panel_layout.addWidget(engine_row)
+
         panel_layout.addStretch()
         layout.addWidget(panel)
         layout.addStretch()
@@ -170,6 +193,10 @@ class SettingsPage(QWidget):
         self._dynamic_wallpaper_cb.setChecked(self._prefs.dynamic_wallpaper_enabled)
         self._dynamic_wallpaper_cb.blockSignals(False)
 
+        self._eco_cb.blockSignals(True)
+        self._eco_cb.setChecked(self._prefs.background_eco_enabled)
+        self._eco_cb.blockSignals(False)
+
         self._theme_combo.blockSignals(True)
         index = self._theme_combo.findData(self._prefs.ui_theme)
         if index >= 0:
@@ -192,6 +219,9 @@ class SettingsPage(QWidget):
 
     def _on_dynamic_wallpaper_toggled(self, checked: bool) -> None:
         self._prefs.set_dynamic_wallpaper_enabled(checked)
+
+    def _on_eco_toggled(self, checked: bool) -> None:
+        self._prefs.set_background_eco_enabled(checked)
 
     def _refresh_wallpapers(self, *, block_signals: bool = False) -> None:
         if not self._prefs.wallpaper_enabled:

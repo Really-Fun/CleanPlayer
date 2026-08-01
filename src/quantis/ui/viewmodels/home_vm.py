@@ -4,10 +4,10 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal
 
+from quantis.config.credentials import yandex_token
 from quantis.controllers.playback_controller import PlaybackController
 from quantis.core.async_bridge import AsyncBridge
 from quantis.models import (
@@ -19,10 +19,9 @@ from quantis.models import (
     WavePlaylist,
 )
 from quantis.models.playlist import Playlist, RecommendationPlaylist
-from quantis.providers.path_provider import PathProvider
 from quantis.services import MusicService, TrackHistoryService
 from quantis.services.liked_tracks import LikedTracksService
-from quantis.config.credentials import yandex_token
+from quantis.services.user_playlists import UserPlaylistsService
 from quantis.ui.cover_prefetch import schedule_cover_prefetch
 from quantis.ui.models import TrackListModel
 from quantis.ui.viewmodels.base_viewmodel import BaseViewModel
@@ -86,6 +85,7 @@ class HomeViewModel(BaseViewModel):
         self._recommendation_model = TrackListModel()
         self._liked_model = TrackListModel()
         self._liked = LikedTracksService()
+        self._user_playlists = UserPlaylistsService()
         self._snapshot = HomeSnapshot(
             greeting=_greeting_text(),
             quick_playlists=(),
@@ -142,7 +142,7 @@ class HomeViewModel(BaseViewModel):
             recent_task = self._history.get_recent_playlist(limit=24)
             liked_task = self._liked.get_playlist()
             downloaded_task = asyncio.to_thread(DownloadPlaylist.get_tracks_from_music_dir)
-            playlists_task = asyncio.to_thread(_load_user_playlists)
+            playlists_task = self._user_playlists.load_all(include_empty=True)
             recent, liked, downloaded, user_playlists = await asyncio.gather(
                 recent_task,
                 liked_task,
@@ -538,6 +538,23 @@ class HomeViewModel(BaseViewModel):
 
         bridge.invoke_main(apply)
 
+    async def refresh_user_playlists(self, bridge: AsyncBridge | None = None) -> None:
+        bridge = bridge or self._bridge
+        if bridge is None:
+            return
+        self.refresh(bridge)
+
+    async def create_user_playlist(self, name: str) -> None:
+        await self._user_playlists.create(name)
+        if self._bridge is not None:
+            self.refresh(self._bridge)
+
+    async def add_track_to_user_playlist(self, playlist_name: str, track: Track) -> bool:
+        added = await self._user_playlists.add_track(playlist_name, track)
+        if self._bridge is not None:
+            self.refresh(self._bridge)
+        return added
+
     async def _play_from_model(self, model: TrackListModel, index: int) -> None:
         track = model.get_track(index)
         if track is None:
@@ -604,29 +621,3 @@ def _greeting_text() -> str:
     if 18 <= hour < 23:
         return "Добрый вечер"
     return "Доброй ночи"
-
-
-def _load_user_playlists() -> list[UserPlaylist]:
-    playlists_dir = Path("playlists")
-    if not playlists_dir.is_dir():
-        playlists_dir.mkdir(parents=True, exist_ok=True)
-        return []
-
-    result: list[UserPlaylist] = []
-    json_files = sorted(
-        playlists_dir.glob("*.json"),
-        key=lambda path: path.stat().st_mtime,
-        reverse=True,
-    )
-    for path in json_files:
-        try:
-            playlist = UserPlaylist.get_playlist_from_path(str(path))
-        except Exception:
-            logger.exception("Не удалось загрузить плейлист %s", path)
-            continue
-        if playlist is not None and playlist.tracks.values:
-            if not playlist.cover_path:
-                first = playlist.tracks.values[0]
-                playlist.cover_path = PathProvider().get_cover_path(first)
-            result.append(playlist)
-    return result

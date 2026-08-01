@@ -2,23 +2,37 @@ QFrame#sideNavRail {
     border-top: 2px solid rgba(94, 179, 232, 0.35);
 }
 
+QLabel#navBrandLabel {
+    color: #1A2332;
+    font-size: 14px;
+    font-weight: 700;
+}
+
 QToolButton#navIconButton {
     background: transparent;
     border: none;
     border-radius: 12px;
-    padding: 10px;
-    min-width: 44px;
-    min-height: 44px;
+    padding: 8px 10px;
+    color: rgba(26, 35, 50, 0.72);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
 }
 
 QToolButton#navIconButton:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(0, 0, 0, 0.05);
+    color: #1A2332;
 }
 
 QToolButton#navIconButton:checked {
     background: rgba(94, 179, 232, 0.18);
+    color: #1A2332;
 }
 
 QToolButton#navIconButton:pressed {
     background: rgba(94, 179, 232, 0.26);
+}
+
+QToolButton#navPinButton {
+    color: rgba(26, 35, 50, 0.7);
 }

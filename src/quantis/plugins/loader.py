@@ -32,8 +32,22 @@ def resolve_plugins_dir() -> Path:
     return target
 
 
-DEFAULT_PLUGIN_DIR = resolve_plugins_dir()
-PLUGIN_DIR = DEFAULT_PLUGIN_DIR
+_cached_plugin_dir: Path | None = None
+
+
+def get_plugins_dir() -> Path:
+    global _cached_plugin_dir
+    if _cached_plugin_dir is None:
+        _cached_plugin_dir = resolve_plugins_dir()
+    return _cached_plugin_dir
+
+
+# Обратная совместимость: вычисляется при первом обращении через __getattr__ модуля
+def __getattr__(name: str):
+    if name in ("DEFAULT_PLUGIN_DIR", "PLUGIN_DIR"):
+        return get_plugins_dir()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 _PLUGIN_PACKAGE = "quantis_plugins"
 
@@ -61,7 +75,7 @@ class PluginLoader:
 
     def __init__(self, plugin_dir: Path | None = None) -> None:
         # Позволяем передать путь снаружи, иначе используем дефолтный
-        self._dir = plugin_dir or DEFAULT_PLUGIN_DIR
+        self._dir = plugin_dir or get_plugins_dir()
 
     # ── Публичный API ─────────────────────────────────────────────────────────
 

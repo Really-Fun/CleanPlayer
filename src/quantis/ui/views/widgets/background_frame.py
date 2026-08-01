@@ -32,17 +32,43 @@ class BackgroundFrame(QFrame):
         self._content.setAutoFillBackground(False)
         self._content.setStyleSheet("background: transparent;")
 
+        self._eco = False
         self._timer = QTimer(self)
         self._timer.setInterval(40)
         self._timer.timeout.connect(self._tick)
-        self._timer.start()
+        # Pulse после первого кадра — не конкурирует с layout/show.
+        QTimer.singleShot(400, self._start_pulse_if_needed)
+
+    def _start_pulse_if_needed(self) -> None:
+        if self._eco:
+            return
+        if self._variant in ("neon", "glass", "yellow_dark", "classic"):
+            if not self._timer.isActive():
+                self._timer.start()
 
     def content_host(self) -> QWidget:
         return self._content
 
+    def set_eco(self, enabled: bool) -> None:
+        """В фоне останавливаем pulse (~25 fps) — главный GPU-расход UI."""
+        if self._eco == enabled:
+            return
+        self._eco = enabled
+        if enabled:
+            self._timer.stop()
+            self.update()
+        elif self._variant in ("neon", "glass", "yellow_dark", "classic"):
+            if not self._timer.isActive():
+                self._timer.start()
+
     def set_variant(self, variant: str) -> None:
         if self._variant != variant:
             self._variant = variant
+            if not self._eco and variant in ("neon", "glass", "yellow_dark", "classic"):
+                if not self._timer.isActive():
+                    self._timer.start()
+            elif variant not in ("neon", "glass", "yellow_dark", "classic"):
+                self._timer.stop()
             self.update()
 
     def set_accent(self, color: QColor) -> None:
@@ -51,6 +77,8 @@ class BackgroundFrame(QFrame):
             self.update()
 
     def _tick(self) -> None:
+        if self._eco:
+            return
         if self._variant not in ("neon", "glass", "yellow_dark", "classic"):
             return
         self._phase = (self._phase + 0.012) % (math.tau)

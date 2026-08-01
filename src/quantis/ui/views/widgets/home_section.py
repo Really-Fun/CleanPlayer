@@ -42,6 +42,11 @@ class HomeSection(QWidget):
         self._badge.hide()
         header.addWidget(self._badge, 0, Qt.AlignmentFlag.AlignTop)
 
+        self._actions = QHBoxLayout()
+        self._actions.setContentsMargins(0, 0, 0, 0)
+        self._actions.setSpacing(6)
+        header.addLayout(self._actions)
+
         root.addLayout(header)
 
         self._body = QWidget()
@@ -65,6 +70,15 @@ class HomeSection(QWidget):
             self._badge.show()
         else:
             self._badge.hide()
+
+    def set_header_action(self, widget: QWidget | None) -> None:
+        while self._actions.count():
+            item = self._actions.takeAt(0)
+            old = item.widget()
+            if old is not None:
+                old.deleteLater()
+        if widget is not None:
+            self._actions.addWidget(widget, 0, Qt.AlignmentFlag.AlignTop)
 
     def add_widget_block(self, widget: QWidget) -> None:
         while self._body_layout.count():

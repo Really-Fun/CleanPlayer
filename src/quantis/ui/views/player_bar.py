@@ -23,6 +23,7 @@ from quantis.services.liked_tracks import LikedTracksService
 from quantis.services.music_service import MusicService
 from quantis.ui import resources
 from quantis.ui.cover_prefetch import schedule_cover_prefetch
+from quantis.ui.playlist_actions import show_add_to_playlist_menu
 from quantis.ui.ui_extensions import UiExtensionHost
 from quantis.ui.viewmodels.player_vm import PlayerViewModel
 from quantis.ui.views.widgets.cover_art import load_cover_pixmap
@@ -66,6 +67,7 @@ class PlayerBar(QFrame):
         bridge: AsyncBridge | None = None,
         music: MusicService | None = None,
         on_liked_changed: Callable[[], None] | None = None,
+        on_playlists_changed: Callable[[], None] | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -75,6 +77,7 @@ class PlayerBar(QFrame):
         self._music = music
         self._liked = LikedTracksService()
         self._on_liked_changed = on_liked_changed
+        self._on_playlists_changed = on_playlists_changed
         self._current_track: Track | None = None
         self._seeking = False
         self._is_playing = False
@@ -119,19 +122,24 @@ class PlayerBar(QFrame):
         left_layout.addLayout(meta, stretch=1)
 
         # Center: transport + seek
-        self._prev_btn = self._make_button("prev.svg", "Назад", size=34)
-        self._play_btn = self._make_button("play.svg", "Play", accent=True, size=44)
-        self._next_btn = self._make_button("next.svg", "Далее", size=34)
+        self._prev_btn = self._make_button("prev.svg", "Назад", size=40)
+        self._play_btn = self._make_button("play.svg", "Play", accent=True, size=40)
+        self._next_btn = self._make_button("next.svg", "Далее", size=40)
         self._prev_btn.clicked.connect(self._vm.play_previous)
         self._play_btn.clicked.connect(self._vm.toggle_pause)
         self._next_btn.clicked.connect(self._vm.play_next)
 
-        transport = QHBoxLayout()
-        transport.setSpacing(8)
-        transport.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        transport.addWidget(self._prev_btn)
-        transport.addWidget(self._play_btn)
-        transport.addWidget(self._next_btn)
+        transport_host = QWidget()
+        transport_host.setFixedHeight(40)
+        transport = QHBoxLayout(transport_host)
+        transport.setContentsMargins(0, 0, 0, 0)
+        transport.setSpacing(10)
+        transport.setAlignment(
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+        )
+        transport.addWidget(self._prev_btn, 0, Qt.AlignmentFlag.AlignCenter)
+        transport.addWidget(self._play_btn, 0, Qt.AlignmentFlag.AlignCenter)
+        transport.addWidget(self._next_btn, 0, Qt.AlignmentFlag.AlignCenter)
 
         seek_row = QHBoxLayout()
         seek_row.setSpacing(8)
@@ -158,13 +166,17 @@ class PlayerBar(QFrame):
         center.setObjectName("playerCenter")
         center_layout = QVBoxLayout(center)
         center_layout.setContentsMargins(0, 0, 0, 0)
-        center_layout.setSpacing(2)
-        center_layout.addLayout(transport)
+        center_layout.setSpacing(4)
+        center_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        center_layout.addWidget(transport_host, 0, Qt.AlignmentFlag.AlignHCenter)
         center_layout.addLayout(seek_row)
 
         # Right: actions
         self._like_btn = self._make_button("heart.svg", "В любимые", size=32)
         self._like_btn.clicked.connect(self._on_like_clicked)
+        self._playlist_btn = self._make_button("folder.svg", "В плейлист", size=32)
+        self._playlist_btn.setEnabled(False)
+        self._playlist_btn.clicked.connect(self._on_add_to_playlist_clicked)
         self._download_btn = self._make_button("download.svg", "Скачать", size=32)
         self._download_btn.setEnabled(False)
         self._download_btn.clicked.connect(self._on_download_clicked)
@@ -190,6 +202,7 @@ class PlayerBar(QFrame):
         self._right_layout.addLayout(self._plugin_slot)
         self._right_layout.addWidget(self._now_btn)
         self._right_layout.addWidget(self._download_btn)
+        self._right_layout.addWidget(self._playlist_btn)
         self._right_layout.addWidget(self._like_btn)
         self._right_layout.addWidget(self._volume)
 
@@ -200,7 +213,7 @@ class PlayerBar(QFrame):
         body.setColumnStretch(1, 1)
         body.setColumnStretch(2, 0)
         body.addWidget(left, 0, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        body.addWidget(center, 0, 1)
+        body.addWidget(center, 0, 1, Qt.AlignmentFlag.AlignVCenter)
         body.addWidget(right, 0, 2, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
         card_layout.addLayout(body)
@@ -253,7 +266,10 @@ class PlayerBar(QFrame):
         button = QToolButton()
         button.setObjectName("controlButton")
         button.setProperty("accent", accent)
-        icon_size = 20 if accent else 16
+        button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        button.setAutoRaise(True)
+        button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        icon_size = 18 if accent else 16
         button.setIcon(resources.load_icon(icon_name))
         button.setIconSize(QSize(icon_size, icon_size))
         button.setToolTip(tooltip)
@@ -296,6 +312,7 @@ class PlayerBar(QFrame):
         self._author.setVisible(bool(track.author))
         self._apply_cover(track)
         self._download_btn.setEnabled(not bool(getattr(track, "downloaded", False)))
+        self._playlist_btn.setEnabled(True)
         if self._bridge is not None and self._music is not None:
             schedule_cover_prefetch(
                 [track],
@@ -323,6 +340,17 @@ class PlayerBar(QFrame):
         if track is None or self._bridge is None:
             return
         self._bridge.schedule(self._toggle_like(track))
+
+    def _on_add_to_playlist_clicked(self) -> None:
+        track = self._current_track
+        if track is None or self._bridge is None:
+            return
+        show_add_to_playlist_menu(
+            track,
+            bridge=self._bridge,
+            parent=self,
+            on_done=self._on_playlists_changed,
+        )
 
     def _on_download_clicked(self) -> None:
         track = self._current_track
@@ -379,6 +407,7 @@ class PlayerBar(QFrame):
             self._play_btn,
             self._next_btn,
             self._like_btn,
+            self._playlist_btn,
             self._download_btn,
             self._now_btn,
             *self._plugin_buttons,

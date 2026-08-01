@@ -121,20 +121,26 @@ class WallpaperBackdrop(QWidget):
         self._video_surface = _VideoSurface(self)
         self._video_surface.hide()
 
-        self._video_player = QMediaPlayer(self)
-        self._video_audio = QAudioOutput(self)
-        self._video_audio.setVolume(0.0)
-        self._video_player.setAudioOutput(self._video_audio)
-        self._video_player.setVideoSink(self._video_surface.sink)
-        loops = getattr(QMediaPlayer, "Loops", None)
-        if loops is not None:
-            self._video_player.setLoops(loops.Infinite)
-        else:
-            self._video_player.mediaStatusChanged.connect(self._loop_video)
-        self._video_player.errorOccurred.connect(self._on_video_error)
+        self._video_player: QMediaPlayer | None = None
+        self._video_audio: QAudioOutput | None = None
 
         if self._wallpaper_path:
             self._rebuild_cache(force=True)
+
+    def _ensure_video_player(self) -> QMediaPlayer:
+        if self._video_player is None:
+            self._video_player = QMediaPlayer(self)
+            self._video_audio = QAudioOutput(self)
+            self._video_audio.setVolume(0.0)
+            self._video_player.setAudioOutput(self._video_audio)
+            self._video_player.setVideoSink(self._video_surface.sink)
+            loops = getattr(QMediaPlayer, "Loops", None)
+            if loops is not None:
+                self._video_player.setLoops(loops.Infinite)
+            else:
+                self._video_player.mediaStatusChanged.connect(self._loop_video)
+            self._video_player.errorOccurred.connect(self._on_video_error)
+        return self._video_player
 
     def set_variant(self, variant: str) -> None:
         if self._variant != variant:
@@ -169,13 +175,31 @@ class WallpaperBackdrop(QWidget):
         self._cache_size = (0, 0)
         self._video_surface.show()
         self.lower()
-        self._video_player.setSource(QUrl(url))
-        self._video_player.play()
+        player = self._ensure_video_player()
+        player.setSource(QUrl(url))
+        player.play()
         self.update()
+
+    def is_video_playing(self) -> bool:
+        if self._video_player is None:
+            return False
+        return self._video_active and self._video_player.playbackState() in (
+            QMediaPlayer.PlaybackState.PlayingState,
+            QMediaPlayer.PlaybackState.PausedState,
+        )
+
+    def pause_video(self) -> None:
+        if self._video_active and self._video_player is not None:
+            self._video_player.pause()
+
+    def resume_video(self) -> None:
+        if self._video_active and self._dynamic_enabled and self._video_player is not None:
+            self._video_player.play()
 
     def stop_video(self) -> None:
         self._video_active = False
-        self._video_player.stop()
+        if self._video_player is not None:
+            self._video_player.stop()
         self._video_surface.clear()
         self._video_surface.hide()
         if not self._dynamic_enabled:
@@ -189,6 +213,8 @@ class WallpaperBackdrop(QWidget):
             self._rebuild_cache()
 
     def _loop_video(self, status: QMediaPlayer.MediaStatus) -> None:
+        if self._video_player is None:
+            return
         if status == QMediaPlayer.MediaStatus.EndOfMedia:
             self._video_player.setPosition(0)
             self._video_player.play()

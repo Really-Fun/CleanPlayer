@@ -1,0 +1,179 @@
+"""Движок воспроизведения на libVLC (python-vlc)."""
+
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+from typing import Callable
+
+from PySide6.QtCore import QObject, QTimer, Signal
+
+logger = logging.getLogger(__name__)
+
+
+def _find_vlc_plugin_path() -> str | None:
+    import os
+    import sys
+
+    env = os.environ.get("VLC_PLUGIN_PATH") or os.environ.get("VLC_HOME")
+    if env:
+        plugins = Path(env)
+        if (plugins / "plugins").is_dir():
+            return str(plugins / "plugins")
+        if plugins.name == "plugins" and plugins.is_dir():
+            return str(plugins)
+
+    # Рядом с exe (сборки Quantis-VLC)
+    if getattr(sys, "frozen", False):
+        base = Path(sys.executable).resolve().parent
+        for candidate in (base / "plugins", base / "vlc" / "plugins"):
+            if candidate.is_dir():
+                return str(candidate)
+
+    if sys.platform == "win32":
+        pf = Path(os.environ.get("ProgramFiles", r"C:\Program Files"))
+        pf86 = Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"))
+        for root in (pf / "VideoLAN" / "VLC", pf86 / "VideoLAN" / "VLC"):
+            plugins = root / "plugins"
+            if plugins.is_dir():
+                return str(plugins)
+    return None
+
+
+class _VlcBridge(QObject):
+    """Маршалинг событий libVLC в главный поток Qt."""
+
+    playing = Signal()
+    paused = Signal()
+    stopped = Signal()
+    ended = Signal()
+    errored = Signal(str)
+
+
+class VlcMediaEngine:
+    """Аудио через libVLC. Требует установленный VLC или bundled plugins."""
+
+    def __init__(self) -> None:
+        import vlc
+
+        plugin_path = _find_vlc_plugin_path()
+        args = ["--no-video", "--quiet", "--intf", "dummy", "--no-video-title-show"]
+        if plugin_path:
+            args.extend([f"--plugin-path={plugin_path}"])
+            logger.info("VLC plugins: %s", plugin_path)
+
+        self._vlc = vlc
+        self._instance = vlc.Instance(*args)
+        if self._instance is None:
+            raise RuntimeError(
+                "Не удалось создать VLC Instance. Установите VLC или укажите VLC_HOME."
+            )
+        self._player = self._instance.media_player_new()
+        self._bridge = _VlcBridge()
+        self._volume = 80
+        self._player.audio_set_volume(self._volume)
+
+        self._playing_cbs: list[Callable[[], None]] = []
+        self._paused_cbs: list[Callable[[], None]] = []
+        self._stopped_cbs: list[Callable[[], None]] = []
+        self._ended_cbs: list[Callable[[], None]] = []
+        self._error_cbs: list[Callable[[str], None]] = []
+
+        self._bridge.playing.connect(lambda: self._fire(self._playing_cbs))
+        self._bridge.paused.connect(lambda: self._fire(self._paused_cbs))
+        self._bridge.stopped.connect(lambda: self._fire(self._stopped_cbs))
+        self._bridge.ended.connect(lambda: self._fire(self._ended_cbs))
+        self._bridge.errored.connect(lambda msg: self._fire_error(msg))
+
+        em = self._player.event_manager()
+        em.event_attach(vlc.EventType.MediaPlayerPlaying, self._on_vlc_playing)
+        em.event_attach(vlc.EventType.MediaPlayerPaused, self._on_vlc_paused)
+        em.event_attach(vlc.EventType.MediaPlayerStopped, self._on_vlc_stopped)
+        em.event_attach(vlc.EventType.MediaPlayerEndReached, self._on_vlc_ended)
+        em.event_attach(vlc.EventType.MediaPlayerEncounteredError, self._on_vlc_error)
+
+    @staticmethod
+    def _fire(callbacks: list[Callable[[], None]]) -> None:
+        for callback in callbacks:
+            callback()
+
+    def _fire_error(self, message: str) -> None:
+        for callback in self._error_cbs:
+            callback(message)
+
+    def _emit(self, signal) -> None:
+        # libVLC вызывает из своего потока — в Qt через queued signal.
+        QTimer.singleShot(0, signal.emit)
+
+    def _on_vlc_playing(self, _event) -> None:
+        self._emit(self._bridge.playing)
+
+    def _on_vlc_paused(self, _event) -> None:
+        self._emit(self._bridge.paused)
+
+    def _on_vlc_stopped(self, _event) -> None:
+        self._emit(self._bridge.stopped)
+
+    def _on_vlc_ended(self, _event) -> None:
+        self._emit(self._bridge.ended)
+
+    def _on_vlc_error(self, _event) -> None:
+        QTimer.singleShot(0, lambda: self._bridge.errored.emit("VLC playback error"))
+
+    def play_media(self, source: str) -> None:
+        path = source
+        if not source.startswith(("http://", "https://", "file:")):
+            path = str(Path(source).resolve())
+        media = self._instance.media_new(path)
+        self._player.set_media(media)
+        self._player.audio_set_volume(self._volume)
+        if self._player.play() == -1:
+            self._bridge.errored.emit(f"VLC не смог открыть: {source}")
+
+    def pause_media(self) -> None:
+        self._player.set_pause(1)
+
+    def resume_media(self) -> None:
+        self._player.set_pause(0)
+
+    def stop_media(self) -> None:
+        self._player.stop()
+
+    def is_playing(self) -> bool:
+        return bool(self._player.is_playing())
+
+    def get_position_ms(self) -> int:
+        value = self._player.get_time()
+        return max(0, int(value)) if value is not None and value >= 0 else 0
+
+    def set_position_ms(self, ms: int) -> None:
+        self._player.set_time(max(0, int(ms)))
+
+    def get_duration_ms(self) -> int:
+        value = self._player.get_length()
+        return max(0, int(value)) if value is not None and value >= 0 else 0
+
+    def get_volume(self) -> int:
+        vol = self._player.audio_get_volume()
+        if vol is None or vol < 0:
+            return self._volume
+        return max(0, min(100, int(vol)))
+
+    def set_volume(self, value: int) -> None:
+        self._volume = max(0, min(100, int(value)))
+        self._player.audio_set_volume(self._volume)
+
+    def on_playing(self, callback: Callable[[], None]) -> None:
+        self._playing_cbs.append(callback)
+
+    def on_paused(self, callback: Callable[[], None]) -> None:
+        self._paused_cbs.append(callback)
+
+    def on_stopped(self, callback: Callable[[], None]) -> None:
+        self._stopped_cbs.append(callback)
+
+    def on_ended(self, callback: Callable[[], None]) -> None:
+        self._ended_cbs.append(callback)
+
+    def on_error(self, callback: Callable[[str], None]) -> None:
+        self._error_cbs.append(callback)

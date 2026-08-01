@@ -13,7 +13,7 @@
   <a href="https://github.com/Really-Fun/Quantis"><img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-2ea043?style=flat-square" alt="Platform"></a>
   <a href="https://github.com/Really-Fun/Quantis/releases"><img src="https://img.shields.io/github/v/release/Really-Fun/Quantis?style=flat-square" alt="Release"></a>
   <img src="https://img.shields.io/badge/Qt-PySide6-41cd52?style=flat-square&logo=qt" alt="PySide6">
-  <img src="https://img.shields.io/badge/Audio-Qt%20Multimedia-9b59b6?style=flat-square" alt="Qt Multimedia">
+  <img src="https://img.shields.io/badge/Audio-Qt%20%7C%20VLC-9b59b6?style=flat-square" alt="Audio backends">
 </p>
 
 <p align="center">
@@ -32,7 +32,7 @@
 **Quantis** — асинхронный кроссплатформенный плеер на **PySide6** и **asyncio**.  
 Один интерфейс для поиска и прослушивания музыки с **Яндекс.Музыки** и **YouTube**, скачивания треков, истории с возобновлением с места остановки и нативной интеграцией с ОС.
 
-воспроизведение через **Qt Multimedia** (`QMediaPlayer`).
+воспроизведение через **Qt Multimedia** или **VLC (libvlc)** — две отдельные сборки exe.
 
 <table>
 <tr>
@@ -66,7 +66,7 @@
 | | |
 |---|---|
 | **Поиск** | Debounced-поиск, прогрессивная выдача по источникам, lazy-списки без прогрузки всего каталога сразу |
-| **Воспроизведение** | Qt Multimedia, seek/volume, автопереход к следующему треку |
+| **Воспроизведение** | Qt Multimedia или VLC, seek/volume, автопереход к следующему треку |
 | **Офлайн** | Скачивание в `music/`, библиотека скачанного, статус на карточке трека |
 | **История** | SQLite, недавно прослушанные, продолжение с сохранённой позиции |
 | **Интерфейс** | MVVM, `EventBus`, кастомные QSS-темы, панель «Сейчас играет» |
@@ -131,17 +131,45 @@ Cookies YouTube положите в файл `credentials/youtube_cookies.txt` �
 
 ### Сборка exe (Windows)
 
+Два варианта — разный медиадвижок:
+
+| Сборка | Движок | Артефакт |
+|--------|--------|----------|
+| **qt** | Qt Multimedia (FFmpeg) | `dist\Quantis\Quantis.exe` |
+| **vlc** | libVLC (`python-vlc`) | `dist\Quantis-VLC\Quantis-VLC.exe` |
+
 ```bat
+REM Qt (по умолчанию)
 poetry install --with dev
-poetry run pyinstaller main.spec --noconfirm
+poetry run python scripts/build_exe.py qt
+
+REM VLC — нужен установленный VideoLAN VLC (для libvlc.dll + plugins)
+poetry install --with dev,vlc
+set VLC_HOME=C:\Program Files\VideoLAN\VLC
+poetry run python scripts/build_exe.py vlc
 ```
 
-Артефакты: `dist\Quantis\Quantis.exe`
+PowerShell:
+
+```powershell
+.\scripts\build.ps1 -Backend qt
+.\scripts\build.ps1 -Backend vlc -VlcHome "C:\Program Files\VideoLAN\VLC"
+```
+
+Для разработки без пересборки:
+
+```bat
+set QUANTIS_MEDIA_BACKEND=vlc
+poetry install --with vlc
+poetry run quantis
+```
 
 Рядом с exe автоматически используются (создаются при первом запуске):
-- `plugins_dir/` — плагины
+- `plugins_dir/` — плагины приложения
 - `background/user/` — пользовательские обои
 - `music/`, `covers/`, `player_history.db` — данные плеера
+
+У сборки **Quantis-VLC** в каталог exe также кладутся `libvlc.dll` / `plugins/` из `VLC_HOME`.
 
 ---
 
@@ -164,7 +192,7 @@ flowchart TB
     subgraph app [Application]
         PC[PlaybackController]
         MS[MusicService]
-        Player[Player + QtMediaEngine]
+        Player[Player + QtMediaEngine / VlcMediaEngine]
     end
 
     subgraph services [Services]
@@ -206,7 +234,9 @@ src/quantis/
 ├── core/             # bootstrap, AsyncBridge, PluginHost
 ├── database/         # SQLite, история прослушивания
 ├── models/           # Track, Playlist — чистые доменные модели
-├── player/           # Player, QtMediaEngine
+├── player/           # Player, QtMediaEngine, VlcMediaEngine
+├── packaging/        # (корень репо) PyInstaller rthooks qt/vlc
+├── scripts/          # build_exe.py — сборка Quantis / Quantis-VLC
 ├── plugins/          # EventBus, базовый класс плагинов
 ├── providers/        # пути, плейлисты, TrackManager
 ├── services/         # поиск, стриминг, скачивание, рекомендации

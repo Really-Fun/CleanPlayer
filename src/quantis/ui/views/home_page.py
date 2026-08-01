@@ -9,14 +9,20 @@ from PySide6.QtWidgets import (
     QLabel,
     QScrollArea,
     QTableView,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
+from quantis.config.credentials import yandex_token
 from quantis.core.async_bridge import AsyncBridge
 from quantis.models.playlist import Playlist
 from quantis.ui.async_ui import schedule
 from quantis.ui.models import TrackListModel
+from quantis.ui.playlist_actions import (
+    create_playlist_and_add,
+    show_add_to_playlist_menu,
+)
 from quantis.ui.preferences import UiPreferences
 from quantis.ui.viewmodels.home_vm import HomeViewModel
 from quantis.ui.views.widgets.featured_track import FeaturedTrackPanel
@@ -24,7 +30,6 @@ from quantis.ui.views.widgets.home_section import HomeSection
 from quantis.ui.views.widgets.playlist_card import PlaylistShelf, QuickPickTile
 from quantis.ui.views.widgets.track_card import TrackCardDelegate
 from quantis.ui.views.widgets.wave_promo import WavePromoCard
-from quantis.config.credentials import yandex_token
 
 _QUICK_COLS = 3
 _MAX_VISIBLE_TRACKS = 12
@@ -106,6 +111,13 @@ class HomePage(QWidget):
 
         # —— Медиатека (горизонтальная полка) ——
         self._library_section = HomeSection("Медиатека", "Листай вбок — как на стриминге")
+        create_btn = QToolButton()
+        create_btn.setObjectName("homeSectionAction")
+        create_btn.setText("+ Плейлист")
+        create_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        create_btn.setToolTip("Создать плейлист")
+        create_btn.clicked.connect(self._on_create_playlist)
+        self._library_section.set_header_action(create_btn)
         self._shelf = PlaylistShelf()
         self._shelf.playlist_activated.connect(self._on_playlist)
         self._library_section.add_widget_block(self._shelf)
@@ -161,6 +173,10 @@ class HomePage(QWidget):
         table.setItemDelegate(TrackCardDelegate(table, on_download=on_download))
         table.setMouseTracking(True)
         table.viewport().setMouseTracking(True)
+        table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        table.customContextMenuRequested.connect(
+            lambda pos, t=table, m=model: self._on_track_context(t, m, pos)
+        )
         table.doubleClicked.connect(
             lambda index, m=model: self._on_play_model(m, index.row()),
         )
@@ -316,6 +332,32 @@ class HomePage(QWidget):
     def _on_download_recent(self, row: int) -> None:
         if self._bridge is not None:
             schedule(self._vm.download_recent_at(row), self._bridge)
+
+    def _on_create_playlist(self) -> None:
+        if self._bridge is None:
+            return
+
+        def done() -> None:
+            schedule(self._vm.refresh_user_playlists(self._bridge), self._bridge)
+
+        create_playlist_and_add(None, self._bridge, self, on_done=done)
+
+    def _on_track_context(self, table: QTableView, model: TrackListModel, pos) -> None:
+        if self._bridge is None:
+            return
+        index = table.indexAt(pos)
+        if not index.isValid():
+            return
+        track = model.get_track(index.row())
+        if track is None:
+            return
+
+        def done() -> None:
+            schedule(self._vm.refresh_user_playlists(self._bridge), self._bridge)
+
+        show_add_to_playlist_menu(
+            track, bridge=self._bridge, parent=self, on_done=done
+        )
 
     def refresh_featured(self) -> None:
         self._sync_featured()

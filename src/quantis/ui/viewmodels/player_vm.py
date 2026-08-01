@@ -27,6 +27,8 @@ class PlayerViewModel(BaseViewModel):
         self._playback = playback
         self._player = player
         self._event_bus = event_bus
+        self._eco = False
+        self._last_duration = -1
         self._tick = QTimer(self)
         self._tick.setInterval(250)
         self._tick.timeout.connect(self._update_timeline)
@@ -35,6 +37,10 @@ class PlayerViewModel(BaseViewModel):
         event_bus.playback_paused.connect(self._on_paused)
         event_bus.playback_resumed.connect(self._on_resumed)
         event_bus.track_finished.connect(self._on_track_finished)
+
+    def set_eco(self, enabled: bool) -> None:
+        self._eco = enabled
+        self._tick.setInterval(2000 if enabled else 250)
 
     def start_updates(self) -> None:
         if not self._tick.isActive():
@@ -82,7 +88,8 @@ class PlayerViewModel(BaseViewModel):
         position = max(0, self._player.time)
         duration = max(0, self._player.duration)
         self.position_changed.emit(position)
-        if duration > 0:
+        if duration > 0 and duration != self._last_duration:
+            self._last_duration = duration
             self.duration_changed.emit(duration)
 
     def _on_track_changed(self, track: Track) -> None:

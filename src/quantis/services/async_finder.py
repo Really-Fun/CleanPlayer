@@ -104,8 +104,14 @@ class AsyncYandexFinder(AsyncFinderInterface):
 
 class AsyncYoutubeFinder(AsyncFinderInterface):
     def __init__(self, executor: ThreadPoolExecutor) -> None:
-        self.client = Clients().get_youtube_client()
+        self._client = None
         self._executor = executor
+
+    @property
+    def client(self):
+        if self._client is None:
+            self._client = Clients().get_youtube_client()
+        return self._client
 
     @property
     def executor(self) -> ThreadPoolExecutor:
@@ -178,10 +184,10 @@ class AsyncFinder(AsyncFinderInterface):
     _DEFAULT_PER_SOURCE = 12
 
     def __init__(self, executor: ThreadPoolExecutor | None = None) -> None:
-        self._owns_executor = executor is None
-        self._executor = executor or ThreadPoolExecutor(
-            max_workers=6, thread_name_prefix="FinderPool"
-        )
+        from quantis.core.worker_pool import get_worker_pool
+
+        self._owns_executor = False
+        self._executor = executor or get_worker_pool()
         self._yandex_finder = AsyncYandexFinder(self._executor)
         self._youtube_finder = AsyncYoutubeFinder(self._executor)
 
@@ -254,6 +260,5 @@ class AsyncFinder(AsyncFinderInterface):
         return await self._youtube_finder.get_track(track_id)
 
     def shutdown(self) -> None:
-        """Очищает пул потоков при закрытии приложения."""
-        if self._owns_executor:
-            self._executor.shutdown(wait=False)
+        """Пул потоков общий — не останавливаем здесь."""
+        return

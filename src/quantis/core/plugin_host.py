@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QWidget
 
 if TYPE_CHECKING:
     from quantis.controllers.playback_controller import PlaybackController
@@ -73,3 +74,61 @@ class PluginHost:
         from quantis.ui.ui_extensions import UiExtensionHost
 
         UiExtensionHost.instance().unregister_player_action(action_id)
+
+    def register_page(
+        self,
+        page_id: str,
+        title: str,
+        widget: QWidget,
+        *,
+        subtitle: str = "",
+        icon: QIcon | None = None,
+    ) -> None:
+        """Регистрирует страницу плагина. Создавать widget нужно в UI-потоке."""
+        from PySide6.QtCore import Qt, QThread
+        from PySide6.QtWidgets import QApplication
+
+        from quantis.ui.ui_extensions import PageExtension, UiExtensionHost
+
+        def do_register() -> None:
+            widget.setWindowFlags(Qt.WindowType.Widget)
+            UiExtensionHost.instance().register_page(
+                PageExtension(
+                    page_id=page_id,
+                    title=title,
+                    widget=widget,
+                    subtitle=subtitle,
+                    icon=icon,
+                    from_plugin=True,
+                )
+            )
+
+        app = QApplication.instance()
+        if app is not None and QThread.currentThread() != app.thread():
+            if self.async_bridge is None:
+                raise RuntimeError(
+                    "register_page из фонового потока требует async_bridge"
+                )
+            self.async_bridge.invoke_main(do_register)
+            return
+        do_register()
+
+    def unregister_page(self, page_id: str) -> None:
+        from PySide6.QtCore import QThread
+        from PySide6.QtWidgets import QApplication
+
+        from quantis.ui.ui_extensions import UiExtensionHost
+
+        def do_unregister() -> None:
+            self.unregister_nav_item(page_id)
+            UiExtensionHost.instance().unregister_page(page_id)
+
+        app = QApplication.instance()
+        if (
+            app is not None
+            and QThread.currentThread() != app.thread()
+            and self.async_bridge is not None
+        ):
+            self.async_bridge.invoke_main(do_unregister)
+            return
+        do_unregister()

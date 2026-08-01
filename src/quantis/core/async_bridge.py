@@ -41,6 +41,22 @@ class AsyncBridge(QObject):
         except RuntimeError:
             logger.debug("invoke_main пропущен: Qt-объект AsyncBridge уже удалён")
 
+    async def call_main(self, callback: Callable[[], T]) -> T:
+        """Выполняет callback в UI-потоке и возвращает результат."""
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[T] = loop.create_future()
+
+        def wrapper() -> None:
+            try:
+                result = callback()
+            except Exception as exc:
+                loop.call_soon_threadsafe(future.set_exception, exc)
+            else:
+                loop.call_soon_threadsafe(future.set_result, result)
+
+        self.invoke_main(wrapper)
+        return await future
+
     def schedule(self, coro: Coroutine[Any, Any, T]) -> None:
         asyncio.run_coroutine_threadsafe(self._run_safe(coro), self._loop)
 

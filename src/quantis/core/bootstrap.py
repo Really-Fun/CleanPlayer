@@ -7,12 +7,13 @@ from dataclasses import dataclass
 from quantis.controllers.playback_controller import PlaybackController
 from quantis.core.async_bridge import AsyncBridge
 from quantis.core.plugin_host import PluginHost
-from quantis.player import Player, QtMediaEngine
+from quantis.player.factory import create_media_engine
+from quantis.player.player import Player
 from quantis.plugins.event_bus import EventBus
 from quantis.providers import PlaylistManager
-from quantis.services import TrackHistoryService
 from quantis.services.music_service import MusicService
 from quantis.services.playback_history import PlaybackHistoryWatcher
+from quantis.services.TrackHistoryService import TrackHistoryService
 
 
 @dataclass
@@ -26,6 +27,7 @@ class ApplicationBundle:
     playlists: PlaylistManager
     playback: PlaybackController
     history: TrackHistoryService
+    history_watcher: PlaybackHistoryWatcher
     plugin_host: PluginHost
 
 
@@ -34,8 +36,7 @@ def build_application(bridge: AsyncBridge) -> ApplicationBundle:
 
     PathProvider.ensure_storage_dirs()
     event_bus = EventBus()
-    engine = QtMediaEngine()
-    player = Player(engine=engine)
+    player = Player(engine=create_media_engine())
     music = MusicService()
     playlists = PlaylistManager()
     history = TrackHistoryService()
@@ -56,7 +57,7 @@ def build_application(bridge: AsyncBridge) -> ApplicationBundle:
 
     wire_player_events(player, event_bus, playback, bridge)
     wire_event_bus_navigation(event_bus, playback, bridge)
-    PlaybackHistoryWatcher(player, history, event_bus, bridge)
+    history_watcher = PlaybackHistoryWatcher(player, history, event_bus, bridge)
 
     return ApplicationBundle(
         async_bridge=bridge,
@@ -66,6 +67,7 @@ def build_application(bridge: AsyncBridge) -> ApplicationBundle:
         playlists=playlists,
         playback=playback,
         history=history,
+        history_watcher=history_watcher,
         plugin_host=plugin_host,
     )
 

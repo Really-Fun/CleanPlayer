@@ -16,8 +16,6 @@ from pathlib import Path
 from time import time
 from typing import Any
 
-from yt_dlp import YoutubeDL
-
 from quantis.config import Clients
 from quantis.models import Track, TrackSource
 
@@ -292,6 +290,8 @@ class AsyncYoutubeStreamer(AsyncStreamerInterface):
         )
 
     def sync_stream(self, track_id: str) -> str | None:
+        from yt_dlp import YoutubeDL
+
         url = f"https://www.youtube.com/watch?v={track_id}"
         last_exc: BaseException | None = None
         for opts in self._attempt_opts(video=False):
@@ -328,6 +328,8 @@ class AsyncYoutubeStreamer(AsyncStreamerInterface):
         return None
 
     def sync_video_stream(self, track_id: str) -> str | None:
+        from yt_dlp import YoutubeDL
+
         url = f"https://www.youtube.com/watch?v={track_id}"
         for opts in self._attempt_opts(video=True):
             try:
@@ -353,12 +355,11 @@ class AsyncStreamer(AsyncStreamerInterface):
     def __init__(self, executor: ThreadPoolExecutor | None = None) -> None:
         from collections import OrderedDict
 
+        from quantis.core.worker_pool import get_worker_pool
         from quantis.services.yandex_progressive_buffer import YandexProgressiveBuffer
 
-        self._owns_executor = executor is None
-        self._executor = executor or ThreadPoolExecutor(
-            max_workers=4, thread_name_prefix="StreamerPool"
-        )
+        self._owns_executor = False
+        self._executor = executor or get_worker_pool()
         self._yandex = AsyncYandexStreamer(self._executor)
         self._youtube = AsyncYoutubeStreamer(self._executor)
         self._yandex_buffer = YandexProgressiveBuffer(self._yandex)
@@ -419,6 +420,9 @@ class AsyncStreamer(AsyncStreamerInterface):
     def invalidate(self, track: Track) -> None:
         key = f"{track.source}:{track.track_id}"
         self._cache.pop(key, None)
+
+    def set_eco(self, enabled: bool) -> None:
+        self._yandex_buffer.set_eco(enabled)
 
     def shutdown(self) -> None:
         if self._buffer_loop is not None:

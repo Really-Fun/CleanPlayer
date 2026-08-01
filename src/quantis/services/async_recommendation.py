@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-
-from ytmusicapi import YTMusic
+from typing import Any
 
 from quantis.config import Clients
 from quantis.models import RecommendationPlaylist, Track, YoutubeTrack
@@ -21,10 +20,16 @@ class AsyncRecommendation:
     def __init__(
         self,
         youtube_finder: AsyncYoutubeFinder,
-        client: YTMusic | None = None,
+        client: Any | None = None,
     ) -> None:
         self._finder = youtube_finder
-        self._client = client or Clients().get_youtube_client()
+        self._client = client
+
+    @property
+    def _yt(self):
+        if self._client is None:
+            self._client = Clients().get_youtube_client()
+        return self._client
 
     async def generate_radio_from_track(self, track: Track) -> RecommendationPlaylist:
         video_id = track.track_id
@@ -33,7 +38,7 @@ class AsyncRecommendation:
 
         result = await asyncio.get_running_loop().run_in_executor(
             self._finder.executor,
-            lambda: self._client.get_watch_playlist(videoId=video_id, limit=10),
+            lambda: self._yt.get_watch_playlist(videoId=video_id, limit=10),
         )
 
         tracks = [

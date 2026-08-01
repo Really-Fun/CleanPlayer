@@ -62,6 +62,7 @@ def icon_path(name: str) -> str:
 
 
 _ICON_CACHE: dict[str, QIcon] = {}
+_BASE_SHEET_CACHE: dict[str, str] = {}
 
 
 def load_icon(name: str) -> QIcon:
@@ -132,7 +133,7 @@ def dynamic_accent_qss(accent: QColor | None = None) -> str:
     return f"""
 #controlButton[accent=true] {{
     background: {rgb};
-    border-radius: 22px;
+    border-radius: 20px;
 }}
 #controlButton[accent=true]:hover {{
     background: {rgba40};
@@ -156,10 +157,12 @@ def load_stylesheet(
     accent: QColor | None = None,
 ) -> str:
     theme_id = normalize_ui_theme(ui_theme)
-    base = UI_THEME_BASE_QSS.get(theme_id, "dark")
-    sheet = load_theme(base) + "\n" + load_widget_styles(theme_id)
-    sheet += "\n" + dynamic_accent_qss(accent)
-    return sheet
+    base_sheet = _BASE_SHEET_CACHE.get(theme_id)
+    if base_sheet is None:
+        base = UI_THEME_BASE_QSS.get(theme_id, "dark")
+        base_sheet = load_theme(base) + "\n" + load_widget_styles(theme_id)
+        _BASE_SHEET_CACHE[theme_id] = base_sheet
+    return base_sheet + "\n" + dynamic_accent_qss(accent)
 
 
 def format_ms(ms: int) -> str:
