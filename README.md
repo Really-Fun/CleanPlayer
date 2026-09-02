@@ -150,11 +150,11 @@ Quantis бесплатный и с открытым исходным кодом.
   </a>
 </p>
 
-<!-- TODO: положить QR в readme/cloudtips-qr.png и раскомментировать блок ниже
+
 <p align="center">
-  <img src="readme/cloudtips-qr.png" alt="QR для донатов CloudTips" width="180">
+  <img src="readme/qr.jpg" alt="QR для донатов CloudTips" width="180">
 </p>
--->
+
 
 ## Лицензия
 
