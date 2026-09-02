@@ -26,6 +26,11 @@ def main() -> None:
     )
 
     app = QApplication(sys.argv)
+    app.setApplicationName("Quantis")
+    app.setApplicationDisplayName("Quantis")
+    app.setOrganizationName("ReallyFun")
+    # Wayland берёт app_id отсюда, иначе окно опознаётся как "python3".
+    app.setDesktopFileName("quantis")
     bridge = AsyncBridge()
     bridge.setParent(app)
     bundle = build_application(bridge)

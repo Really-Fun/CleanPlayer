@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QObject, QSettings, Signal
+from PySide6.QtCore import QByteArray, QObject, QSettings, Signal
 
 from quantis.models.repeat_mode import RepeatMode
 from quantis.ui.resources import DEFAULT_UI_THEME, normalize_ui_theme
@@ -25,6 +25,7 @@ class UiPreferences(QObject):
     _KEY_VOLUME = "playback/volume"
     _KEY_REPEAT_MODE = "playback/repeat_mode"
     _KEY_MUSIC_DIR = "storage/music_dir"
+    _KEY_WINDOW_GEOMETRY = "ui/window_geometry"
 
     def __new__(cls) -> UiPreferences:
         if cls._instance is None:
@@ -164,6 +165,19 @@ class UiPreferences(QObject):
             return
         self._settings.setValue(self._KEY_REPEAT_MODE, mode.value)
         self.changed.emit()
+
+    @property
+    def window_geometry(self) -> QByteArray | None:
+        raw = self._settings.value(self._KEY_WINDOW_GEOMETRY)
+        if isinstance(raw, QByteArray) and not raw.isEmpty():
+            return raw
+        if isinstance(raw, (bytes, bytearray)) and raw:
+            return QByteArray(bytes(raw))
+        return None
+
+    def set_window_geometry(self, geometry: QByteArray) -> None:
+        self._settings.setValue(self._KEY_WINDOW_GEOMETRY, geometry)
+        self._settings.sync()
 
     @property
     def music_dir(self) -> str:

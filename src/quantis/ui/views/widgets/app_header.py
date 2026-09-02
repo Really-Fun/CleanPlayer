@@ -129,12 +129,21 @@ class AppHeader(QFrame):
         ):
             window = self.window()
             if window is not None and not window.isMaximized():
+                if self._start_system_move(window):
+                    event.accept()
+                    return
                 self._drag_offset = (
                     event.globalPosition().toPoint() - window.frameGeometry().topLeft()
                 )
                 event.accept()
                 return
         super().mousePressEvent(event)
+
+    @staticmethod
+    def _start_system_move(window: QWidget) -> bool:
+        """Перенос окна силами оконного менеджера (на Wayland move() не работает)."""
+        handle = window.windowHandle()
+        return bool(handle is not None and handle.startSystemMove())
 
     def mouseMoveEvent(self, event) -> None:
         if (

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QPropertyAnimation, Qt
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtCore import QEvent, QPropertyAnimation, QRect, Qt
+from PySide6.QtGui import QColor, QFont, QGuiApplication
 from PySide6.QtWidgets import (
     QApplication,
     QGraphicsOpacityEffect,
@@ -36,6 +36,7 @@ from quantis.ui.views.widgets.app_header import AppHeader
 from quantis.ui.views.widgets.background_frame import BackgroundFrame
 from quantis.ui.views.widgets.now_playing_fullscreen import NowPlayingFullscreen
 from quantis.ui.views.widgets.now_playing_panel import NowPlayingPanel
+from quantis.ui.views.widgets.resize_grips import WindowResizeGrips
 from quantis.ui.ui_extensions import NavExtension, UiExtensionHost
 from quantis.ui.views.widgets.side_nav import SideNavRail
 from quantis.ui.views.widgets.wallpaper_backdrop import BodyWithWallpaper
@@ -87,7 +88,9 @@ class QuantisMainWindow(QMainWindow):
             | Qt.WindowType.FramelessWindowHint
         )
         self.setMinimumSize(1024, 640)
-        self.resize(1280, 800)
+        self._ui_prefs = UiPreferences()
+        self._restore_window_geometry()
+        self._resize_grips = WindowResizeGrips(self)
         self._current_page = -1
         self._accent = QColor(ACCENT_FALLBACK)
 
@@ -113,7 +116,6 @@ class QuantisMainWindow(QMainWindow):
             bridge=self._bridge,
             parent=self,
         )
-        self._ui_prefs = UiPreferences()
         self._return_page_id = self.PAGE_HOME
         self._applied_theme = ""
         self._page_meta = dict(self._PAGE_META)
@@ -584,6 +586,30 @@ class QuantisMainWindow(QMainWindow):
         self._body_shell.set_variant(theme_id)
         self._player_bar.refresh_theme()
 
+    def _restore_window_geometry(self) -> None:
+        saved = self._ui_prefs.window_geometry
+        if saved is not None and self.restoreGeometry(saved):
+            return
+        screen = self.screen() or QGuiApplication.primaryScreen()
+        if screen is None:
+            self.resize(1280, 800)
+            return
+        available = screen.availableGeometry()
+        minimum = self.minimumSize()
+        frame = QRect(
+            0,
+            0,
+            max(minimum.width(), min(1280, available.width() - 80)),
+            max(minimum.height(), min(800, available.height() - 80)),
+        )
+        frame.moveCenter(available.center())
+        self.setGeometry(frame)
+
+    def closeEvent(self, event) -> None:
+        if not (self.isMaximized() or self.isMinimized() or self.isFullScreen()):
+            self._ui_prefs.set_window_geometry(self.saveGeometry())
+        super().closeEvent(event)
+
     def _toggle_maximize(self) -> None:
         if self.isMaximized():
             self.showNormal()
@@ -594,12 +620,14 @@ class QuantisMainWindow(QMainWindow):
         super().changeEvent(event)
         if event.type() == QEvent.Type.WindowStateChange:
             self._header.set_maximized(self.isMaximized())
+            self._resize_grips.update_geometry()
             self._refresh_eco_state()
         elif event.type() == QEvent.Type.ActivationChange:
             self._refresh_eco_state()
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
+        self._resize_grips.update_geometry()
         self._sync_now_playing_visibility()
         if self._np_fullscreen.isVisible():
             self._np_fullscreen.setGeometry(self._shell.rect())
