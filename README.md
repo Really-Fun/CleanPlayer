@@ -145,8 +145,7 @@ Quantis бесплатный и с открытым исходным кодом.
 и кофе.
 
 <p align="center">
-  <!-- TODO: заменить CLOUDTIPS_URL на реальную ссылку -->
-  <a href="CLOUDTIPS_URL">
+  <a href="https://pay.cloudtips.ru/p/c8c0b13b">
     <img src="https://img.shields.io/badge/CloudTips-Поддержать_проект-F5426C?style=for-the-badge&labelColor=1f2430" alt="Поддержать через CloudTips">
   </a>
 </p>
