@@ -7,10 +7,16 @@ from pathlib import Path
 from time import time
 from typing import Any
 
-DEFAULT_DB_PATH = Path("player_history.db")
+from quantis.utils import app_paths
 
 
-def _connect(db_path: Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
+def default_db_path() -> Path:
+    """Путь к базе в каталоге пользовательских данных."""
+    return app_paths.database_path()
+
+
+def _connect(db_path: Path | None = None) -> sqlite3.Connection:
+    db_path = db_path or default_db_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path.as_posix())
     conn.row_factory = sqlite3.Row
@@ -61,7 +67,7 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-def fetch_liked_entries(db_path: Path = DEFAULT_DB_PATH) -> list[dict[str, Any]]:
+def fetch_liked_entries(db_path: Path | None = None) -> list[dict[str, Any]]:
     with _connect(db_path) as conn:
         ensure_schema(conn)
         cursor = conn.execute(
@@ -74,7 +80,7 @@ def fetch_liked_entries(db_path: Path = DEFAULT_DB_PATH) -> list[dict[str, Any]]
         return [dict(row) for row in cursor.fetchall()]
 
 
-def is_track_liked(track_key: str, db_path: Path = DEFAULT_DB_PATH) -> bool:
+def is_track_liked(track_key: str, db_path: Path | None = None) -> bool:
     with _connect(db_path) as conn:
         ensure_schema(conn)
         cursor = conn.execute(
@@ -91,7 +97,7 @@ def set_track_liked(
     author: str,
     source: str,
     liked: bool,
-    db_path: Path = DEFAULT_DB_PATH,
+    db_path: Path | None = None,
 ) -> None:
     with _connect(db_path) as conn:
         ensure_schema(conn)
@@ -118,7 +124,7 @@ def set_track_liked(
 
 def fetch_recent_entries(
     limit: int,
-    db_path: Path = DEFAULT_DB_PATH,
+    db_path: Path | None = None,
 ) -> list[dict[str, Any]]:
     with _connect(db_path) as conn:
         ensure_schema(conn)
@@ -135,7 +141,7 @@ def fetch_recent_entries(
         return [dict(row) for row in cursor.fetchall()]
 
 
-def get_saved_position(track_key: str, db_path: Path = DEFAULT_DB_PATH) -> int:
+def get_saved_position(track_key: str, db_path: Path | None = None) -> int:
     with _connect(db_path) as conn:
         ensure_schema(conn)
         cursor = conn.execute(
@@ -155,7 +161,7 @@ def upsert_progress(
     position_ms: int,
     duration_ms: int,
     listen_increment: int = 0,
-    db_path: Path = DEFAULT_DB_PATH,
+    db_path: Path | None = None,
 ) -> None:
     with _connect(db_path) as conn:
         ensure_schema(conn)

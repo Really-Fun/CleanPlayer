@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from quantis.plugins.loader import resolve_plugins_dir
+from quantis.utils import app_paths
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,7 @@ def download_plugin_zip(url: str, dest_dir: Path | None = None) -> Path:
     if parsed.scheme not in ("http", "https"):
         raise PluginInstallError("URL должен начинаться с http:// или https://")
 
-    dest_dir = dest_dir or Path(tempfile.gettempdir())
+    dest_dir = dest_dir or app_paths.cache_dir() / "downloads"
     dest_dir.mkdir(parents=True, exist_ok=True)
     name = Path(parsed.path).name or "plugin.zip"
     if not name.lower().endswith(".zip"):

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 from quantis.controllers.playback_controller import PlaybackController
@@ -14,6 +15,8 @@ from quantis.providers import PlaylistManager
 from quantis.services.music_service import MusicService
 from quantis.controllers.playback_history_watcher import PlaybackHistoryWatcher
 from quantis.services.track_history import TrackHistoryService
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -33,8 +36,12 @@ class ApplicationBundle:
 
 def build_application(bridge: AsyncBridge) -> ApplicationBundle:
     from quantis.providers import PathProvider
+    from quantis.utils import app_paths
 
+    app_paths.migrate_legacy_data()
+    app_paths.ensure_dirs()
     PathProvider.ensure_storage_dirs()
+    logger.info("Каталог данных: %s", app_paths.data_dir())
     event_bus = EventBus()
     player = Player(engine=create_media_engine())
     music = MusicService()

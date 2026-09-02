@@ -61,7 +61,7 @@
 | **Воспроизведение** | Qt Multimedia или VLC, seek/громкость, автопереход к следующему треку |
 | **Радио и волна** | «Моя волна» (Yandex rotor), радио по любому треку через YouTube Watch Playlist |
 | **Библиотека** | Любимые треки, свои плейлисты, «Недавно прослушанные», «Скачанные» |
-| **Офлайн** | Скачивание треков и обложек в `music/` и `covers/`, статус загрузки на карточке |
+| **Офлайн** | Скачивание треков и обложек в `Музыка/Quantis`, статус загрузки на карточке |
 | **История** | SQLite: недавно прослушанное и продолжение с сохранённой позиции |
 | **Интерфейс** | MVVM, `EventBus`, QSS-темы, панель «Сейчас играет», обои |
 | **Интеграция** | Медиа-клавиши ОС: SMTC (Windows) и MPRIS (Linux), keyring для токенов |
@@ -97,7 +97,7 @@ poetry run quantis
 подключается во вкладке **Member**:
 
 - **Yandex Music** — OAuth-токен, хранится в keyring (там же виден статус Яндекс Плюс)
-- **YouTube Music** — cookies в `credentials/youtube_cookies.txt` (keyring на Windows не принимает большие blob'ы)
+- **YouTube Music** — cookies в файле `credentials/youtube_cookies.txt` внутри [каталога данных](docs/build.md#каталоги-данных) (keyring на Windows не принимает большие blob'ы)
 
 <details>
 <summary>Прописать токен Яндекса вручную</summary>
@@ -112,7 +112,7 @@ keyring.set_password("YANDEX_TOKEN_NEON_APP", "NEON_APP", "<ваш_oauth_ток�
 
 ## Сборка и архитектура
 
-- **Сборка exe** (Windows, варианты `qt` и `vlc`) — [docs/build.md](docs/build.md)
+- **Сборка exe и установщик** (варианты `qt`/`vlc`, Inno Setup, каталоги данных) — [docs/build.md](docs/build.md)
 - **Слои, поток воспроизведения, структура каталогов** — [docs/architecture.md](docs/architecture.md)
 - **Карта интерфейса** (страницы, сигналы `EventBus`) — [docs/ui-map.md](docs/ui-map.md)
 

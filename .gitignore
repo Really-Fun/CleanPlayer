@@ -64,6 +64,10 @@ player_history.db-wal*
 playlists/
 playlist_covers/
 
+# Кэш приложения (загрузки плагинов и пр.) при запуске из исходников
+cache/
+.migrated
+
 # OS files
 .DS_Store
 Thumbs.db
@@ -77,6 +81,17 @@ plugins_dir/*
 !plugins_dir/.gitkeep
 !plugins_dir/hello_plugin/
 !plugins_dir/hello_plugin/**
+plugins_dir/hello_plugin/__pycache__/
+
+# Черновики и эксперименты в корне (тесты живут в tests/)
+/test.py
+/test*.py
+/scratch*
+/tmp*
+
+# Каталог обоев в корне — встроенные лежат в src/quantis/assets/background
+/assets/
+/ui/
 
 CleanPlayer.spec
 build.bat

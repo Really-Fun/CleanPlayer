@@ -64,14 +64,10 @@ if BACKEND == "vlc":
 
 # Ресурсы приложения
 if (QUANTIS / "assets").is_dir():
+    # Один раз: get_asset_path() умеет искать в quantis/assets внутри бандла
     datas.append((str(QUANTIS / "assets"), "quantis/assets"))
-    datas.append((str(QUANTIS / "assets"), "assets"))
 if (QUANTIS / "styles").is_dir():
     datas.append((str(QUANTIS / "styles"), "quantis/styles"))
-
-repo_bg = ROOT / "assets" / "background"
-if repo_bg.is_dir():
-    datas.append((str(repo_bg), "assets/background"))
 
 if (SITE / "ytmusicapi").is_dir():
     try:
@@ -169,8 +165,12 @@ if BACKEND == "vlc":
 else:
     excludes.append("vlc")
 
-icon_path = QUANTIS / "assets" / "icons" / "logo.png"
-icon = str(icon_path) if icon_path.is_file() else None
+icon = None
+for icon_name in ("logo.ico", "logo.png"):
+    icon_path = QUANTIS / "assets" / "icons" / icon_name
+    if icon_path.is_file():
+        icon = str(icon_path)
+        break
 
 a = Analysis(
     [str(QUANTIS / "main.py")],

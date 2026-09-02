@@ -28,7 +28,7 @@ class UserPlaylistsService:
 
     @property
     def playlists_dir(self) -> str:
-        return PathProvider.PLAYLISTS_FOLDER.rstrip("/\\")
+        return PathProvider.playlists_folder().rstrip("/\\")
 
     async def list_names(self) -> list[str]:
         return await asyncio.to_thread(

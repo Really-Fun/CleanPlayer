@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import List
 
 from quantis.models.track import YandexTrack, YoutubeTrack
+from quantis.utils import app_paths
 
 
 class TrackManager:
@@ -12,8 +13,8 @@ class TrackManager:
             cls._instance = super().__new__(cls, *args, **kwargs)
         return cls._instance
 
-    def __init__(self, music_dir="music/"):
-        self.music_dir = Path(music_dir)
+    def __init__(self, music_dir: str | Path | None = None):
+        self.music_dir = Path(music_dir) if music_dir else app_paths.music_dir()
         self._ids_cache = None
 
     @property

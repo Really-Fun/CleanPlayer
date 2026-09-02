@@ -12,6 +12,8 @@ from typing import Any, Iterable
 
 import aiosqlite
 
+from quantis.utils import app_paths
+
 
 class AsyncDatabase:
     """Низкоуровневый асинхронный клиент SQLite.
@@ -22,8 +24,8 @@ class AsyncDatabase:
     - выполнять SQL-запросы асинхронно.
     """
 
-    def __init__(self, db_path: str = "player_history.db") -> None:
-        self._db_path = Path(db_path)
+    def __init__(self, db_path: str | Path | None = None) -> None:
+        self._db_path = Path(db_path) if db_path else app_paths.database_path()
         self._conn: aiosqlite.Connection | None = None
         self._initialized = False
         self._init_task: asyncio.Task[None] | None = None

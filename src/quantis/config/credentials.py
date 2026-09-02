@@ -25,7 +25,7 @@ from quantis.config.constants import (
     SERVICE_NAME_YOUTUBE_COOKIE,
     USER,
 )
-from quantis.utils.resource_path import app_dir
+from quantis.utils import app_paths
 
 logger = logging.getLogger(__name__)
 
@@ -34,16 +34,12 @@ _COOKIE_NAME_RE = re.compile(r"^[A-Za-z0-9_.\-]+$")
 
 
 def _youtube_cookie_path() -> Path:
-    folder = app_dir() / "credentials"
-    folder.mkdir(parents=True, exist_ok=True)
-    return folder / "youtube_cookies.txt"
+    return app_paths.credentials_dir() / "youtube_cookies.txt"
 
 
 def youtube_netscape_cookies_path() -> Path:
     """Netscape cookies для yt-dlp (отдельно от auth JSON ytmusicapi)."""
-    folder = app_dir() / "credentials"
-    folder.mkdir(parents=True, exist_ok=True)
-    return folder / "youtube_cookies.netscape"
+    return app_paths.credentials_dir() / "youtube_cookies.netscape"
 
 
 def _cookie_header_from_auth_json(text: str) -> str | None:

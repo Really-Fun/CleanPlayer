@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QShowEvent
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QDesktopServices, QShowEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QFileDialog,
     QFrame,
+    QHBoxLayout,
     QLabel,
+    QPushButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,
@@ -20,10 +23,12 @@ from quantis.ui.preferences import UiPreferences
 from quantis.ui.resources import UI_THEME_LABELS
 from quantis.ui.views.widgets.glass_panel import GlassPanel
 from quantis.ui.wallpapers import (
+    remap_renamed_wallpaper,
     scan_wallpapers,
     user_backgrounds_dir,
     wallpaper_display_name,
 )
+from quantis.utils import app_paths
 
 
 class SettingsPage(QWidget):
@@ -139,6 +144,63 @@ class SettingsPage(QWidget):
         eco_body.addWidget(self._eco_cb)
         panel_layout.addWidget(eco_row)
 
+        panel_layout.addWidget(
+            QLabel("Хранилище", objectName="settingsSectionLabel")
+        )
+
+        music_row, music_body = self._row(
+            "Папка для скачанной музыки",
+            "Треки и обложки сохраняются сюда. Программа не пишет в свой "
+            "каталог установки, поэтому права администратора не нужны.",
+        )
+        self._music_dir_label = QLabel()
+        self._music_dir_label.setObjectName("settingsRowDesc")
+        self._music_dir_label.setWordWrap(True)
+        self._music_dir_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        music_body.addWidget(self._music_dir_label)
+
+        music_buttons = QHBoxLayout()
+        music_buttons.setContentsMargins(0, 4, 0, 0)
+        music_buttons.setSpacing(8)
+        for text, slot in (
+            ("Изменить…", self._on_pick_music_dir),
+            ("Открыть", self._on_open_music_dir),
+            ("По умолчанию", self._on_reset_music_dir),
+        ):
+            button = QPushButton(text)
+            button.setObjectName("settingsButton")
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.clicked.connect(slot)
+            music_buttons.addWidget(button)
+        music_buttons.addStretch()
+        music_body.addLayout(music_buttons)
+        panel_layout.addWidget(music_row)
+
+        data_row, data_body = self._row(
+            "Каталог данных",
+            "База истории, плейлисты, токены, плагины и пользовательские обои",
+        )
+        self._data_dir_label = QLabel()
+        self._data_dir_label.setObjectName("settingsRowDesc")
+        self._data_dir_label.setWordWrap(True)
+        self._data_dir_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        data_body.addWidget(self._data_dir_label)
+
+        open_data = QPushButton("Открыть")
+        open_data.setObjectName("settingsButton")
+        open_data.setCursor(Qt.CursorShape.PointingHandCursor)
+        open_data.clicked.connect(self._on_open_data_dir)
+        data_buttons = QHBoxLayout()
+        data_buttons.setContentsMargins(0, 4, 0, 0)
+        data_buttons.addWidget(open_data)
+        data_buttons.addStretch()
+        data_body.addLayout(data_buttons)
+        panel_layout.addWidget(data_row)
+
         engine_row, engine_body = self._row(
             "Медиадвижок",
             "Задаётся при сборке exe (Quantis / Quantis-VLC) "
@@ -157,6 +219,11 @@ class SettingsPage(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(scroll)
+
+        # Разовый перенос выбора после переименования встроенных обоев
+        remapped = remap_renamed_wallpaper(self._prefs.wallpaper_path)
+        if remapped:
+            self._prefs.set_wallpaper_path(remapped)
 
         self._prefs.changed.connect(self._sync_from_preferences)
         self._sync_from_preferences()
@@ -203,7 +270,38 @@ class SettingsPage(QWidget):
             self._theme_combo.setCurrentIndex(index)
         self._theme_combo.blockSignals(False)
 
+        self._sync_storage_labels()
         self._refresh_wallpapers(block_signals=True)
+
+    def _sync_storage_labels(self) -> None:
+        music = app_paths.music_dir()
+        suffix = "" if self._prefs.music_dir else "  ·  по умолчанию"
+        self._music_dir_label.setText(f"{music}{suffix}")
+        self._data_dir_label.setText(str(app_paths.data_dir()))
+
+    def _on_pick_music_dir(self) -> None:
+        chosen = QFileDialog.getExistingDirectory(
+            self,
+            "Папка для скачанной музыки",
+            str(app_paths.music_dir()),
+            QFileDialog.Option.ShowDirsOnly,
+        )
+        if chosen:
+            self._prefs.set_music_dir(chosen)
+
+    def _on_reset_music_dir(self) -> None:
+        self._prefs.set_music_dir("")
+
+    def _on_open_music_dir(self) -> None:
+        self._open_folder(app_paths.music_dir())
+
+    def _on_open_data_dir(self) -> None:
+        self._open_folder(app_paths.data_dir())
+
+    @staticmethod
+    def _open_folder(path: Path) -> None:
+        path.mkdir(parents=True, exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
 
     def _on_home_featured_toggled(self, checked: bool) -> None:
         self._prefs.set_show_home_featured_panel(checked)

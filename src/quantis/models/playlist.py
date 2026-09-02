@@ -16,13 +16,12 @@ from __future__ import annotations
 import json
 import os
 from abc import ABC, abstractmethod
-from pathlib import Path
 from typing import Iterable, Tuple
 
 from quantis.models.track import Track, YandexTrack, YoutubeTrack
 from quantis.providers import PathProvider, TrackManager
 from quantis.types.upgrade_cycle import UpgradeCycle
-from quantis.utils import get_asset_path
+from quantis.utils import app_paths, get_asset_path
 
 
 class Playlist(ABC):
@@ -201,7 +200,7 @@ class DownloadPlaylist(Playlist):
         Returns:
             Tuple[Track]: список треков
         """
-        music_dir = Path("music")
+        music_dir = app_paths.music_dir()
         if not music_dir.is_dir():
             return ()
         tracks = []

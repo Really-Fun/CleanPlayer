@@ -38,6 +38,9 @@ poetry run python scripts/build_exe.py vlc --vlc-home "C:\Program Files\VideoLAN
 `dist/` (рабочие файлы — в `build/pyi-<backend>/`). Выбор движка на этапе
 сборки читают rthook'и из `packaging/`.
 
+В сборку **Quantis-VLC** дополнительно копируются `libvlc.dll` и `plugins/`
+из `VLC_HOME`.
+
 ## Переключение движка без пересборки
 
 Для разработки движок задаётся переменной окружения:
@@ -48,13 +51,62 @@ poetry install --with vlc
 poetry run quantis
 ```
 
-## Что создаётся рядом с exe
+## Установщик Inno Setup
 
-При первом запуске приложение само создаёт свои каталоги в папке с exe:
+Готовый скрипт — [installer/quantis.iss](../installer/quantis.iss). Ему нужен
+уже собранный onedir-каталог из `dist/`:
 
-- `plugins_dir/` — плагины приложения
-- `background/user/` — пользовательские обои
-- `music/`, `covers/`, `player_history.db` — данные плеера
+```bat
+poetry run python scripts/build_exe.py qt
+iscc installer\quantis.iss
 
-В сборку **Quantis-VLC** дополнительно копируются `libvlc.dll` и `plugins/`
-из `VLC_HOME`.
+REM VLC-сборка
+poetry run python scripts/build_exe.py vlc
+iscc /DBackend=vlc installer\quantis.iss
+```
+
+Результат — `dist\installer\Quantis-0.1.1-setup.exe`. По умолчанию установка
+идёт в `{autopf}` (Program Files при установке для всех, `%LOCALAPPDATA%\Programs`
+при установке «только для меня» — тогда UAC не появляется).
+
+При удалении установщик чистит кэш и спрашивает, удалять ли данные
+пользователя. Скачанная музыка не удаляется никогда.
+
+## Каталоги данных
+
+Приложение **ничего не пишет в свой каталог установки** — иначе установка в
+Program Files требовала бы прав администратора. Все записываемые пути выдаёт
+[src/quantis/utils/app_paths.py](../src/quantis/utils/app_paths.py).
+
+| Что | Windows | Linux |
+|-----|---------|-------|
+| Данные (база, плейлисты, токены, плагины, обои) | `%LOCALAPPDATA%\Quantis` | `$XDG_DATA_HOME/quantis` |
+| Кэш | `%LOCALAPPDATA%\Quantis\cache` | `$XDG_CACHE_HOME/quantis` |
+| Скачанная музыка | `%USERPROFILE%\Music\Quantis` | `~/Music/Quantis` |
+
+Папку музыки можно сменить в **Настройки → Хранилище**; там же показан путь к
+каталогу данных и кнопки «Открыть».
+
+Порядок выбора каталога данных:
+
+1. `QUANTIS_DATA_DIR` — если задан, используется как есть;
+2. портативный режим — файл `portable.txt` рядом с exe или `QUANTIS_PORTABLE=1`,
+   данные лежат рядом с exe (музыка тоже, в `music/`);
+3. запуск из исходников — корень проекта, как было исторически;
+4. иначе — каталог пользователя из таблицы выше.
+
+Если выбранный каталог недоступен для записи (например, портативная сборка
+распакована в Program Files), приложение сообщает об этом в лог и само
+переезжает в каталог пользователя вместо падения с ошибкой прав.
+
+Данные из старой раскладки (когда всё лежало рядом с exe) при первом запуске
+копируются в новый каталог: `music`, `covers`, `playlists`, `playlist_covers`,
+`credentials`, `plugins_dir`, `background`, `player_history.db`. Копируются, а
+не переносятся — источник может быть read-only. Повторно миграция не
+выполняется, признак — файл `.migrated` в каталоге данных.
+
+## Плагины в установленной сборке
+
+Плагины ищутся в двух местах: записываемый `plugins_dir/` в каталоге данных
+(туда ставятся плагины из UI) и `plugins_dir/` рядом с exe — комплектные,
+только на чтение. При совпадении имён побеждает пользовательский.

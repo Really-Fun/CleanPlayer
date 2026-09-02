@@ -24,6 +24,7 @@ class UiPreferences(QObject):
     _KEY_BACKGROUND_ECO = "ui/background_eco"
     _KEY_VOLUME = "playback/volume"
     _KEY_REPEAT_MODE = "playback/repeat_mode"
+    _KEY_MUSIC_DIR = "storage/music_dir"
 
     def __new__(cls) -> UiPreferences:
         if cls._instance is None:
@@ -162,4 +163,21 @@ class UiPreferences(QObject):
         if self.repeat_mode == mode:
             return
         self._settings.setValue(self._KEY_REPEAT_MODE, mode.value)
+        self.changed.emit()
+
+    @property
+    def music_dir(self) -> str:
+        """Папка для скачанных треков. Пусто — каталог по умолчанию."""
+        raw = self._settings.value(self._KEY_MUSIC_DIR, "")
+        return str(raw).strip() if raw else ""
+
+    def set_music_dir(self, path: str) -> None:
+        from quantis.utils import app_paths
+
+        normalized = path.strip()
+        if self.music_dir == normalized:
+            return
+        self._settings.setValue(self._KEY_MUSIC_DIR, normalized)
+        self._settings.sync()
+        app_paths.reset_music_dir_cache()
         self.changed.emit()

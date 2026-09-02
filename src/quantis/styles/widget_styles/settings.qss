@@ -89,6 +89,26 @@ QComboBox#themeCombo::drop-down {
     width: 28px;
 }
 
+QPushButton#settingsButton {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    padding: 8px 14px;
+    color: #e2e8f0;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+QPushButton#settingsButton:hover {
+    background: rgba(46, 230, 255, 0.16);
+    border-color: rgba(46, 230, 255, 0.55);
+    color: #f8fafc;
+}
+
+QPushButton#settingsButton:pressed {
+    background: rgba(46, 230, 255, 0.26);
+}
+
 QComboBox#themeCombo QAbstractItemView {
     background: #080e18;
     color: #f8fafc;

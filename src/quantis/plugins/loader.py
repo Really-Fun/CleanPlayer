@@ -17,19 +17,25 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 def resolve_plugins_dir() -> Path:
-    """Каталог пользовательских плагинов рядом с exe / в корне проекта."""
-    from quantis.utils.resource_path import app_dir
+    """Записываемый каталог плагинов в данных пользователя."""
+    from quantis.utils import app_paths
 
-    candidates = (
-        Path.cwd() / "plugins_dir",
-        app_dir() / "plugins_dir",
-    )
-    for path in candidates:
-        if path.is_dir():
-            return path
-    target = app_dir() / "plugins_dir"
-    target.mkdir(parents=True, exist_ok=True)
-    return target
+    return app_paths.user_plugins_dir()
+
+
+def plugin_search_dirs() -> list[Path]:
+    """Все каталоги, где ищем плагины: пользовательский + из комплекта."""
+    from quantis.utils import app_paths
+
+    dirs = [resolve_plugins_dir()]
+    bundled = app_paths.bundled_plugins_dir()
+    try:
+        same = bundled.resolve() == dirs[0].resolve()
+    except OSError:
+        same = False
+    if not same and bundled.is_dir():
+        dirs.append(bundled)
+    return dirs
 
 
 _cached_plugin_dir: Path | None = None
@@ -74,31 +80,48 @@ class PluginLoader:
     """Обнаруживает и загружает плагины."""
 
     def __init__(self, plugin_dir: Path | None = None) -> None:
-        # Позволяем передать путь снаружи, иначе используем дефолтный
-        self._dir = plugin_dir or get_plugins_dir()
+        # Явный путь снаружи — только он, иначе пользовательский + из комплекта
+        self._dirs = [plugin_dir] if plugin_dir is not None else plugin_search_dirs()
+
+    @property
+    def _dir(self) -> Path:
+        """Основной (записываемый) каталог плагинов."""
+        return self._dirs[0]
 
     # ── Публичный API ─────────────────────────────────────────────────────────
 
     def discover(self) -> list[PluginMeta]:
-        """Сканирует папку плагинов и возвращает список метаданных."""
-        # Создаем папку, если её вдруг нет, чтобы не было ошибок
-        if not self._dir.exists():
-            self._dir.mkdir(parents=True, exist_ok=True)
-            logger.info("Создана директория для плагинов: %s", self._dir)
-            return []
+        """Сканирует каталоги плагинов и возвращает список метаданных.
 
-        if not self._dir.is_dir():
-            logger.warning("Путь плагинов не является директорией: %s", self._dir)
-            return []
-
+        Одноимённые плагины из комплекта перекрываются пользовательскими:
+        побеждает тот, что найден раньше.
+        """
         metas: list[PluginMeta] = []
-        for entry in sorted(self._dir.iterdir()):
-            if not entry.is_dir() or entry.name.startswith("_"):
+        seen: set[str] = set()
+
+        for folder in self._dirs:
+            if not folder.exists():
+                try:
+                    folder.mkdir(parents=True, exist_ok=True)
+                    logger.info("Создана директория для плагинов: %s", folder)
+                except OSError:
+                    logger.warning("Нет доступа к каталогу плагинов: %s", folder)
                 continue
-            meta = self._read_meta(entry)
-            metas.append(meta)
-            if not meta.is_valid:
-                logger.warning("Плагин '%s' пропущен: %s", entry.name, meta.errors)
+
+            if not folder.is_dir():
+                logger.warning("Путь плагинов не является директорией: %s", folder)
+                continue
+
+            for entry in sorted(folder.iterdir()):
+                if not entry.is_dir() or entry.name.startswith("_"):
+                    continue
+                if entry.name in seen:
+                    continue
+                seen.add(entry.name)
+                meta = self._read_meta(entry)
+                metas.append(meta)
+                if not meta.is_valid:
+                    logger.warning("Плагин '%s' пропущен: %s", entry.name, meta.errors)
 
         return metas
 

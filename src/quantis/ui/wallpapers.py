@@ -4,22 +4,29 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from quantis.utils import get_asset_path
+from quantis.utils import app_paths, get_asset_path
 
 _IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 
-
-def project_root() -> Path:
-    from quantis.utils.resource_path import app_dir
-
-    return app_dir()
+# Встроенные обои переименованы (и пережаты) — старые пути из настроек
+# сопоставляем с новыми, чтобы выбор пользователя не сбрасывался.
+_RENAMED_BUNDLED = {
+    "1352905.png": "neon-city.jpg",
+    "real.jpg": "neon-drive.jpg",
+    "the-shorekeeper-3840x2160-25523.jpg": "shorekeeper.jpg",
+    "wall0.png": "aurora-drop.jpg",
+    "wall1.png": "triangles.jpg",
+    "wall2.png": "night-train.jpg",
+    "wallhalla-84-2560x1600.jpg": "nebula.jpg",
+    "majestic-mountain-peak-tranquil-winter-landscape-generated-by-ai.jpg": (
+        "winter-peak.jpg"
+    ),
+}
 
 
 def user_backgrounds_dir() -> Path:
-    """Папка пользовательских обоев: background/user/ в корне проекта."""
-    path = project_root() / "background" / "user"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    """Папка пользовательских обоев: background/user/ в каталоге данных."""
+    return app_paths.user_backgrounds_dir()
 
 
 def bundled_backgrounds_dir() -> Path:
@@ -31,9 +38,9 @@ def is_wallpaper_file(path: Path) -> bool:
 
 
 def wallpaper_dirs() -> list[Path]:
+    """Встроенные обои (read-only) и пользовательские (записываемые)."""
     return [
         bundled_backgrounds_dir(),
-        project_root() / "assets" / "background",
         user_backgrounds_dir(),
     ]
 
@@ -67,10 +74,7 @@ def wallpaper_display_name(path: Path) -> str:
 
 def default_wallpaper_path() -> str:
     for folder in wallpaper_dirs():
-        for name in (
-            "majestic-mountain-peak-tranquil-winter-landscape-generated-by-ai.jpg",
-            "wallpaper.jpg",
-        ):
+        for name in ("winter-peak.jpg", "wallpaper.jpg"):
             path = folder / name
             if path.is_file():
                 return str(path.resolve())
@@ -79,9 +83,23 @@ def default_wallpaper_path() -> str:
     return ""
 
 
+def remap_renamed_wallpaper(stored: str | None) -> str | None:
+    """Новый путь для встроенных обоев, переименованных при пережатии."""
+    if not stored:
+        return None
+    renamed = _RENAMED_BUNDLED.get(Path(stored).name)
+    if not renamed:
+        return None
+    candidate = bundled_backgrounds_dir() / renamed
+    return str(candidate.resolve()) if candidate.is_file() else None
+
+
 def resolve_wallpaper_path(stored: str | None = None) -> str:
     if stored:
         chosen = Path(stored)
         if chosen.is_file() and is_wallpaper_file(chosen):
             return str(chosen.resolve())
+        remapped = remap_renamed_wallpaper(stored)
+        if remapped:
+            return remapped
     return default_wallpaper_path()
