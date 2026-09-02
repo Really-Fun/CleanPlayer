@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="readme/banner.jpg" alt="Quantis" width="720">
+  <img src="readme/new_logo.jpg" alt="Quantis" width="720">
 </p>
 
 <p align="center">
