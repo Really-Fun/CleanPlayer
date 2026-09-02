@@ -1,103 +1,88 @@
 <p align="center">
-  <img src="readme/logo.svg" alt="Quantis" width="640">
+  <img src="readme/banner.jpg" alt="Quantis" width="720">
 </p>
 
 <p align="center">
   <strong>Десктопный музыкальный плеер для RU/CIS</strong><br>
-  Yandex Music · YouTube · Офлайн
+  Яндекс.Музыка · YouTube · Офлайн
 </p>
 
 <p align="center">
-  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.13%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.13%20%7C%203.14-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue?style=flat-square" alt="License"></a>
   <a href="https://github.com/Really-Fun/Quantis"><img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-2ea043?style=flat-square" alt="Platform"></a>
   <a href="https://github.com/Really-Fun/Quantis/releases"><img src="https://img.shields.io/github/v/release/Really-Fun/Quantis?style=flat-square" alt="Release"></a>
   <img src="https://img.shields.io/badge/Qt-PySide6-41cd52?style=flat-square&logo=qt" alt="PySide6">
-  <img src="https://img.shields.io/badge/Audio-Qt%20%7C%20VLC-9b59b6?style=flat-square" alt="Audio backends">
 </p>
 
 <p align="center">
-  <a href="#-быстрый-старт">Быстрый старт</a> ·
-  <a href="#-возможности">Возможности</a> ·
-  <a href="#-темы">Темы</a> ·
-  <a href="#-архитектура">Архитектура</a> ·
-  <a href="#-разработка">Разработка</a> ·
-  <a href="CONTRIBUTING.md">Contributing</a>
+  <a href="#скриншоты">Скриншоты</a> ·
+  <a href="#возможности">Возможности</a> ·
+  <a href="#темы">Темы</a> ·
+  <a href="#быстрый-старт">Быстрый старт</a> ·
+  <a href="#разработка">Разработка</a> ·
+  <a href="#поддержать-проект">Поддержать</a>
 </p>
 
 ---
 
 ## О проекте
 
-**Quantis** — асинхронный кроссплатформенный плеер на **PySide6** и **asyncio**.  
-Один интерфейс для поиска и прослушивания музыки с **Яндекс.Музыки** и **YouTube**, скачивания треков, истории с возобновлением с места остановки и нативной интеграцией с ОС.
+**Quantis** — асинхронный кроссплатформенный плеер на **PySide6** и **asyncio**.
+Одно окно для поиска, прослушивания и скачивания музыки с **Яндекс.Музыки** и
+**YouTube**: история с возобновлением с места остановки, «Моя волна», радио по
+треку и нативная интеграция с медиа-клавишами ОС.
 
-воспроизведение через **Qt Multimedia** или **VLC (libvlc)** — две отдельные сборки exe.
+Воспроизведение работает через **Qt Multimedia** или **VLC (libvlc)** — это две
+отдельные сборки exe.
+
+## Скриншоты
 
 <table>
 <tr>
-<td width="50%" valign="top">
-
-### Слушай
-
-- Параллельный поиск Yandex + YouTube
-- Стриминг и локальные файлы
-- Resume position из SQLite
-- Радио / рекомендации (YouTube Watch Playlist)
-
-</td>
-<td width="50%" valign="top">
-
-### Управляй
-
-- Скачивание треков и обложек
-- Плейлисты «Недавно» и «Скачанные»
-- SMTC (Windows) / MPRIS (Linux)
-- 5 визуальных тем + редакционный UI
-
-</td>
+<td width="50%"><img src="readme/home.png" alt="Главная"></td>
+<td width="50%"><img src="readme/search.png" alt="Поиск"></td>
+</tr>
+<tr>
+<td align="center"><sub>Главная — библиотека и плейлисты</sub></td>
+<td align="center"><sub>Поиск — Яндекс и YouTube в одной выдаче</sub></td>
 </tr>
 </table>
 
----
+<p align="center">
+  <img src="readme/playlist.png" alt="Плейлист" width="820">
+</p>
 
 ## Возможности
 
 | | |
 |---|---|
-| **Поиск** | Debounced-поиск, прогрессивная выдача по источникам, lazy-списки без прогрузки всего каталога сразу |
-| **Воспроизведение** | Qt Multimedia или VLC, seek/volume, автопереход к следующему треку |
-| **Офлайн** | Скачивание в `music/`, библиотека скачанного, статус на карточке трека |
-| **История** | SQLite, недавно прослушанные, продолжение с сохранённой позиции |
-| **Интерфейс** | MVVM, `EventBus`, кастомные QSS-темы, панель «Сейчас играет» |
-| **Интеграция** | Медиа-клавиши ОС, keyring для токенов, расширяемость через плагины |
-| **Архитектура** | `bootstrap.py` как composition root, DI без God Object |
-
----
+| **Поиск** | Параллельно по Яндекс.Музыке и YouTube, debounce, прогрессивная выдача по источникам, ленивые списки без прогрузки всего каталога |
+| **Воспроизведение** | Qt Multimedia или VLC, seek/громкость, автопереход к следующему треку |
+| **Радио и волна** | «Моя волна» (Yandex rotor), радио по любому треку через YouTube Watch Playlist |
+| **Библиотека** | Любимые треки, свои плейлисты, «Недавно прослушанные», «Скачанные» |
+| **Офлайн** | Скачивание треков и обложек в `music/` и `covers/`, статус загрузки на карточке |
+| **История** | SQLite: недавно прослушанное и продолжение с сохранённой позиции |
+| **Интерфейс** | MVVM, `EventBus`, QSS-темы, панель «Сейчас играет», обои |
+| **Интеграция** | Медиа-клавиши ОС: SMTC (Windows) и MPRIS (Linux), keyring для токенов |
+| **Расширяемость** | Плагины из `plugins_dir/` со своими страницами в UI |
 
 ## Темы
 
-Пять готовых тем оформления — переключаются в **Настройки → Тема**:
+Переключаются в **Настройки → Тема**.
 
 | Тема | Характер |
 |------|----------|
-| **Неоновая** | Cyan + magenta, свечение, дефолт |
-| **Редакционная** | Georgia + mono, cyan/red, панель «Сейчас» |
+| **Aurora** | Cyan + magenta, свечение, тема по умолчанию |
+| **Glass** | Стекло поверх обоев, включает фон автоматически |
+| **Редакционная** | Georgia + mono, cyan/red, акцент на панель «Сейчас» |
 | **Классическая** | Спокойный тёмный steel-blue |
 | **Светлая** | Приглушённый светлый режим |
 | **Тёмно-жёлтая** | Тёплый amber-акцент |
 
----
-
 ## Быстрый старт
 
-### Требования
-
-- Python **3.13+**
-- [Poetry](https://python-poetry.org/docs/#installation)
-- Для Windows SMTC: пакеты `winrt-*` (ставятся автоматически через Poetry на Windows)
-
-### Установка и запуск
+Нужны Python **3.13 или 3.14** и [Poetry](https://python-poetry.org/docs/#installation).
 
 ```bash
 git clone https://github.com/Really-Fun/Quantis.git
@@ -106,20 +91,16 @@ poetry install
 poetry run quantis
 ```
 
-Альтернатива:
+### Аккаунты
 
-```bash
-poetry run python -m quantis.main
-```
+Без токенов работают поиск и воспроизведение **YouTube**. Всё остальное
+подключается во вкладке **Member**:
 
-### Yandex Music / YouTube (опционально)
-
-Без токена работает поиск и воспроизведение **YouTube**.  
-Токены и cookies — во вкладке **Member**:
-- **Yandex Music** — OAuth-токен в keyring (и статус Яндекс Плюс)
+- **Yandex Music** — OAuth-токен, хранится в keyring (там же виден статус Яндекс Плюс)
 - **YouTube Music** — cookies в `credentials/youtube_cookies.txt` (keyring на Windows не принимает большие blob'ы)
 
-Или вручную:
+<details>
+<summary>Прописать токен Яндекса вручную</summary>
 
 ```python
 import keyring
@@ -127,132 +108,18 @@ import keyring
 keyring.set_password("YANDEX_TOKEN_NEON_APP", "NEON_APP", "<ваш_oauth_токен>")
 ```
 
-Cookies YouTube положите в файл `credentials/youtube_cookies.txt` рядом с приложением.
+</details>
 
-### Сборка exe (Windows)
+## Сборка и архитектура
 
-Два варианта — разный медиадвижок:
-
-| Сборка | Движок | Артефакт |
-|--------|--------|----------|
-| **qt** | Qt Multimedia (FFmpeg) | `dist\Quantis\Quantis.exe` |
-| **vlc** | libVLC (`python-vlc`) | `dist\Quantis-VLC\Quantis-VLC.exe` |
-
-```bat
-REM Qt (по умолчанию)
-poetry install --with dev
-poetry run python scripts/build_exe.py qt
-
-REM VLC — нужен установленный VideoLAN VLC (для libvlc.dll + plugins)
-poetry install --with dev,vlc
-set VLC_HOME=C:\Program Files\VideoLAN\VLC
-poetry run python scripts/build_exe.py vlc
-```
-
-PowerShell:
-
-```powershell
-.\scripts\build.ps1 -Backend qt
-.\scripts\build.ps1 -Backend vlc -VlcHome "C:\Program Files\VideoLAN\VLC"
-```
-
-Для разработки без пересборки:
-
-```bat
-set QUANTIS_MEDIA_BACKEND=vlc
-poetry install --with vlc
-poetry run quantis
-```
-
-Рядом с exe автоматически используются (создаются при первом запуске):
-- `plugins_dir/` — плагины приложения
-- `background/user/` — пользовательские обои
-- `music/`, `covers/`, `player_history.db` — данные плеера
-
-У сборки **Quantis-VLC** в каталог exe также кладутся `libvlc.dll` / `plugins/` из `VLC_HOME`.
-
----
-
-## Архитектура
-
-```mermaid
-flowchart TB
-    subgraph ui [UI — PySide6 MVVM]
-        View[Views: Home / Search / Library / Settings]
-        VM[ViewModels]
-        UIModel[ui/models — TrackListModel lazy]
-    end
-
-    subgraph core [Core]
-        Bootstrap[bootstrap.py]
-        Bridge[AsyncBridge]
-        EB[EventBus]
-    end
-
-    subgraph app [Application]
-        PC[PlaybackController]
-        MS[MusicService]
-        Player[Player + QtMediaEngine / VlcMediaEngine]
-    end
-
-    subgraph services [Services]
-        Finder[AsyncFinder]
-        Streamer[AsyncStreamer]
-        Downloader[AsyncDownloader]
-        History[TrackHistoryService]
-    end
-
-    View --> VM
-    VM --> PC
-    VM --> UIModel
-    Bootstrap --> PC
-    Bootstrap --> MS
-    Bootstrap --> Player
-    Bootstrap --> EB
-    PC --> Player
-    PC --> MS
-    MS --> Finder
-    MS --> Streamer
-    MS --> Downloader
-    Player --> EB
-    Bridge --> VM
-```
-
-**Поток воспроизведения:** View → ViewModel → `PlaybackController` → `MusicService` / `Player` → `EventBus` → UI.
-
-Слои разделены: виджеты не ходят в сеть напрямую, бизнес-логика — в `services/` и `controllers/`.
-
----
-
-## Структура проекта
-
-```text
-src/quantis/
-├── adapter/          # MPRIS (Linux), SMTC (Windows)
-├── config/           # клиенты API, credentials, keyring
-├── controllers/      # PlaybackController (медиатор)
-├── core/             # bootstrap, AsyncBridge, PluginHost
-├── database/         # SQLite, история прослушивания
-├── models/           # Track, Playlist — чистые доменные модели
-├── player/           # Player, QtMediaEngine, VlcMediaEngine
-├── packaging/        # (корень репо) PyInstaller rthooks qt/vlc
-├── scripts/          # build_exe.py — сборка Quantis / Quantis-VLC
-├── plugins/          # EventBus, базовый класс плагинов
-├── providers/        # пути, плейлисты, TrackManager
-├── services/         # поиск, стриминг, скачивание, рекомендации
-├── styles/           # QSS-темы (classic, neon, editorial, …)
-└── ui/
-    ├── models/       # UI-модели (lazy TrackListModel)
-    ├── viewmodels/   # Home, Search, Player VM
-    └── views/        # страницы, player bar, виджеты
-```
-
----
+- **Сборка exe** (Windows, варианты `qt` и `vlc`) — [docs/build.md](docs/build.md)
+- **Слои, поток воспроизведения, структура каталогов** — [docs/architecture.md](docs/architecture.md)
+- **Карта интерфейса** (страницы, сигналы `EventBus`) — [docs/ui-map.md](docs/ui-map.md)
 
 ## Разработка
 
 ```bash
-# тесты (без сети + опционально @pytest.mark.network)
+# тесты (сетевые помечены @pytest.mark.network)
 poetry run pytest tests/ -q
 
 # линтеры
@@ -260,31 +127,40 @@ poetry run ruff check src tests
 poetry run black --check src tests
 ```
 
-Отключить системный адаптер при отладке:
-
-```bash
-set QUANTIS_ENABLE_ADAPTER=0
-poetry run quantis
-```
-
-Подробнее — в [CONTRIBUTING.md](CONTRIBUTING.md).
-
----
+Отключить системный медиа-адаптер при отладке — `QUANTIS_ENABLE_ADAPTER=0`.
+Подробнее о процессе и code style — в [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Дорожная карта
 
+- [x] Android-клиент (MVP) — см. [android/README.md](android/README.md)
 - [ ] Spotify / VK / SoundCloud
 - [ ] Горячие клавиши (Space, Ctrl+←/→)
 - [ ] Визуализатор
-- [x] Android-клиент (MVP) — см. [android/README.md](android/README.md)
 - [ ] Пользовательские темы и фоны
 
----
+## Поддержать проект
+
+Quantis бесплатный и с открытым исходным кодом. Если он вам пригодился — можно
+поддержать разработку через CloudTips: это идёт на серверы, тестовые устройства
+и кофе.
+
+<p align="center">
+  <!-- TODO: заменить CLOUDTIPS_URL на реальную ссылку -->
+  <a href="CLOUDTIPS_URL">
+    <img src="https://img.shields.io/badge/CloudTips-Поддержать_проект-F5426C?style=for-the-badge&labelColor=1f2430" alt="Поддержать через CloudTips">
+  </a>
+</p>
+
+<!-- TODO: положить QR в readme/cloudtips-qr.png и раскомментировать блок ниже
+<p align="center">
+  <img src="readme/cloudtips-qr.png" alt="QR для донатов CloudTips" width="180">
+</p>
+-->
 
 ## Лицензия
 
 [GNU GPL v3](LICENSE) · © [Really-Fun](https://github.com/Really-Fun)
 
 <p align="center">
-  <sub>Если Quantis полезен — поставь звезду на GitHub. Это правда помогает.</sub>
+  <sub>Если Quantis полезен — поставьте звезду на GitHub. Это правда помогает.</sub>
 </p>
