@@ -42,6 +42,15 @@ from quantis.ui.views.widgets.wallpaper_backdrop import BodyWithWallpaper
 
 
 class QuantisMainWindow(QMainWindow):
+    """Главное окно приложения.
+
+    Страницы в QStackedWidget (индексы):
+      0 Home, 1 Search, 2 Library, 3 Plugins, 4 Member, 5 Settings,
+      6 Playlist (overlay, не в боковом nav), 7+ — страницы плагинов.
+
+    Страницы 1–5 и 6 создаются лениво через ``_ensure_*_page`` при первом
+    переходе (в stack изначально стоят пустые QWidget-заглушки).
+    """
     PAGE_HOME = 0
     PAGE_SEARCH = 1
     PAGE_LIBRARY = 2
@@ -239,9 +248,14 @@ class QuantisMainWindow(QMainWindow):
         self._refresh_eco_state()
         self._apply_ui_theme(self._ui_prefs.ui_theme)
         self._sync_now_playing_visibility()
+        self._mounted_layers: dict[str, QWidget] = {}
         self._extensions = UiExtensionHost.instance()
         self._extensions.pages_changed.connect(self._sync_plugin_pages)
+        self._extensions.background_layers_changed.connect(
+            self._sync_background_layers
+        )
         self._sync_plugin_pages()
+        self._sync_background_layers()
         self._on_page_changed(self.PAGE_HOME)
         # Данные главной — после первого кадра, чтобы не тормозить show().
         from PySide6.QtCore import QTimer
@@ -265,6 +279,10 @@ class QuantisMainWindow(QMainWindow):
         self._bundle.history_watcher.set_eco(active)
         self._bundle.music.streamer.set_eco(active)
         self._dynamic_wallpaper.set_eco(active)
+        for widget in getattr(self, "_mounted_layers", {}).values():
+            setter = getattr(widget, "set_eco", None)
+            if callable(setter):
+                setter(active)
 
     def _toggle_now_playing(self) -> None:
         self._ui_prefs.set_show_now_playing_panel(
@@ -293,6 +311,7 @@ class QuantisMainWindow(QMainWindow):
             old.deleteLater()
 
     def _ensure_search_page(self) -> SearchPage:
+        """Ленивая инициализация страницы поиска (index 1)."""
         if self._search_page is None:
             self._search_page = SearchPage(
                 self._search_vm,
@@ -305,6 +324,7 @@ class QuantisMainWindow(QMainWindow):
         return self._search_page
 
     def _ensure_library_page(self):
+        """Ленивая инициализация библиотеки (index 2)."""
         if self._library_page is None:
             from quantis.ui.views.library_page import LibraryPage
 
@@ -331,6 +351,7 @@ class QuantisMainWindow(QMainWindow):
         return self._settings_page
 
     def _ensure_playlist_page(self) -> PlaylistPage:
+        """Ленивая инициализация детальной страницы плейлиста (index 6, вне nav)."""
         if self._playlist_page is None:
             self._playlist_page = PlaylistPage(self._playlist_vm, self._bridge)
             self._playlist_page.back_requested.connect(self._close_playlist_page)
@@ -393,6 +414,28 @@ class QuantisMainWindow(QMainWindow):
         ):
             self._current_page = -1
             self._apply_page(self.PAGE_HOME)
+
+    def _sync_background_layers(self) -> None:
+        """Монтирует фоновые слои плагинов между обоями и интерфейсом."""
+        layers = {
+            layer.layer_id: layer.widget
+            for layer in self._extensions.background_layers()
+        }
+
+        for layer_id, mounted in list(self._mounted_layers.items()):
+            if layers.get(layer_id) is mounted:
+                continue
+            self._mounted_layers.pop(layer_id)
+            self._body_shell.remove_background_layer(mounted)
+
+        for layer_id, widget in layers.items():
+            if layer_id in self._mounted_layers:
+                continue
+            self._body_shell.add_background_layer(widget)
+            self._mounted_layers[layer_id] = widget
+            setter = getattr(widget, "set_eco", None)
+            if callable(setter):
+                setter(self._eco.active)
 
     def _apply_page(self, page_id: int) -> None:
         if page_id < 0 or page_id >= self._stack.count():
@@ -472,10 +515,12 @@ class QuantisMainWindow(QMainWindow):
 
     def _open_now_playing_fullscreen(self) -> None:
         track = self._bundle.playback.current_track
-        self._np_fullscreen.set_track(track)
         self._np_fullscreen.setGeometry(self._shell.rect())
-        self._np_fullscreen.raise_()
         self._np_fullscreen.show()
+        self._np_fullscreen.raise_()
+        self._np_fullscreen.set_track(track)
+        self._np_fullscreen.update()
+        self._np_fullscreen.setFocus(Qt.FocusReason.ActiveWindowFocusReason)
 
     def _update_accent_from_track(self, track) -> None:
         if self._eco.active:

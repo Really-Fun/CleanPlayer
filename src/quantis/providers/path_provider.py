@@ -43,3 +43,9 @@ class PathProvider:
 
     def get_cover_path(self, track: Track, extension: str = "jpg") -> str:
         return path.join(self.COVERS_FOLDER, f"{track.track_id}.{extension}")
+
+    def get_video_cache_path(self, track: Track, extension: str = "mp4") -> str:
+        """Кэш видео для динамических обоев (не путать с аудио в music/)."""
+        video_dir = path.join(self.MUSIC_FOLDER, ".video")
+        Path(video_dir).mkdir(parents=True, exist_ok=True)
+        return path.join(video_dir, f"{track.track_id}.{extension}")

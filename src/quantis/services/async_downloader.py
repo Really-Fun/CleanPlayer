@@ -19,6 +19,18 @@ from quantis.providers import PathProvider
 
 logger = logging.getLogger(__name__)
 
+_AUDIO_FORMAT = (
+    "ba[ext=m4a]/ba[ext=mp3]/"
+    "bestaudio[ext=m4a]/bestaudio[ext=mp3]/"
+    "bestaudio[protocol=https]/bestaudio"
+)
+_VIDEO_FORMAT = (
+    "best[ext=mp4][vcodec!=none][acodec!=none][height<=720]/"
+    "best[ext=mp4][height<=720]/"
+    "18/best[height<=720]/best"
+)
+_AUDIO_EXTENSIONS = frozenset({"m4a", "mp3"})
+
 
 class AsyncDownloaderInterface(ABC):
     """Абстрактный класс для Downloader'ов"""
@@ -113,42 +125,72 @@ class AsyncYoutubeDownloader(AsyncDownloaderInterface):
         self._session: Optional[aiohttp.ClientSession] = None
         self._semaphore = Semaphore(value=8)
 
-    def _ydl_opts(self, outtmpl: str) -> dict:
+    def _ydl_opts(self, outtmpl: str, *, video: bool = False) -> dict:
         return {
             **self._base_opts,
             "outtmpl": outtmpl,
-            "format": "bestaudio/best",
+            "format": _VIDEO_FORMAT if video else _AUDIO_FORMAT,
             "extractor_args": {"youtube": {"player_client": ["android"]}},
         }
 
-    def _ydl_opts_fallback(self, outtmpl: str) -> dict:
+    def _ydl_opts_fallback(self, outtmpl: str, *, video: bool = False) -> dict:
         from quantis.config.credentials import youtube_yt_dlp_cookiefile
 
         opts = {
             **self._base_opts,
             "outtmpl": outtmpl,
-            "format": "bestaudio/best",
+            "format": _VIDEO_FORMAT if video else _AUDIO_FORMAT,
         }
         cookiefile = youtube_yt_dlp_cookiefile()
         if cookiefile:
-            # cookies только как запасной вариант (нужен JS runtime для web)
             opts["cookiefile"] = cookiefile
         return opts
 
-    async def get_session(self) -> aiohttp.ClientSession:
-        if self._session is None:
-            self._session = aiohttp.ClientSession()
-        return self._session
+    @staticmethod
+    def _video_wallpaper_enabled() -> bool:
+        from quantis.ui.preferences import UiPreferences
 
-    async def download_track(self, track: Track | YandexTrack | YoutubeTrack) -> None:
-        """Асинхронная функция для скачивания трека с ютуба.
-        Основана на ThreadPoolExecutor и синхронном скачивании с ytdlp
+        return UiPreferences().dynamic_wallpaper_enabled
 
-        Args:
-            track (YoutubeTrack): трек с Ютуба
-        """
-        outtmpl = self.path_provider.get_track_path(track, extension="%(ext)s")
-        for opts in (self._ydl_opts(outtmpl), self._ydl_opts_fallback(outtmpl)):
+    def _audio_outtmpl(self, track: Track | YoutubeTrack) -> str:
+        return self.path_provider.get_track_path(track, extension="%(ext)s")
+
+    def _apply_downloaded_extension(self, track: Track | YoutubeTrack) -> str | None:
+        prefix = f"{track.track_id}_"
+        music_dir = Path(self.path_provider.MUSIC_FOLDER)
+        for candidate in music_dir.glob(f"{prefix}*"):
+            ext = candidate.suffix.lstrip(".").lower()
+            if ext in _AUDIO_EXTENSIONS:
+                if isinstance(track, YoutubeTrack):
+                    track.extension = ext
+                return ext
+        return None
+
+    async def _download_audio(self, track: Track | YoutubeTrack) -> bool:
+        outtmpl = self._audio_outtmpl(track)
+        for opts in (
+            self._ydl_opts(outtmpl, video=False),
+            self._ydl_opts_fallback(outtmpl, video=False),
+        ):
+            try:
+                await get_running_loop().run_in_executor(
+                    self._executor, self.sync_download, opts, track.track_id
+                )
+                return self._apply_downloaded_extension(track) is not None
+            except Exception:
+                logger.debug(
+                    "YouTube audio download attempt failed for %s",
+                    track.track_id,
+                    exc_info=True,
+                )
+        return False
+
+    async def _download_video_cache(self, track: Track | YoutubeTrack) -> None:
+        outtmpl = self.path_provider.get_video_cache_path(track, extension="%(ext)s")
+        for opts in (
+            self._ydl_opts(outtmpl, video=True),
+            self._ydl_opts_fallback(outtmpl, video=True),
+        ):
             try:
                 await get_running_loop().run_in_executor(
                     self._executor, self.sync_download, opts, track.track_id
@@ -156,11 +198,24 @@ class AsyncYoutubeDownloader(AsyncDownloaderInterface):
                 return
             except Exception:
                 logger.debug(
-                    "YouTube download attempt failed for %s",
+                    "YouTube video cache download failed for %s",
                     track.track_id,
                     exc_info=True,
                 )
-        logger.error("Не удалось скачать трек с YouTube: %s", track.track_id)
+        logger.warning("Не удалось скачать видео-кэш для обоев: %s", track.track_id)
+
+    async def get_session(self) -> aiohttp.ClientSession:
+        if self._session is None:
+            self._session = aiohttp.ClientSession()
+        return self._session
+
+    async def download_track(self, track: Track | YandexTrack | YoutubeTrack) -> None:
+        """Скачивает аудио (m4a/mp3). MP4 — только в кэш обоев при включённом видеофоне."""
+        if not await self._download_audio(track):
+            logger.error("Не удалось скачать трек с YouTube: %s", track.track_id)
+            return
+        if self._video_wallpaper_enabled():
+            await self._download_video_cache(track)
 
     async def download_cover(self, track:  Track | YandexTrack | YoutubeTrack) -> None:
         """Асинхронное получение обложки с ютуб.

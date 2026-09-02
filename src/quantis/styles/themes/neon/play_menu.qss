@@ -78,6 +78,12 @@
 #controlButton[liked="true"] {
     background: rgba(255, 78, 69, 0.22);
 }
+#repeatButton[state="active"] {
+    background: rgba(255, 255, 255, 0.08);
+}
+#repeatButton[repeatMode="track"] {
+    background: rgba(108, 92, 231, 0.22);
+}
 #controlButton[plugin="true"] {
     border: 1px solid rgba(138, 146, 166, 0.35);
 }

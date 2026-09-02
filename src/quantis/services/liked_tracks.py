@@ -5,9 +5,9 @@ from __future__ import annotations
 import asyncio
 
 from quantis.database import sync_history
-from quantis.models import LikedPlaylist, Track, YandexTrack, YoutubeTrack
+from quantis.models import LikedPlaylist, Track
 from quantis.providers import TrackManager
-from quantis.services.TrackHistoryService import TrackHistoryService
+from quantis.services.track_builder import build_track_key, build_tracks_from_entries
 
 
 class LikedTracksService:
@@ -27,13 +27,13 @@ class LikedTracksService:
         self._initialized = True
 
     async def is_liked(self, track: Track) -> bool:
-        key = TrackHistoryService.build_track_key(track)
+        key = build_track_key(track)
         return await asyncio.to_thread(sync_history.is_track_liked, key)
 
     async def set_liked(self, track: Track, liked: bool) -> None:
         await asyncio.to_thread(
             sync_history.set_track_liked,
-            track_key=TrackHistoryService.build_track_key(track),
+            track_key=build_track_key(track),
             title=track.title,
             author=track.author,
             source=str(track.source),
@@ -51,28 +51,4 @@ class LikedTracksService:
         return LikedPlaylist(tracks=tracks)
 
     def _build_tracks(self, entries: list[dict]) -> list[Track]:
-        tracks: list[Track] = []
-        for entry in entries:
-            source, track_id = TrackHistoryService._split_track_key(
-                entry["track_key"], entry["source"]
-            )
-            downloaded = self._track_manager.is_downloaded(str(track_id))
-            if source == "yandex":
-                tracks.append(
-                    YandexTrack(
-                        track_id=int(track_id) if str(track_id).isdigit() else track_id,
-                        title=entry["title"],
-                        author=entry["author"],
-                        downloaded=downloaded,
-                    )
-                )
-            else:
-                tracks.append(
-                    YoutubeTrack(
-                        track_id=track_id,
-                        title=entry["title"],
-                        author=entry["author"],
-                        downloaded=downloaded,
-                    )
-                )
-        return tracks
+        return build_tracks_from_entries(entries, self._track_manager)

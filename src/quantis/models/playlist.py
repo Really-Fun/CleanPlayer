@@ -208,7 +208,9 @@ class DownloadPlaylist(Playlist):
         for track_file in os.listdir(music_dir):
             try:
                 name, ext = os.path.splitext(track_file)
-                ext = ext.replace(".", "")
+                ext = ext.replace(".", "").lower()
+                if ext not in ("mp3", "m4a"):
+                    continue
                 parts = name.split("_", 2)
                 if len(parts) < 3:
                     continue

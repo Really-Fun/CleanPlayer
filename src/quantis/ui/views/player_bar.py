@@ -18,12 +18,14 @@ from PySide6.QtWidgets import (
 
 from quantis.core.async_bridge import AsyncBridge
 from quantis.models.track import Track
+from quantis.models.repeat_mode import RepeatMode
 from quantis.providers.path_provider import PathProvider
 from quantis.services.liked_tracks import LikedTracksService
 from quantis.services.music_service import MusicService
 from quantis.ui import resources
 from quantis.ui.cover_prefetch import schedule_cover_prefetch
 from quantis.ui.playlist_actions import show_add_to_playlist_menu
+from quantis.ui.preferences import UiPreferences
 from quantis.ui.ui_extensions import UiExtensionHost
 from quantis.ui.viewmodels.player_vm import PlayerViewModel
 from quantis.ui.views.widgets.cover_art import load_cover_pixmap
@@ -123,6 +125,13 @@ class PlayerBar(QFrame):
 
         # Center: transport + seek
         self._prev_btn = self._make_button("prev.svg", "Назад", size=40)
+        self._repeat_btn = self._make_button(
+            "repeat.svg",
+            "Повтор плейлиста",
+            size=36,
+            object_name="repeatButton",
+        )
+        self._repeat_btn.clicked.connect(self._vm.cycle_repeat_mode)
         self._play_btn = self._make_button("play.svg", "Play", accent=True, size=40)
         self._next_btn = self._make_button("next.svg", "Далее", size=40)
         self._prev_btn.clicked.connect(self._vm.play_previous)
@@ -137,6 +146,7 @@ class PlayerBar(QFrame):
         transport.setAlignment(
             Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
         )
+        transport.addWidget(self._repeat_btn, 0, Qt.AlignmentFlag.AlignCenter)
         transport.addWidget(self._prev_btn, 0, Qt.AlignmentFlag.AlignCenter)
         transport.addWidget(self._play_btn, 0, Qt.AlignmentFlag.AlignCenter)
         transport.addWidget(self._next_btn, 0, Qt.AlignmentFlag.AlignCenter)
@@ -226,13 +236,16 @@ class PlayerBar(QFrame):
         self._vm.is_playing_changed.connect(self._on_playing_changed)
         self._vm.position_changed.connect(self._on_position_changed)
         self._vm.duration_changed.connect(self._on_duration_changed)
+        self._vm.repeat_mode_changed.connect(self._on_repeat_mode_changed)
 
         self._volume.blockSignals(True)
-        self._volume.setValue(80)
+        saved_volume = UiPreferences().volume
+        self._volume.setValue(saved_volume)
         self._volume.blockSignals(False)
-        self._vm.set_volume(80)
+        self._vm.set_volume(saved_volume)
         self._vm.sync_from_player()
         self._update_like_button()
+        self._update_repeat_button(self._vm.repeat_mode)
 
     def _rebuild_plugin_actions(self) -> None:
         while self._plugin_slot.count():
@@ -262,9 +275,10 @@ class PlayerBar(QFrame):
         *,
         accent: bool = False,
         size: int = 34,
+        object_name: str = "controlButton",
     ) -> QToolButton:
         button = QToolButton()
-        button.setObjectName("controlButton")
+        button.setObjectName(object_name)
         button.setProperty("accent", accent)
         button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         button.setAutoRaise(True)
@@ -292,10 +306,30 @@ class PlayerBar(QFrame):
     def _update_like_button(self) -> None:
         self._like_btn.setEnabled(self._current_track is not None)
         self._like_btn.setProperty("liked", self._track_liked)
+        icon_name = "heart-filled.svg" if self._track_liked else "heart.svg"
+        self._like_btn.setIcon(resources.load_icon(icon_name))
         self._like_btn.setToolTip(
             "Убрать из любимых" if self._track_liked else "В любимые"
         )
         self._repolish(self._like_btn)
+
+    def _update_repeat_button(self, mode: RepeatMode) -> None:
+        if mode is RepeatMode.TRACK:
+            icon_name = "repeat-one.svg"
+            tooltip = "Повтор трека"
+            state = "track"
+        else:
+            icon_name = "repeat.svg"
+            tooltip = "Повтор плейлиста"
+            state = "playlist"
+        self._repeat_btn.setIcon(resources.load_icon(icon_name))
+        self._repeat_btn.setToolTip(tooltip)
+        self._repeat_btn.setProperty("state", "active")
+        self._repeat_btn.setProperty("repeatMode", state)
+        self._repolish(self._repeat_btn)
+
+    def _on_repeat_mode_changed(self, mode: RepeatMode) -> None:
+        self._update_repeat_button(mode)
 
     def _apply_cover(self, track: Track) -> None:
         cover_path = Path(self._path_provider.get_cover_path(track))
@@ -403,6 +437,7 @@ class PlayerBar(QFrame):
 
     def refresh_theme(self) -> None:
         buttons = [
+            self._repeat_btn,
             self._prev_btn,
             self._play_btn,
             self._next_btn,
@@ -416,6 +451,7 @@ class PlayerBar(QFrame):
             self._repolish(button)
         self._set_title_playing(self._is_playing)
         self._update_like_button()
+        self._update_repeat_button(self._vm.repeat_mode)
         card = self.findChild(QFrame, "PlayMenu")
         if card is not None:
             style = self.style()

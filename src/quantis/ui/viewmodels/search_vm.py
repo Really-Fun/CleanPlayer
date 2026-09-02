@@ -197,9 +197,10 @@ class SearchViewModel(BaseViewModel):
         except Exception as exc:
             logger.exception("Ошибка поиска")
             if generation == self._search_generation:
+                message = str(exc)
 
                 def show_err() -> None:
-                    self.emit_error(str(exc))
+                    self.emit_error(message)
 
                 bridge.invoke_main(show_err)
         finally:
@@ -257,3 +258,68 @@ class SearchViewModel(BaseViewModel):
             bridge.invoke_main(lambda: self.emit_error(str(exc)))
         finally:
             bridge.invoke_main(lambda: self.set_loading(False))
+
+    async def search_advanced(
+            self,
+            url: str = "",
+            track_id: str = "",
+            source: str = "",
+    ) -> None:
+        """Расширенный поиск: по прямой ссылке или ID трека из источника.
+
+        Использует отдельный метод AsyncFinder.resolve_track(), в отличие
+        от обычного текстового поиска через iter_track_batches().
+        """
+        url = (url or "").strip()
+        track_id = (track_id or "").strip()
+        source = (source or "").strip().lower()
+
+        if not url and not track_id:
+            self.status_message.emit("Укажите ссылку или ID трека.")
+            return
+
+        bridge = self._bridge
+        self._debounce.stop()
+        self._search_generation += 1
+        generation = self._search_generation
+        self._inflight_searches += 1
+        bridge.invoke_main(lambda: self.set_loading(True))
+
+        try:
+            logger.info("Расширенный поиск: url=%r id=%r source=%r", url, track_id, source)
+            bridge.invoke_main(lambda: self.status_message.emit("Определяем трек…"))
+
+            tracks = await self._finder.resolve_tracks(
+                url=url or None,
+                track_id=track_id or None,
+                source=source or None,
+            )
+
+            if generation != self._search_generation:
+                return
+
+            def apply(items: list[Track] = tracks) -> None:
+                self._all_tracks = items
+                self._model.set_tracks(self._filtered_tracks())
+                self.results_changed.emit()
+                if items:
+                    self.status_message.emit(f"Найдено: {len(items)}")
+                else:
+                    self.status_message.emit("По ссылке ничего не найдено.")
+
+            bridge.invoke_main(apply)
+
+        except (GeneratorExit, asyncio.CancelledError):
+            raise
+        except Exception as exc:
+            logger.exception("Ошибка расширенного поиска")
+            if generation == self._search_generation:
+                message = str(exc)
+                bridge.invoke_main(lambda: self.emit_error(message))
+        finally:
+            def finish() -> None:
+                self._inflight_searches = max(0, self._inflight_searches - 1)
+                if self._inflight_searches == 0:
+                    self.set_loading(False)
+
+            bridge.invoke_main(finish)

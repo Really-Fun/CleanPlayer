@@ -6,10 +6,12 @@ from pathlib import Path
 from quantis.core.async_bridge import AsyncBridge
 from quantis.models import Track
 from quantis.models.playlist import WavePlaylist
+from quantis.models.repeat_mode import RepeatMode
 from quantis.player import Player
 from quantis.plugins.event_bus import EventBus
 from quantis.providers import PlaylistManager
 from quantis.services import MusicService, TrackHistoryService
+from quantis.ui.preferences import UiPreferences
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +36,103 @@ class PlaybackController:
         self._bridge = async_bridge
         self._current_track: Track | None = None
         self._wave_skip_start_feedback = False
+        self._stream_retry_pending = False
+        self._stall_recoveries = 0
+        self._stall_track_key: str | None = None
+        self._repeat_mode = UiPreferences().repeat_mode
+
+    @property
+    def repeat_mode(self) -> RepeatMode:
+        return self._repeat_mode
+
+    def cycle_repeat_mode(self) -> RepeatMode:
+        self._repeat_mode = self._repeat_mode.cycle()
+        UiPreferences().set_repeat_mode(self._repeat_mode)
+        return self._repeat_mode
+
+    async def handle_track_finished(self) -> None:
+        if self.repeat_mode is RepeatMode.TRACK:
+            track = self._current_track
+            if track is not None:
+                await self.play_track(track)
+            return
+        await self.play_next()
+
+    def handle_stream_error(self, message: str) -> None:
+        """Повтор воспроизведения при ошибке медиадвижка."""
+        position = max(0, self.player.time)
+        self.request_playback_recovery(position, reason=message)
+
+    def request_playback_recovery(self, position_ms: int, *, reason: str = "stall") -> None:
+        if self._stream_retry_pending or self._bridge is None:
+            return
+        self._bridge.schedule(self.recover_playback(position_ms, reason=reason))
+
+    async def recover_playback(self, position_ms: int, *, reason: str = "stall") -> None:
+        """Обновляет источник и продолжает с текущей позиции (signed URL / обрыв CDN)."""
+        if self._stream_retry_pending:
+            return
+        track = self._current_track
+        if track is None:
+            return
+
+        source = self.player.current_source
+        if source and not str(source).startswith(("http://", "https://")):
+            path = Path(str(source))
+            if track.downloaded and path.is_file():
+                return
+
+        track_key = f"{track.source}:{track.track_id}"
+        if self._stall_track_key != track_key:
+            self._stall_track_key = track_key
+            self._stall_recoveries = 0
+        if self._stall_recoveries >= 3:
+            logger.warning(
+                "Лимит восстановления потока для «%s» (%s)",
+                track.title,
+                reason,
+            )
+            return
+
+        self._stream_retry_pending = True
+        self._stall_recoveries += 1
+        try:
+            logger.info(
+                "Восстановление потока «%s» @ %dms (%s)",
+                track.title,
+                position_ms,
+                reason,
+            )
+            self.music.streamer.invalidate(track)
+            new_source = await self.music.streamer.open_playback(track)
+            if not new_source:
+                return
+
+            resume_at = position_ms
+
+            def replay() -> None:
+                self.player.play(new_source)
+                if resume_at > 0:
+                    self.player.time = resume_at
+
+            self._bridge.invoke_main(replay)  # type: ignore[union-attr]
+        except Exception:
+            logger.exception("Не удалось восстановить поток")
+        finally:
+            self._stream_retry_pending = False
+
+    async def _prefetch_next_track(self, current: Track) -> None:
+        playlist = self.playlist_manager.current_playlist
+        if playlist is None or len(playlist) == 0:
+            return
+        try:
+            index = playlist.tracks.index(current)
+        except ValueError:
+            return
+        if index + 1 >= len(playlist.tracks):
+            return
+        nxt = playlist.tracks[index + 1]
+        await self.music.streamer.prefetch_stream(nxt)
 
     @property
     def current_track(self) -> Track | None:
@@ -96,6 +195,8 @@ class PlaybackController:
 
         def start_playback() -> None:
             self._current_track = track
+            self._stall_track_key = None
+            self._stall_recoveries = 0
             self.player.current_track = track
             self.player.play(source)
             if resume_ms > 0 and not str(source).startswith(("http://", "https://")):
@@ -107,6 +208,9 @@ class PlaybackController:
             self._bridge.invoke_main(start_playback)
         else:
             start_playback()
+
+        if self._bridge is not None:
+            self._bridge.schedule(self._prefetch_next_track(track))
 
     async def play_next(self) -> None:
         playlist = self.playlist_manager.current_playlist

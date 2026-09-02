@@ -132,3 +132,57 @@ class PluginHost:
             self.async_bridge.invoke_main(do_unregister)
             return
         do_unregister()
+
+    def register_background_layer(
+        self,
+        layer_id: str,
+        widget: QWidget,
+        *,
+        z_order: int = 0,
+    ) -> None:
+        """Слой между обоями и интерфейсом. Создавать widget нужно в UI-потоке."""
+        from PySide6.QtCore import Qt, QThread
+        from PySide6.QtWidgets import QApplication
+
+        from quantis.ui.ui_extensions import BackgroundLayerExtension, UiExtensionHost
+
+        def do_register() -> None:
+            widget.setWindowFlags(Qt.WindowType.Widget)
+            widget.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+            UiExtensionHost.instance().register_background_layer(
+                BackgroundLayerExtension(
+                    layer_id=layer_id,
+                    widget=widget,
+                    z_order=z_order,
+                    from_plugin=True,
+                )
+            )
+
+        app = QApplication.instance()
+        if app is not None and QThread.currentThread() != app.thread():
+            if self.async_bridge is None:
+                raise RuntimeError(
+                    "register_background_layer из фонового потока требует async_bridge"
+                )
+            self.async_bridge.invoke_main(do_register)
+            return
+        do_register()
+
+    def unregister_background_layer(self, layer_id: str) -> None:
+        from PySide6.QtCore import QThread
+        from PySide6.QtWidgets import QApplication
+
+        from quantis.ui.ui_extensions import UiExtensionHost
+
+        def do_unregister() -> None:
+            UiExtensionHost.instance().unregister_background_layer(layer_id)
+
+        app = QApplication.instance()
+        if (
+            app is not None
+            and QThread.currentThread() != app.thread()
+            and self.async_bridge is not None
+        ):
+            self.async_bridge.invoke_main(do_unregister)
+            return
+        do_unregister()

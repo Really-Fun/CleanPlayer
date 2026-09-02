@@ -22,7 +22,7 @@ _LAZY: dict[str, tuple[str, str]] = {
     "AsyncDownloader": (".async_downloader", "AsyncDownloader"),
     "AsyncRecommendation": (".async_recommendation", "AsyncRecommendation"),
     "AsyncWaveService": (".async_wave", "AsyncWaveService"),
-    "TrackHistoryService": (".TrackHistoryService", "TrackHistoryService"),
+    "TrackHistoryService": (".track_history", "TrackHistoryService"),
     "LikedTracksService": (".liked_tracks", "LikedTracksService"),
     "UserPlaylistsService": (".user_playlists", "UserPlaylistsService"),
     "MusicService": (".music_service", "MusicService"),

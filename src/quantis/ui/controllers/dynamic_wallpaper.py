@@ -79,6 +79,14 @@ class DynamicWallpaperController(QObject):
     async def _load_video(self, track: Track) -> None:
         track_key = _track_key(track)
         try:
+            local_path = self._local_video_path(track)
+            if local_path is not None:
+                logger.info("Динамические обои: локальный файл %s", local_path)
+                self._bridge.invoke_main(
+                    lambda path=local_path: self._backdrop.play_video_url(path)
+                )
+                return
+
             url = await self._music.streamer.get_video_url(
                 track,
                 finder=self._music.finder,
@@ -101,3 +109,14 @@ class DynamicWallpaperController(QObject):
             self._backdrop.play_video_url(stream_url)
 
         self._bridge.invoke_main(_play)
+
+    def _local_video_path(self, track: Track) -> str | None:
+        from pathlib import Path
+
+        from quantis.providers import PathProvider
+
+        for ext in ("mp4", "webm", "mkv"):
+            path = Path(PathProvider().get_video_cache_path(track, extension=ext))
+            if path.is_file() and path.stat().st_size > 0:
+                return str(path.resolve())
+        return None

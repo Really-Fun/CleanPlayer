@@ -10,7 +10,7 @@ from quantis.config.clients import Clients
 from quantis.config.credentials import yandex_token
 from quantis.models import Track, YandexTrack
 from quantis.models.playlist import WavePlaylist
-from quantis.services.async_finder import _yandex_track_from_api
+from quantis.services.yandex_finder import yandex_track_from_api
 
 logger = logging.getLogger(__name__)
 
@@ -245,7 +245,7 @@ class AsyncWaveService:
             if track is None:
                 continue
             try:
-                yt = _yandex_track_from_api(track)
+                yt = yandex_track_from_api(track)
                 tracks.append(yt)
                 key = str(yt.track_id)
                 albums = getattr(track, "albums", None) or []

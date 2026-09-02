@@ -31,11 +31,13 @@ class Player:
         self._track_finished_callbacks: list[Callable[[], None]] = []
         self._next_callbacks: list[Callable[[], None]] = []
         self._previous_callbacks: list[Callable[[], None]] = []
+        self._stream_error_callbacks: list[Callable[[str], None]] = []
 
         self._engine.on_playing(self._on_engine_playing)
         self._engine.on_paused(self._on_engine_paused)
         self._engine.on_stopped(self._on_engine_stopped)
         self._engine.on_ended(self._on_engine_ended)
+        self._stream_retry_used = False
         self._engine.on_error(self._on_engine_error)
 
     def on_source_changed(self, callback: Callable[[str], None]) -> None:
@@ -56,7 +58,11 @@ class Player:
     def on_previous_requested(self, callback: Callable[[], None]) -> None:
         self._previous_callbacks.append(callback)
 
+    def on_stream_error(self, callback: Callable[[str], None]) -> None:
+        self._stream_error_callbacks.append(callback)
+
     def play(self, source: str) -> None:
+        self._stream_retry_used = False
         self._loading_source = True
         self._playback_active = False
         self._was_playing = False
@@ -157,6 +163,8 @@ class Player:
             message,
             self.current_source,
         )
+        for callback in self._stream_error_callbacks:
+            callback(message)
 
     @property
     def volume(self) -> int:

@@ -12,8 +12,8 @@ from quantis.player.player import Player
 from quantis.plugins.event_bus import EventBus
 from quantis.providers import PlaylistManager
 from quantis.services.music_service import MusicService
-from quantis.services.playback_history import PlaybackHistoryWatcher
-from quantis.services.TrackHistoryService import TrackHistoryService
+from quantis.controllers.playback_history_watcher import PlaybackHistoryWatcher
+from quantis.services.track_history import TrackHistoryService
 
 
 @dataclass
@@ -85,7 +85,7 @@ def wire_player_events(
     def schedule_auto_next() -> None:
         if playback.playlist_manager.current_playlist is None:
             return
-        bridge.schedule(playback.play_next())
+        bridge.schedule(playback.handle_track_finished())
 
     def schedule_next() -> None:
         bridge.schedule(playback.play_next())
@@ -96,6 +96,7 @@ def wire_player_events(
     player.on_next_requested(schedule_next)
     player.on_previous_requested(schedule_previous)
     player.on_track_finished(schedule_auto_next)
+    player.on_stream_error(playback.handle_stream_error)
 
 
 def wire_event_bus_navigation(

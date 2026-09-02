@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QObject, QSettings, Signal
 
+from quantis.models.repeat_mode import RepeatMode
 from quantis.ui.resources import DEFAULT_UI_THEME, normalize_ui_theme
 
 
@@ -21,6 +22,8 @@ class UiPreferences(QObject):
     _KEY_WALLPAPER_ENABLED = "ui/wallpaper_enabled"
     _KEY_NOW_PLAYING = "ui/show_now_playing_panel"
     _KEY_BACKGROUND_ECO = "ui/background_eco"
+    _KEY_VOLUME = "playback/volume"
+    _KEY_REPEAT_MODE = "playback/repeat_mode"
 
     def __new__(cls) -> UiPreferences:
         if cls._instance is None:
@@ -132,4 +135,31 @@ class UiPreferences(QObject):
         if self.background_eco_enabled == value:
             return
         self._settings.setValue(self._KEY_BACKGROUND_ECO, value)
+        self.changed.emit()
+
+    @property
+    def volume(self) -> int:
+        raw = self._settings.value(self._KEY_VOLUME, 80)
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            return 80
+        return max(0, min(100, value))
+
+    def set_volume(self, value: int) -> None:
+        clamped = max(0, min(100, int(value)))
+        if self.volume == clamped:
+            return
+        self._settings.setValue(self._KEY_VOLUME, clamped)
+        self.changed.emit()
+
+    @property
+    def repeat_mode(self) -> RepeatMode:
+        raw = self._settings.value(self._KEY_REPEAT_MODE, RepeatMode.PLAYLIST.value)
+        return RepeatMode.from_value(str(raw) if raw is not None else None)
+
+    def set_repeat_mode(self, mode: RepeatMode) -> None:
+        if self.repeat_mode == mode:
+            return
+        self._settings.setValue(self._KEY_REPEAT_MODE, mode.value)
         self.changed.emit()

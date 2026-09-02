@@ -3,21 +3,21 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
-    QPushButton,
     QSizePolicy,
+    QToolButton,
     QVBoxLayout,
 )
 
-from quantis.ui import resources
+from quantis.ui.views.widgets.home_pill_badge import HomePillBadge
 
 
 class WavePromoCard(QFrame):
-    """Яркий блок «Моя волна» — открыть / сразу слушать."""
+    """Компактная строка «Моя волна»."""
 
     open_requested = Signal()
     play_requested = Signal()
@@ -27,48 +27,41 @@ class WavePromoCard(QFrame):
         self.setObjectName("wavePromoCard")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setMinimumHeight(112)
-        self.setMaximumHeight(128)
+        self.setMinimumHeight(68)
+        self.setMaximumHeight(76)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._available = False
         self._track_count = 0
         self._source_label = "Yandex Music"
 
         root = QHBoxLayout(self)
-        root.setContentsMargins(20, 16, 20, 16)
-        root.setSpacing(16)
-
-        icon = QLabel()
-        icon.setObjectName("wavePromoIcon")
-        icon.setFixedSize(56, 56)
-        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        pix = QPixmap(resources.icon_path("radio.svg"))
-        if not pix.isNull():
-            icon.setPixmap(
-                pix.scaled(
-                    36,
-                    36,
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-            )
-        else:
-            icon.setText("♫")
-        root.addWidget(icon, 0, Qt.AlignmentFlag.AlignVCenter)
+        root.setContentsMargins(14, 10, 12, 10)
+        root.setSpacing(12)
 
         text = QVBoxLayout()
         text.setSpacing(4)
-        self._title = QLabel("Моя волна")
-        self._title.setObjectName("wavePromoTitle")
-        text.addWidget(self._title)
-        self._subtitle = QLabel("Персональное радио Yandex · нужен токен в Member")
+        text.setContentsMargins(0, 0, 0, 0)
+
+        title_row = QHBoxLayout()
+        title_row.setSpacing(8)
+        self._badge = HomePillBadge("Моя волна", variant="wave")
+        title_row.addWidget(self._badge, 0, Qt.AlignmentFlag.AlignVCenter)
+        self._count_label = QLabel("")
+        self._count_label.setObjectName("wavePromoCount")
+        title_row.addWidget(self._count_label, 0, Qt.AlignmentFlag.AlignVCenter)
+        title_row.addStretch(1)
+        text.addLayout(title_row)
+
+        self._subtitle = QLabel("Персональное радио · нужен токен Yandex")
         self._subtitle.setObjectName("wavePromoSubtitle")
         self._subtitle.setWordWrap(True)
         text.addWidget(self._subtitle)
         root.addLayout(text, stretch=1)
 
-        self._play_btn = QPushButton("▶  Волна")
+        self._play_btn = QToolButton()
         self._play_btn.setObjectName("wavePromoPlayBtn")
+        self._play_btn.setText("▶")
+        self._play_btn.setToolTip("Слушать волну")
         self._play_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._play_btn.setEnabled(False)
         self._play_btn.clicked.connect(self.play_requested.emit)
@@ -89,17 +82,22 @@ class WavePromoCard(QFrame):
         self._play_btn.setEnabled(available and track_count > 0 and not loading)
 
         if loading:
-            self._subtitle.setText(f"Загружаем волну · {self._source_label}…")
+            self._subtitle.setText(f"Загружаем · {self._source_label}…")
+            self._count_label.setText("")
         elif error:
             self._subtitle.setText(error)
+            self._count_label.setText("")
         elif available and track_count:
             self._subtitle.setText(
-                f"{self._source_label} · {track_count} треков в потоке · нажми или ▶"
+                f"{self._source_label} · нажми на карточку, чтобы открыть плейлист"
             )
+            self._count_label.setText(f"{track_count} в потоке")
         elif available:
-            self._subtitle.setText(f"{self._source_label} · пока пусто, попробуй обновить")
+            self._subtitle.setText(f"{self._source_label} · пока пусто")
+            self._count_label.setText("")
         else:
             self._subtitle.setText("Добавь OAuth-токен Yandex во вкладке Member")
+            self._count_label.setText("")
         self.update()
 
     def mouseReleaseEvent(self, event) -> None:
@@ -112,22 +110,12 @@ class WavePromoCard(QFrame):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         rect = self.rect().adjusted(1, 1, -1, -1)
         path = QPainterPath()
-        path.addRoundedRect(rect, 22, 22)
+        path.addRoundedRect(rect, 14, 14)
 
-        fill = QLinearGradient(rect.topLeft(), rect.bottomRight())
-        fill.setColorAt(0.0, QColor(14, 48, 58, 230))
-        fill.setColorAt(0.55, QColor(28, 16, 42, 225))
-        fill.setColorAt(1.0, QColor(10, 12, 24, 240))
-        painter.fillPath(path, fill)
+        painter.fillPath(path, QColor(255, 255, 255, 10 if self._available else 6))
 
-        bloom = QLinearGradient(rect.topLeft(), rect.bottomRight())
-        bloom.setColorAt(0.0, QColor(46, 230, 255, 50 if self._available else 16))
-        bloom.setColorAt(0.6, QColor(255, 92, 122, 28 if self._available else 8))
-        bloom.setColorAt(1.0, QColor(46, 230, 255, 0))
-        painter.fillPath(path, bloom)
-
-        pen = QPen(QColor(46, 230, 255, 90 if self._available else 35))
-        pen.setWidthF(1.2)
+        pen = QPen(QColor(46, 230, 255, 55 if self._available else 22))
+        pen.setWidthF(1.0)
         painter.setPen(pen)
         painter.drawPath(path)
         painter.end()

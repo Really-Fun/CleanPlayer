@@ -1,7 +1,7 @@
-"""Прогрессивный буфер Яндекс.Музыки: фоновая запись в temp, play сразу.
+"""Прогрессивный буфер потока: фоновая запись в temp, воспроизведение сразу.
 
-Не пишет в music/. После стартового запаса качает с паузами (~realtime),
-чтобы не забивать диск/сеть во время игр. Signed URL кэшируется до TTL.
+Для Yandex и YouTube — CDN-URL могут истекать или быть HLS/DASH; range-загрузка
+в локальный файл стабильнее прямого HTTP в VLC/Qt.
 """
 
 from __future__ import annotations
@@ -11,18 +11,17 @@ import logging
 import re
 import tempfile
 import time
+from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from aiohttp import ClientSession
 from aiohttp.client_exceptions import ClientConnectionError, ClientPayloadError
 
-from quantis.models import Track
-
-if TYPE_CHECKING:
-    from quantis.services.async_streamer import AsyncYandexStreamer
+from quantis.models import Track, TrackSource
 
 logger = logging.getLogger(__name__)
+
+StreamUrlFetcher = Callable[[Track], Awaitable[str | None]]
 
 _UPSTREAM_HEADERS = {
     "User-Agent": (
@@ -37,8 +36,8 @@ _SEGMENT_BYTES = 1024 * 1024
 _MAX_SEGMENT_RETRIES = 5
 _MIN_START_BYTES = 192 * 1024
 _AHEAD_BYTES = 2 * 1024 * 1024
+_ECO_AHEAD_BYTES = 4 * 1024 * 1024
 _START_TIMEOUT_SEC = 45.0
-# 320 kbps ≈ 40 KiB/s; чуть быстрее realtime, чтобы не голодать буфер
 _BYTES_PER_SEC_EST = 40_000
 _FLUSH_EVERY_BYTES = 2 * 1024 * 1024
 
@@ -50,11 +49,17 @@ def _total_from_content_range(value: str | None) -> int | None:
     return int(match.group(1)) if match else None
 
 
-class YandexProgressiveBuffer:
+def _buffer_path(track: Track, root: Path) -> Path:
+    source = str(track.source).lower()
+    ext = "m4a" if source == TrackSource.YOUTUBE else "mp3"
+    return root / f"{source}_{track.track_id}.{ext}"
+
+
+class ProgressiveStreamBuffer:
     """Один активный temp-файл; сегментная загрузка с CDN."""
 
-    def __init__(self, yandex: AsyncYandexStreamer) -> None:
-        self._yandex = yandex
+    def __init__(self, url_fetcher: StreamUrlFetcher) -> None:
+        self._url_fetcher = url_fetcher
         self._dir = Path(tempfile.gettempdir()) / "quantis_stream"
         self._dir.mkdir(parents=True, exist_ok=True)
         self._client: ClientSession | None = None
@@ -67,6 +72,9 @@ class YandexProgressiveBuffer:
 
     def set_eco(self, enabled: bool) -> None:
         self._eco = enabled
+
+    def invalidate_track(self, track: Track) -> None:
+        self._upstream.pop(str(track.track_id), None)
 
     async def _ensure_client(self) -> ClientSession:
         if self._client is None:
@@ -102,7 +110,7 @@ class YandexProgressiveBuffer:
         """Старт фоновой загрузки; возвращает путь, когда буфер готов к play."""
         async with self._lock:
             await self.cancel()
-            path = self._dir / f"yandex_{track.track_id}.mp3"
+            path = _buffer_path(track, self._dir)
             self._path = path
             self._upstream.pop(str(track.track_id), None)
             self._ready = asyncio.Event()
@@ -110,8 +118,8 @@ class YandexProgressiveBuffer:
 
         try:
             await asyncio.wait_for(self._ready.wait(), timeout=_START_TIMEOUT_SEC)
-        except asyncio.TimeoutError:
-            logger.warning("Yandex buffer: таймаут старта «%s»", track.title)
+        except TimeoutError:
+            logger.warning("Stream buffer: таймаут старта «%s»", track.title)
             await self.cancel()
             return None
 
@@ -132,7 +140,7 @@ class YandexProgressiveBuffer:
         else:
             self._upstream.pop(key, None)
 
-        url = await self._yandex.get_stream_url(track)
+        url = await self._url_fetcher(track)
         if not url:
             return None
         self._upstream[key] = (url, now)
@@ -181,7 +189,7 @@ class YandexProgressiveBuffer:
                     return body, total
             except (ClientPayloadError, ClientConnectionError) as exc:
                 logger.debug(
-                    "Yandex buffer segment retry %s@%s: %s",
+                    "Stream buffer segment retry %s@%s: %s",
                     track_id,
                     offset,
                     exc,
@@ -191,13 +199,13 @@ class YandexProgressiveBuffer:
         raise RuntimeError("upstream segment failed")
 
     async def _pace_after_segment(self, offset: int, segment_len: int) -> None:
-        """После стартового запаса — не гоняем CDN на полной скорости."""
-        if offset < _AHEAD_BYTES:
+        ahead_target = _ECO_AHEAD_BYTES if self._eco else _AHEAD_BYTES
+        if offset < ahead_target:
             return
-        factor = 1.15 if self._eco else 1.6
+        factor = 1.8 if self._eco else 2.2
         delay = segment_len / (_BYTES_PER_SEC_EST * factor)
         if self._eco:
-            delay = max(delay, 0.35)
+            delay = min(delay, 8.0)
         await asyncio.sleep(delay)
 
     async def _download(self, track: Track, path: Path) -> None:
@@ -244,7 +252,7 @@ class YandexProgressiveBuffer:
             if offset > 0:
                 self._ready.set()
             logger.debug(
-                "Yandex buffer готов «%s»: %s bytes → %s",
+                "Stream buffer готов «%s»: %s bytes → %s",
                 track.title,
                 offset,
                 path.name,
@@ -252,16 +260,20 @@ class YandexProgressiveBuffer:
         except asyncio.CancelledError:
             raise
         except Exception:
-            logger.exception("Yandex buffer: ошибка «%s»", track.title)
+            logger.exception("Stream buffer: ошибка «%s»", track.title)
             self._ready.set()
             raise
 
     def cleanup_old_files(self, keep: Path | None = None) -> None:
         keep_resolved = keep.resolve() if keep is not None and keep.exists() else None
-        for path in self._dir.glob("yandex_*.mp3"):
+        for path in self._dir.glob("*_*.*"):
             try:
                 if keep_resolved is not None and path.resolve() == keep_resolved:
                     continue
                 path.unlink(missing_ok=True)
             except OSError:
                 logger.debug("Не удалось удалить temp %s", path, exc_info=True)
+
+
+# Обратная совместимость
+YandexProgressiveBuffer = ProgressiveStreamBuffer

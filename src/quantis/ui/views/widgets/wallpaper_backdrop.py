@@ -290,6 +290,14 @@ class BodyWithWallpaper(QWidget):
         super().__init__(parent)
         self.setObjectName("bodyWithWallpaper")
         self._backdrop = WallpaperBackdrop(wallpaper, variant, self)
+        self._layer_host = QWidget(self)
+        self._layer_host.setObjectName("backgroundLayerHost")
+        self._layer_host.setAttribute(
+            Qt.WidgetAttribute.WA_TransparentForMouseEvents, True
+        )
+        self._layer_host.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+        self._layer_host.setAutoFillBackground(False)
+        self._layer_host.setStyleSheet("background: transparent;")
         self._foreground = QWidget(self)
         self._foreground.setObjectName("bodyForeground")
         self._foreground.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
@@ -307,6 +315,24 @@ class BodyWithWallpaper(QWidget):
     def layout_host(self):
         return self._layout
 
+    def add_background_layer(self, widget: QWidget) -> None:
+        """Монтирует слой поверх обоев, но под интерфейсом."""
+        widget.setParent(self._layer_host)
+        widget.setGeometry(self._layer_host.rect())
+        widget.show()
+        self._restack()
+
+    def remove_background_layer(self, widget: QWidget) -> None:
+        if widget.parent() is not self._layer_host:
+            return
+        widget.hide()
+        widget.setParent(None)
+
+    def _restack(self) -> None:
+        self._backdrop.lower()
+        self._layer_host.stackUnder(self._foreground)
+        self._foreground.raise_()
+
     def set_variant(self, variant: str) -> None:
         self._backdrop.set_variant(variant)
 
@@ -317,6 +343,10 @@ class BodyWithWallpaper(QWidget):
         super().resizeEvent(event)
         rect = self.rect()
         self._backdrop.setGeometry(rect)
+        self._layer_host.setGeometry(rect)
         self._foreground.setGeometry(rect)
-        self._backdrop.lower()
-        self._foreground.raise_()
+        for child in self._layer_host.findChildren(
+            QWidget, options=Qt.FindChildOption.FindDirectChildrenOnly
+        ):
+            child.setGeometry(rect)
+        self._restack()

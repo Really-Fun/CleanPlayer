@@ -42,12 +42,23 @@ class PageExtension:
     from_plugin: bool = True
 
 
+@dataclass
+class BackgroundLayerExtension:
+    """Слой между обоями и интерфейсом (визуализаторы, эффекты)."""
+
+    layer_id: str
+    widget: QWidget
+    z_order: int = 0
+    from_plugin: bool = True
+
+
 class UiExtensionHost(QObject):
-    """Регистрация пунктов sidebar, кнопок player bar и страниц."""
+    """Регистрация пунктов sidebar, кнопок player bar, страниц и фоновых слоёв."""
 
     nav_changed = Signal()
     player_actions_changed = Signal()
     pages_changed = Signal()
+    background_layers_changed = Signal()
 
     _instance: UiExtensionHost | None = None
 
@@ -65,6 +76,7 @@ class UiExtensionHost(QObject):
         self._nav: list[NavExtension] = []
         self._player_actions: list[PlayerActionExtension] = []
         self._pages: list[PageExtension] = []
+        self._background_layers: list[BackgroundLayerExtension] = []
         self._initialized = True
 
     @classmethod
@@ -108,6 +120,25 @@ class UiExtensionHost(QObject):
         if len(self._pages) != before:
             self.pages_changed.emit()
 
+    def register_background_layer(self, layer: BackgroundLayerExtension) -> None:
+        self._background_layers = [
+            item for item in self._background_layers if item.layer_id != layer.layer_id
+        ]
+        self._background_layers.append(layer)
+        self._background_layers.sort(key=lambda item: item.z_order)
+        self.background_layers_changed.emit()
+
+    def unregister_background_layer(self, layer_id: str) -> None:
+        before = len(self._background_layers)
+        self._background_layers = [
+            item for item in self._background_layers if item.layer_id != layer_id
+        ]
+        if len(self._background_layers) != before:
+            self.background_layers_changed.emit()
+
+    def background_layers(self) -> list[BackgroundLayerExtension]:
+        return list(self._background_layers)
+
     def nav_items(self) -> list[NavExtension]:
         return list(self._nav)
 
@@ -124,6 +155,8 @@ class UiExtensionHost(QObject):
         self._nav.clear()
         self._player_actions.clear()
         self._pages.clear()
+        self._background_layers.clear()
         self.nav_changed.emit()
         self.player_actions_changed.emit()
         self.pages_changed.emit()
+        self.background_layers_changed.emit()

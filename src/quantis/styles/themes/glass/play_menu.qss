@@ -73,3 +73,9 @@
 #controlButton[liked="true"] {
     background: rgba(255, 78, 69, 0.25);
 }
+#repeatButton[state="active"] {
+    background: rgba(255, 255, 255, 0.1);
+}
+#repeatButton[repeatMode="track"] {
+    background: rgba(0, 217, 163, 0.18);
+}

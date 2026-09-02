@@ -11,13 +11,13 @@ import logging
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any
 
 import yandex_music.exceptions
 
 from quantis.config import Clients
 from quantis.config.credentials import yandex_token
-from quantis.models import Track, YandexTrack, YoutubeTrack
+from quantis.models import Track, YoutubeTrack
+from quantis.services.yandex_finder import yandex_track_from_api, yandex_tracks_from_search
 
 logger = logging.getLogger(__name__)
 
@@ -28,30 +28,6 @@ class AsyncFinderInterface(ABC):
 
     @abstractmethod
     async def get_track(self, track_id: str | int) -> Track | None: ...
-
-
-def _yandex_tracks_from_search(search_result: Any, value: int) -> list[Track]:
-    if not search_result or not search_result.tracks:
-        return []
-    results = search_result.tracks.results[:value]
-    return [
-        YandexTrack(
-            track_id=str(track.id),
-            title=track.title,
-            author=" & ".join(artist.name for artist in track.artists if artist.name),
-            downloaded=False,
-        )
-        for track in results
-    ]
-
-
-def _yandex_track_from_api(track: Any) -> YandexTrack:
-    return YandexTrack(
-        track_id=str(track.id),
-        title=track.title,
-        author=" & ".join(artist.name for artist in track.artists if artist.name),
-        downloaded=False,
-    )
 
 
 class AsyncYandexFinder(AsyncFinderInterface):
@@ -70,7 +46,7 @@ class AsyncYandexFinder(AsyncFinderInterface):
             return []
         try:
             search_result = await client.search(title, type_="track")
-            return _yandex_tracks_from_search(search_result, value)
+            return yandex_tracks_from_search(search_result, value)
         except yandex_music.exceptions.NetworkError:
             logger.exception("Ошибка сети при поиске на Yandex: %s", title)
             return []
@@ -94,7 +70,7 @@ class AsyncYandexFinder(AsyncFinderInterface):
             track_info = await client.tracks(yandex_id)
             if not track_info:
                 return None
-            return _yandex_track_from_api(track_info[0])
+            return yandex_track_from_api(track_info[0])
         except yandex_music.exceptions.YandexMusicError:
             logger.exception(
                 "Ошибка Yandex Music API при получении трека: %s", track_id
@@ -128,6 +104,57 @@ class AsyncYoutubeFinder(AsyncFinderInterface):
         return await loop.run_in_executor(
             self._executor, self._sync_get_track, track_id
         )
+
+    async def get_track_from_url(self, url: str) -> Track | None:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            self._executor, self._sync_get_track_from_url, url
+        )
+
+    def _sync_get_track_from_url(self, url: str) -> Track | None:
+        from quantis.services.url_resolver import parse_track_id, parse_youtube_video_id
+
+        parsed = parse_track_id(url)
+        if parsed is not None:
+            source, track_id = parsed
+            if source == "youtube":
+                return self._sync_get_track_from_yt_dlp(url, track_id)
+            return None
+
+        video_id = parse_youtube_video_id(url)
+        if video_id:
+            return self._sync_get_track_from_yt_dlp(url, video_id)
+        return None
+
+    def _sync_get_track_from_yt_dlp(self, url: str, video_id: str) -> Track | None:
+        from yt_dlp import YoutubeDL
+
+        opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "skip_download": True,
+            "noplaylist": True,
+        }
+        try:
+            with YoutubeDL(opts) as yt:
+                info = yt.extract_info(url, download=False)
+            if not info:
+                return self._sync_get_track(video_id)
+            resolved_id = str(info.get("id") or video_id)
+            title = str(info.get("title") or "")
+            artists = info.get("artist") or info.get("uploader") or ""
+            if not artists:
+                channel = info.get("channel")
+                artists = str(channel) if channel else "Unknown Artist"
+            return YoutubeTrack(
+                track_id=resolved_id,
+                title=title,
+                author=str(artists),
+                downloaded=False,
+            )
+        except Exception as exc:
+            logger.debug("yt-dlp не разобрал URL %s: %s", url, exc)
+            return self._sync_get_track(video_id)
 
     def _sync_get_tracks(self, title: str, value: int = 5) -> list[Track]:
         try:
@@ -258,6 +285,49 @@ class AsyncFinder(AsyncFinderInterface):
             if yandex_track is not None:
                 return yandex_track
         return await self._youtube_finder.get_track(track_id)
+
+    async def resolve_tracks(
+        self,
+        *,
+        url: str | None = None,
+        track_id: str | None = None,
+        source: str | None = None,
+    ) -> list[Track]:
+        """Разрешает трек(и) по прямой ссылке или ID из конкретного источника.
+
+        - Если передан url — определяет источник автоматически по домену.
+        - Если передан track_id — требуется source (yandex|youtube).
+        Возвращает список Track (для альбома/плейлиста может быть > 1).
+        """
+        from quantis.services.url_resolver import parse_track_id
+
+        if url:
+            parsed = parse_track_id(url)
+            if parsed is None:
+                logger.warning("Не удалось разобрать ссылку: %s", url)
+                return []
+            src, resolved_id = parsed
+            if src == "yandex":
+                track = await self._yandex_finder.get_track(resolved_id)
+            else:
+                track = await self._youtube_finder.get_track_from_url(url)
+            return [track] if track is not None else []
+
+        if track_id:
+            normalized_source = (source or "").strip().lower()
+            if normalized_source == "yandex":
+                track = await self._yandex_finder.get_track(track_id)
+            elif normalized_source == "youtube":
+                track = await self._youtube_finder.get_track(track_id)
+            else:
+                logger.warning(
+                    "resolve_tracks: для track_id=%r нужен source (yandex|youtube)",
+                    track_id,
+                )
+                return []
+            return [track] if track is not None else []
+
+        return []
 
     def shutdown(self) -> None:
         """Пул потоков общий — не останавливаем здесь."""

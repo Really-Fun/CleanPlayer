@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import time
+
 from PySide6.QtCore import QObject, QTimer, Signal
 
 from quantis.controllers.playback_controller import PlaybackController
 from quantis.models import Track
+from quantis.models.repeat_mode import RepeatMode
 from quantis.player import Player
 from quantis.plugins.event_bus import EventBus
+from quantis.ui.preferences import UiPreferences
 from quantis.ui.viewmodels.base_viewmodel import BaseViewModel
 
 
@@ -15,6 +19,7 @@ class PlayerViewModel(BaseViewModel):
     position_changed = Signal(int)
     duration_changed = Signal(int)
     volume_changed = Signal(int)
+    repeat_mode_changed = Signal(object)
 
     def __init__(
         self,
@@ -29,6 +34,8 @@ class PlayerViewModel(BaseViewModel):
         self._event_bus = event_bus
         self._eco = False
         self._last_duration = -1
+        self._stall_last_pos = -1
+        self._stall_last_move = 0.0
         self._tick = QTimer(self)
         self._tick.setInterval(250)
         self._tick.timeout.connect(self._update_timeline)
@@ -62,9 +69,19 @@ class PlayerViewModel(BaseViewModel):
     def play_previous(self) -> None:
         self._event_bus.previous_requested.emit()
 
+    @property
+    def repeat_mode(self) -> RepeatMode:
+        return self._playback.repeat_mode
+
+    def cycle_repeat_mode(self) -> None:
+        mode = self._playback.cycle_repeat_mode()
+        self.repeat_mode_changed.emit(mode)
+
     def set_volume(self, value: int) -> None:
-        self._player.volume = value
-        self.volume_changed.emit(value)
+        clamped = max(0, min(100, int(value)))
+        self._player.volume = clamped
+        UiPreferences().set_volume(clamped)
+        self.volume_changed.emit(clamped)
 
     def seek(self, position_ms: int) -> None:
         self._player.time = position_ms
@@ -91,8 +108,26 @@ class PlayerViewModel(BaseViewModel):
         if duration > 0 and duration != self._last_duration:
             self._last_duration = duration
             self.duration_changed.emit(duration)
+        self._check_playback_stall(position, duration)
+
+    def _check_playback_stall(self, position: int, duration: int) -> None:
+        now = time.monotonic()
+        if abs(position - self._stall_last_pos) >= 750:
+            self._stall_last_pos = position
+            self._stall_last_move = now
+            return
+        if self._player.on_pause or not self._player.current_source:
+            return
+        if duration < 5000 or position < 3000 or position >= duration - 2000:
+            return
+        if now - self._stall_last_move < 5.0:
+            return
+        self._stall_last_move = now
+        self._playback.request_playback_recovery(position)
 
     def _on_track_changed(self, track: Track) -> None:
+        self._stall_last_pos = -1
+        self._stall_last_move = time.monotonic()
         self.track_changed.emit(track)
         self.start_updates()
 

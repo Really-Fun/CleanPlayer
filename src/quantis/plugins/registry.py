@@ -178,6 +178,9 @@ class PluginRegistry(QObject):
     def _read_enabled(self) -> set[str]:
         """Читает список включённых плагинов из QSettings."""
         raw = self._settings.value(_SETTINGS_GROUP, [])
+        # Пустой QStringList Qt отдаёт как None — иначе падает загрузка всех плагинов.
+        if raw is None:
+            return set()
         if isinstance(raw, str):
             return {raw} if raw else set()
         return set(raw)
