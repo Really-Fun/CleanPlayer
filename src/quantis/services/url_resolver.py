@@ -21,10 +21,17 @@ _YOUTUBE_ID_RE = re.compile(
 
 def detect_source(url: str) -> SourceId | None:
     """Определяет платформу по домену ссылки."""
-    lowered = url.strip().lower()
-    if "yandex" in lowered and ("music." in lowered or "/track/" in lowered):
+    text = url.strip()
+    lowered = text.lower()
+    parsed = urlparse(text)
+    host = (parsed.hostname or "").lower()
+
+    is_yandex_music_host = host.startswith("music.yandex.")
+    if is_yandex_music_host and "/track/" in lowered:
         return "yandex"
-    if "youtube.com" in lowered or "youtu.be" in lowered:
+
+    is_youtube_host = host == "youtu.be" or host == "youtube.com" or host.endswith(".youtube.com")
+    if is_youtube_host:
         return "youtube"
     return None
 
@@ -40,7 +47,9 @@ def parse_youtube_video_id(url: str) -> str | None:
     if match:
         return match.group(1)
     parsed = urlparse(text)
-    if parsed.hostname and "youtube" in parsed.hostname.lower():
+    host = (parsed.hostname or "").lower()
+    is_youtube_host = host == "youtu.be" or host == "youtube.com" or host.endswith(".youtube.com")
+    if is_youtube_host:
         query_id = parse_qs(parsed.query).get("v", [None])[0]
         if query_id and len(query_id) == 11:
             return query_id
