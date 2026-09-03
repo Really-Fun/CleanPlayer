@@ -161,5 +161,5 @@ Quantis бесплатный и с открытым исходным кодом.
 [GNU GPL v3](LICENSE) · © [Really-Fun](https://github.com/Really-Fun)
 
 <p align="center">
-  <sub>Если Quantis полезен — поставьте звезду на GitHub. Это правда помогает.</sub>
+  <sub>Если Quantis полезен - поставьте звезду на GitHub. Это правда помогает.</sub>
 </p>
