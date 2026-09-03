@@ -125,13 +125,14 @@ class PlaybackController:
         playlist = self.playlist_manager.current_playlist
         if playlist is None or len(playlist) == 0:
             return
+        tracks = playlist.tracks.values
         try:
-            index = playlist.tracks.index(current)
+            index = tracks.index(current)
         except ValueError:
             return
-        if index + 1 >= len(playlist.tracks):
+        if index + 1 >= len(tracks):
             return
-        nxt = playlist.tracks[index + 1]
+        nxt = tracks[index + 1]
         await self.music.streamer.prefetch_stream(nxt)
 
     @property

@@ -54,10 +54,10 @@ class AsyncStreamer(AsyncStreamerInterface):
         raise ValueError(f"Неизвестный источник платформы у трека: {track.source!r}")
 
     async def open_playback(self, track: Track) -> str | None:
-        """Стриминг через progressive buffer — стабильнее прямого HTTP (YouTube/Yandex)."""
-        self._buffer_loop = get_running_loop()
+        """Yandex — progressive buffer; YouTube — прямой HTTPS URL (часовые ролики)."""
         source_type = str(track.source).lower()
-        if source_type in (TrackSource.YANDEX, TrackSource.YOUTUBE):
+        if source_type == TrackSource.YANDEX:
+            self._buffer_loop = get_running_loop()
             path = await self._stream_buffer.open(track)
             if path:
                 self._stream_buffer.cleanup_old_files(keep=Path(path))

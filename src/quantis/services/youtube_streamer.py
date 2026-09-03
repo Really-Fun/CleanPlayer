@@ -120,11 +120,15 @@ class AsyncYoutubeStreamer(AsyncStreamerInterface):
                 "acodec": info.get("acodec"),
             }
         ):
-            if not prefer_video:
-                vcodec = str(info.get("vcodec") or "none")
-                acodec = str(info.get("acodec") or "none")
-                if acodec not in ("", "none") or vcodec not in ("", "none"):
+            vcodec = str(info.get("vcodec") or "none")
+            acodec = str(info.get("acodec") or "none")
+            has_audio = acodec not in ("", "none")
+            has_video = vcodec not in ("", "none")
+            if prefer_video:
+                if has_video:
                     return str(top_url)
+            elif has_audio and not has_video:
+                return str(top_url)
 
         if not formats:
             return str(top_url) if top_url else None
@@ -147,7 +151,7 @@ class AsyncYoutubeStreamer(AsyncStreamerInterface):
                     abr,
                 )
             return (
-                1 if audio_only else (1 if progressive else 0),
+                2 if audio_only else (1 if progressive else 0),
                 2 if ext in ("m4a", "mp4") else (1 if ext in ("webm", "opus") else 0),
                 abr,
             )

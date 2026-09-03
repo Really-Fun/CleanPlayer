@@ -88,7 +88,7 @@ async def test_open_playback_yandex_uses_progressive_buffer() -> None:
 
 
 @pytest.mark.asyncio
-async def test_open_playback_youtube_uses_progressive_buffer() -> None:
+async def test_open_playback_youtube_uses_direct_url() -> None:
     streamer = AsyncStreamer()
     track = YoutubeTrack(track_id="abc123", title="T", author="A")
 
@@ -97,16 +97,19 @@ async def test_open_playback_youtube_uses_progressive_buffer() -> None:
             streamer._stream_buffer,
             "open",
             new_callable=AsyncMock,
-            return_value="/tmp/quantis_stream/youtube_abc123.m4a",
         ) as buffer_mock,
-        patch.object(streamer._stream_buffer, "cleanup_old_files"),
-        patch.object(streamer, "get_stream_url", new_callable=AsyncMock) as url_mock,
+        patch.object(
+            streamer,
+            "get_stream_url",
+            new_callable=AsyncMock,
+            return_value="https://googlevideo.com/videoplayback",
+        ) as url_mock,
     ):
         result = await streamer.open_playback(track)
 
-    assert result == "/tmp/quantis_stream/youtube_abc123.m4a"
-    buffer_mock.assert_awaited_once_with(track)
-    url_mock.assert_not_awaited()
+    assert result == "https://googlevideo.com/videoplayback"
+    url_mock.assert_awaited_once_with(track)
+    buffer_mock.assert_not_awaited()
     streamer.shutdown()
 
 

@@ -127,7 +127,31 @@ class SearchViewModel(BaseViewModel):
         try:
             logger.info("Поиск: %s", query)
             from quantis.config.credentials import yandex_token
-            from quantis.models import TrackSource
+            from quantis.services.url_resolver import parse_track_id
+
+            if parse_track_id(query) is not None:
+                tracks = await self._finder.resolve_tracks(url=query)
+                if generation != self._search_generation:
+                    return
+
+                snapshot = list(tracks)
+                status = f"Найдено: {len(snapshot)}" if snapshot else ""
+
+                def apply_url(
+                    items: list[Track] = snapshot,
+                    message: str = status,
+                ) -> None:
+                    self._all_tracks = items
+                    self._model.set_tracks(self._filtered_tracks())
+                    self.results_changed.emit()
+                    if message:
+                        self.status_message.emit(message)
+                    elif not items:
+                        self.status_message.emit("По ссылке ничего не найдено.")
+
+                bridge.invoke_main(apply_url)
+                logger.info("Найдено треков: %d", len(tracks))
+                return
 
             tracks: list[Track] = []
             yandex_count = 0

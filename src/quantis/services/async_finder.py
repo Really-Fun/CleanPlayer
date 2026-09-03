@@ -160,6 +160,12 @@ class AsyncYoutubeFinder(AsyncFinderInterface):
         try:
             results = self.client.search(query=title, filter="songs", limit=value)
             if not results:
+                results = self.client.search(query=title, limit=value * 3)
+                results = [
+                    r for r in (results or [])
+                    if r.get("resultType") in ("song", "video")
+                ][:value]
+            if not results:
                 results = [self.client.get_song(videoId=title)["videoDetails"]]
         except Exception as e:
             logger.debug("Ошибка поиска YTMusic для '%s': %s", title, e)

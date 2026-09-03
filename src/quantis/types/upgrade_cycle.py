@@ -40,6 +40,12 @@ class UpgradeCycle(Iterator[TrackType]):
     def __len__(self) -> int:
         return len(self.values)
 
+    def __getitem__(self, index: int) -> TrackType:
+        return self.values[index]
+
+    def index(self, item: TrackType) -> int:
+        return self.values.index(item)
+
     def remove(self, item: TrackType) -> bool:
         """Удаляет элемент из цикла.
 

@@ -18,3 +18,35 @@ def test_accepts_https_progressive() -> None:
     assert AsyncYoutubeStreamer._is_playable_format(
         {"url": "https://rr.example/videoplayback", "protocol": "https", "ext": "m4a"}
     )
+
+
+def test_picks_audio_only_over_muxed_video() -> None:
+    info = {
+        "url": "https://rr.example/video.mp4",
+        "protocol": "https",
+        "ext": "mp4",
+        "vcodec": "h264",
+        "acodec": "aac",
+        "formats": [
+            {
+                "url": "https://rr.example/video.mp4",
+                "protocol": "https",
+                "ext": "mp4",
+                "vcodec": "h264",
+                "acodec": "aac",
+                "tbr": 200,
+            },
+            {
+                "url": "https://rr.example/audio.m4a",
+                "protocol": "https",
+                "ext": "m4a",
+                "vcodec": "none",
+                "acodec": "aac",
+                "abr": 128,
+            },
+        ],
+    }
+    assert (
+        AsyncYoutubeStreamer._pick_stream_url(info, prefer_video=False)
+        == "https://rr.example/audio.m4a"
+    )
