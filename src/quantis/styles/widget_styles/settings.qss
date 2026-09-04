@@ -109,6 +109,35 @@ QPushButton#settingsButton:pressed {
     background: rgba(46, 230, 255, 0.26);
 }
 
+QFrame#updateBanner {
+    background: rgba(46, 230, 255, 0.12);
+    border: none;
+    border-bottom: 1px solid rgba(46, 230, 255, 0.22);
+}
+
+QLabel#updateBannerText {
+    color: #f8fafc;
+    font-size: 13px;
+    font-weight: 600;
+    background: transparent;
+}
+
+QPushButton#updateBannerButton {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 10px;
+    padding: 6px 12px;
+    color: #e2e8f0;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+QPushButton#updateBannerButton:hover {
+    background: rgba(46, 230, 255, 0.16);
+    border-color: rgba(46, 230, 255, 0.55);
+    color: #f8fafc;
+}
+
 QComboBox#themeCombo QAbstractItemView {
     background: #080e18;
     color: #f8fafc;

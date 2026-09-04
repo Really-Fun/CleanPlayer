@@ -10,10 +10,10 @@ from quantis.ui.preferences import UiPreferences
 
 @pytest.fixture(autouse=True)
 def reset_preferences_singleton():
-    from PySide6.QtCore import QSettings
-
     settings = QSettings("ReallyFun", "Quantis")
     settings.remove("playback/volume")
+    settings.remove("ui/dynamic_wallpaper_quality")
+    settings.remove("ui/dynamic_wallpaper_fps")
     settings.sync()
     UiPreferences._instance = None
     yield
@@ -40,3 +40,29 @@ def test_volume_clamped(qapp) -> None:
     assert prefs.volume == 100
     prefs.set_volume(-10)
     assert prefs.volume == 0
+
+
+def test_wallpaper_quality_and_fps_defaults(qapp) -> None:
+    prefs = UiPreferences()
+    assert prefs.dynamic_wallpaper_quality == 360
+    assert prefs.dynamic_wallpaper_fps == 10
+
+
+def test_wallpaper_quality_and_fps_persist(qapp) -> None:
+    prefs = UiPreferences()
+    prefs.set_dynamic_wallpaper_quality(720)
+    prefs.set_dynamic_wallpaper_fps(24)
+    assert prefs.dynamic_wallpaper_quality == 720
+    assert prefs.dynamic_wallpaper_fps == 24
+
+    stored = QSettings("ReallyFun", "Quantis")
+    assert int(stored.value("ui/dynamic_wallpaper_quality")) == 720
+    assert int(stored.value("ui/dynamic_wallpaper_fps")) == 24
+
+
+def test_wallpaper_quality_and_fps_clamped(qapp) -> None:
+    prefs = UiPreferences()
+    prefs.set_dynamic_wallpaper_quality(1080)
+    prefs.set_dynamic_wallpaper_fps(60)
+    assert prefs.dynamic_wallpaper_quality == 720
+    assert prefs.dynamic_wallpaper_fps == 30

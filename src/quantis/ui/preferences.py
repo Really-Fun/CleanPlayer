@@ -18,6 +18,8 @@ class UiPreferences(QObject):
     _KEY_HOME_FEATURED = "ui/show_home_featured_panel"
     _KEY_UI_THEME = "ui/theme"
     _KEY_DYNAMIC_WALLPAPER = "ui/dynamic_wallpaper"
+    _KEY_WALLPAPER_QUALITY = "ui/dynamic_wallpaper_quality"
+    _KEY_WALLPAPER_FPS = "ui/dynamic_wallpaper_fps"
     _KEY_WALLPAPER = "ui/wallpaper_path"
     _KEY_WALLPAPER_ENABLED = "ui/wallpaper_enabled"
     _KEY_NOW_PLAYING = "ui/show_now_playing_panel"
@@ -26,6 +28,11 @@ class UiPreferences(QObject):
     _KEY_REPEAT_MODE = "playback/repeat_mode"
     _KEY_MUSIC_DIR = "storage/music_dir"
     _KEY_WINDOW_GEOMETRY = "ui/window_geometry"
+    _KEY_UPDATE_LAST_CHECK = "updates/last_check_at"
+    _KEY_UPDATE_LAST_TAG = "updates/last_tag"
+    _KEY_UPDATE_LAST_URL = "updates/last_html_url"
+    _KEY_UPDATE_DISMISSED_TAG = "updates/dismissed_tag"
+    _KEY_UPDATE_CHECK_ON_STARTUP = "updates/check_on_startup"
 
     def __new__(cls) -> UiPreferences:
         if cls._instance is None:
@@ -48,6 +55,20 @@ class UiPreferences(QObject):
         if raw is None:
             return default
         return bool(raw)
+
+    @staticmethod
+    def _read_int(raw: object, default: int) -> int:
+        try:
+            return int(raw)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
+    def _read_float(raw: object, default: float) -> float:
+        try:
+            return float(raw)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return default
 
     @property
     def show_home_featured_panel(self) -> bool:
@@ -98,6 +119,46 @@ class UiPreferences(QObject):
         if self.dynamic_wallpaper_enabled == value:
             return
         self._settings.setValue(self._KEY_DYNAMIC_WALLPAPER, value)
+        self.changed.emit()
+
+    @property
+    def dynamic_wallpaper_quality(self) -> int:
+        from quantis.services.wallpaper_policy import (
+            WALLPAPER_DEFAULT_QUALITY,
+            clamp_wallpaper_quality,
+        )
+
+        raw = self._settings.value(
+            self._KEY_WALLPAPER_QUALITY, WALLPAPER_DEFAULT_QUALITY
+        )
+        return clamp_wallpaper_quality(self._read_int(raw, WALLPAPER_DEFAULT_QUALITY))
+
+    def set_dynamic_wallpaper_quality(self, value: int) -> None:
+        from quantis.services.wallpaper_policy import clamp_wallpaper_quality
+
+        clamped = clamp_wallpaper_quality(int(value))
+        if self.dynamic_wallpaper_quality == clamped:
+            return
+        self._settings.setValue(self._KEY_WALLPAPER_QUALITY, clamped)
+        self.changed.emit()
+
+    @property
+    def dynamic_wallpaper_fps(self) -> int:
+        from quantis.services.wallpaper_policy import (
+            WALLPAPER_DEFAULT_FPS,
+            clamp_wallpaper_fps,
+        )
+
+        raw = self._settings.value(self._KEY_WALLPAPER_FPS, WALLPAPER_DEFAULT_FPS)
+        return clamp_wallpaper_fps(self._read_int(raw, WALLPAPER_DEFAULT_FPS))
+
+    def set_dynamic_wallpaper_fps(self, value: int) -> None:
+        from quantis.services.wallpaper_policy import clamp_wallpaper_fps
+
+        clamped = clamp_wallpaper_fps(int(value))
+        if self.dynamic_wallpaper_fps == clamped:
+            return
+        self._settings.setValue(self._KEY_WALLPAPER_FPS, clamped)
         self.changed.emit()
 
     @property
@@ -195,3 +256,49 @@ class UiPreferences(QObject):
         self._settings.sync()
         app_paths.reset_music_dir_cache()
         self.changed.emit()
+
+    @property
+    def update_check_on_startup(self) -> bool:
+        return self._read_bool(
+            self._settings.value(self._KEY_UPDATE_CHECK_ON_STARTUP, True),
+            True,
+        )
+
+    def set_update_check_on_startup(self, value: bool) -> None:
+        if self.update_check_on_startup == value:
+            return
+        self._settings.setValue(self._KEY_UPDATE_CHECK_ON_STARTUP, value)
+
+    @property
+    def update_last_check_at(self) -> float:
+        return self._read_float(
+            self._settings.value(self._KEY_UPDATE_LAST_CHECK, 0),
+            0.0,
+        )
+
+    def set_update_last_check_at(self, value: float) -> None:
+        self._settings.setValue(self._KEY_UPDATE_LAST_CHECK, int(value))
+
+    @property
+    def update_last_tag(self) -> str:
+        raw = self._settings.value(self._KEY_UPDATE_LAST_TAG, "")
+        return str(raw).strip() if raw else ""
+
+    def set_update_last_tag(self, tag: str) -> None:
+        self._settings.setValue(self._KEY_UPDATE_LAST_TAG, tag.strip())
+
+    @property
+    def update_last_html_url(self) -> str:
+        raw = self._settings.value(self._KEY_UPDATE_LAST_URL, "")
+        return str(raw).strip() if raw else ""
+
+    def set_update_last_html_url(self, url: str) -> None:
+        self._settings.setValue(self._KEY_UPDATE_LAST_URL, url.strip())
+
+    @property
+    def update_dismissed_tag(self) -> str:
+        raw = self._settings.value(self._KEY_UPDATE_DISMISSED_TAG, "")
+        return str(raw).strip() if raw else ""
+
+    def set_update_dismissed_tag(self, tag: str) -> None:
+        self._settings.setValue(self._KEY_UPDATE_DISMISSED_TAG, tag.strip())

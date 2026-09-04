@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QPixmap
+from PySide6.QtCore import QEvent, Qt, Signal
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -14,7 +14,6 @@ from PySide6.QtWidgets import (
 
 from quantis.models.playlist import Playlist
 from quantis.ui.views.widgets.cover_art import (
-    gradient_for_name,
     load_cover_pixmap,
     paint_rounded_cover,
     playlist_cover_path,
@@ -69,6 +68,16 @@ class GradientCover(QWidget):
         painter.end()
 
 
+def playlist_tracks_label(count: int) -> str:
+    if count % 10 == 1 and count % 100 != 11:
+        suffix = "трек"
+    elif count % 10 in (2, 3, 4) and count % 100 not in (12, 13, 14):
+        suffix = "трека"
+    else:
+        suffix = "треков"
+    return f"{count} {suffix}"
+
+
 class PlaylistCard(QFrame):
     """Карточка плейлиста — обложка крупно, подпись снизу (shelf-стиль)."""
 
@@ -100,23 +109,13 @@ class PlaylistCard(QFrame):
         title.setMaximumHeight(36)
         layout.addWidget(title)
 
-        tracks_label = QLabel(self._tracks_label(len(playlist)))
+        tracks_label = QLabel(playlist_tracks_label(len(playlist)))
         tracks_label.setObjectName("playlistCardMeta")
         layout.addWidget(tracks_label)
 
     @property
     def playlist(self) -> Playlist:
         return self._playlist
-
-    @staticmethod
-    def _tracks_label(count: int) -> str:
-        if count % 10 == 1 and count % 100 != 11:
-            suffix = "трек"
-        elif count % 10 in (2, 3, 4) and count % 100 not in (12, 13, 14):
-            suffix = "трека"
-        else:
-            suffix = "треков"
-        return f"{count} {suffix}"
 
     def mouseReleaseEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
@@ -137,19 +136,18 @@ class PlaylistCard(QFrame):
 
 
 class QuickPickTile(QFrame):
-    """Плитка быстрого доступа — цветной акцент + обложка."""
+    """Стеклянная плитка быстрого доступа — как карточка «Моя волна»."""
 
     activated = Signal(object)
 
     def __init__(self, playlist: Playlist, parent=None) -> None:
         super().__init__(parent)
         self._playlist = playlist
+        self._hovered = False
         self.setObjectName("quickPickTile")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFixedHeight(72)
-        self.setMinimumWidth(180)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self._accent = gradient_for_name(playlist.name)[0]
+        self.setFixedSize(248, 72)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 14, 0)
@@ -168,8 +166,10 @@ class QuickPickTile(QFrame):
         text_col.setSpacing(2)
         title = QLabel(playlist.name)
         title.setObjectName("quickPickTitle")
+        title.setWordWrap(False)
+        title.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         text_col.addWidget(title)
-        meta = QLabel(PlaylistCard._tracks_label(len(playlist)))
+        meta = QLabel(playlist_tracks_label(len(playlist)))
         meta.setObjectName("quickPickMeta")
         text_col.addWidget(meta)
         layout.addLayout(text_col, stretch=1)
@@ -181,22 +181,107 @@ class QuickPickTile(QFrame):
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = self.rect().adjusted(1, 1, -1, -1)
         path = QPainterPath()
-        path.addRoundedRect(self.rect().adjusted(0, 0, -1, -1), 14, 14)
-        painter.fillPath(path, QColor(12, 16, 28, 210))
-        # Цветная полоска слева
-        bar = QPainterPath()
-        bar.addRoundedRect(0, 10, 4, self.height() - 20, 2, 2)
-        accent = QColor(self._accent)
-        accent.setAlpha(200)
-        painter.fillPath(bar, accent)
+        path.addRoundedRect(rect, 14, 14)
+        painter.fillPath(path, QColor(255, 255, 255, 14 if self._hovered else 10))
+        pen = QPen(QColor(46, 230, 255, 70 if self._hovered else 40))
+        pen.setWidthF(1.0)
+        painter.setPen(pen)
+        painter.drawPath(path)
         painter.end()
-        super().paintEvent(event)
+
+    def enterEvent(self, event) -> None:
+        self._hovered = True
+        self.update()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        self._hovered = False
+        self.update()
+        super().leaveEvent(event)
 
     def mouseReleaseEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             self.activated.emit(self._playlist)
         super().mouseReleaseEvent(event)
+
+    def wheelEvent(self, event) -> None:
+        event.ignore()
+
+
+class QuickPickShelf(QWidget):
+    """Горизонтальная полка стеклянных плиток — колесо мыши листает вбок."""
+
+    playlist_activated = Signal(object)
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("quickPickShelf")
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setFixedHeight(84)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        self._scroll = QScrollArea()
+        self._scroll.setObjectName("quickPickShelfScroll")
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._scroll.setFixedHeight(84)
+        self._scroll.viewport().installEventFilter(self)
+
+        self._host = QWidget()
+        self._host.setObjectName("quickPickShelfHost")
+        self._row = QHBoxLayout(self._host)
+        self._row.setContentsMargins(0, 6, 8, 6)
+        self._row.setSpacing(10)
+        self._row.setAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+        self._scroll.setWidget(self._host)
+        self._host.installEventFilter(self)
+        outer.addWidget(self._scroll)
+
+    def wheelEvent(self, event) -> None:
+        bar = self._scroll.horizontalScrollBar()
+        if bar.maximum() > bar.minimum():
+            delta = event.angleDelta().y() or event.angleDelta().x()
+            bar.setValue(bar.value() - delta)
+            event.accept()
+            return
+        super().wheelEvent(event)
+
+    def eventFilter(self, watched, event) -> bool:
+        if event.type() == QEvent.Type.Wheel:
+            bar = self._scroll.horizontalScrollBar()
+            if bar.maximum() > bar.minimum():
+                delta = event.angleDelta().y() or event.angleDelta().x()
+                bar.setValue(bar.value() - delta)
+                return True
+        return super().eventFilter(watched, event)
+
+    def set_playlists(self, playlists: list[Playlist]) -> None:
+        while self._row.count():
+            item = self._row.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+        if not playlists:
+            empty = QLabel("Появится после первых прослушиваний")
+            empty.setObjectName("homeEmptyHint")
+            self._row.addWidget(empty)
+            return
+
+        for playlist in playlists:
+            tile = QuickPickTile(playlist)
+            tile.activated.connect(self.playlist_activated.emit)
+            self._row.addWidget(tile)
+        self._row.addStretch(1)
 
 
 class PlaylistShelf(QWidget):
@@ -238,7 +323,9 @@ class PlaylistShelf(QWidget):
                 widget.deleteLater()
 
         if not playlists:
-            empty = QLabel("Создай плейлист кнопкой «+ Плейлист» или добавь трек из плеера")
+            empty = QLabel(
+                "Создай плейлист кнопкой «+ Плейлист» или добавь трек из плеера"
+            )
             empty.setObjectName("homeEmptyHint")
             self._row.addWidget(empty)
             return

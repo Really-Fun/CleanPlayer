@@ -16,6 +16,10 @@ import aiohttp
 from quantis.config import Clients
 from quantis.models.track import Track, TrackSource, YandexTrack, YoutubeTrack
 from quantis.providers import PathProvider
+from quantis.services.wallpaper_policy import (
+    wallpaper_cache_format,
+    wallpaper_duration_filter,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,11 +28,7 @@ _AUDIO_FORMAT = (
     "bestaudio[ext=m4a]/bestaudio[ext=mp3]/"
     "bestaudio[protocol=https]/bestaudio"
 )
-_VIDEO_FORMAT = (
-    "best[ext=mp4][vcodec!=none][acodec!=none][height<=720]/"
-    "best[ext=mp4][height<=720]/"
-    "18/best[height<=720]/best"
-)
+_VIDEO_FORMAT = wallpaper_cache_format(360)
 _AUDIO_EXTENSIONS = frozenset({"m4a", "mp3"})
 
 
@@ -126,12 +126,15 @@ class AsyncYoutubeDownloader(AsyncDownloaderInterface):
         self._semaphore = Semaphore(value=8)
 
     def _ydl_opts(self, outtmpl: str, *, video: bool = False) -> dict:
-        return {
+        opts = {
             **self._base_opts,
             "outtmpl": outtmpl,
-            "format": _VIDEO_FORMAT if video else _AUDIO_FORMAT,
+            "format": self._video_format() if video else _AUDIO_FORMAT,
             "extractor_args": {"youtube": {"player_client": ["android"]}},
         }
+        if video:
+            opts["match_filter"] = wallpaper_duration_filter
+        return opts
 
     def _ydl_opts_fallback(self, outtmpl: str, *, video: bool = False) -> dict:
         from quantis.config.credentials import youtube_yt_dlp_cookiefile
@@ -139,12 +142,20 @@ class AsyncYoutubeDownloader(AsyncDownloaderInterface):
         opts = {
             **self._base_opts,
             "outtmpl": outtmpl,
-            "format": _VIDEO_FORMAT if video else _AUDIO_FORMAT,
+            "format": self._video_format() if video else _AUDIO_FORMAT,
         }
+        if video:
+            opts["match_filter"] = wallpaper_duration_filter
         cookiefile = youtube_yt_dlp_cookiefile()
         if cookiefile:
             opts["cookiefile"] = cookiefile
         return opts
+
+    @staticmethod
+    def _video_format() -> str:
+        from quantis.ui.preferences import UiPreferences
+
+        return wallpaper_cache_format(UiPreferences().dynamic_wallpaper_quality)
 
     @staticmethod
     def _video_wallpaper_enabled() -> bool:

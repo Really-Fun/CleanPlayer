@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QPropertyAnimation, QRect, Qt
-from PySide6.QtGui import QColor, QFont, QGuiApplication
+from PySide6.QtCore import QEvent, QPropertyAnimation, QRect, Qt, QUrl
+from PySide6.QtGui import QColor, QDesktopServices, QFont, QGuiApplication
 from PySide6.QtWidgets import (
     QApplication,
     QGraphicsOpacityEffect,
@@ -21,10 +21,12 @@ from quantis.ui.controllers.dynamic_wallpaper import DynamicWallpaperController
 from quantis.ui.cover_accent import accent_from_cover_path
 from quantis.ui.design_tokens import ACCENT_FALLBACK
 from quantis.ui.preferences import UiPreferences
+from quantis.ui.ui_extensions import NavExtension, UiExtensionHost
 from quantis.ui.viewmodels.home_vm import HomeViewModel
 from quantis.ui.viewmodels.player_vm import PlayerViewModel
 from quantis.ui.viewmodels.playlist_vm import PlaylistViewModel
 from quantis.ui.viewmodels.search_vm import SearchViewModel
+from quantis.ui.viewmodels.stats_vm import StatsViewModel
 from quantis.ui.views.home_page import HomePage
 from quantis.ui.views.member_page import MemberPage
 from quantis.ui.views.player_bar import PlayerBar
@@ -32,13 +34,14 @@ from quantis.ui.views.playlist_page import PlaylistPage
 from quantis.ui.views.plugins_page import PluginsPage
 from quantis.ui.views.search_page import SearchPage
 from quantis.ui.views.settings_page import SettingsPage
+from quantis.ui.views.stats_page import StatsPage
 from quantis.ui.views.widgets.app_header import AppHeader
 from quantis.ui.views.widgets.background_frame import BackgroundFrame
 from quantis.ui.views.widgets.now_playing_fullscreen import NowPlayingFullscreen
 from quantis.ui.views.widgets.now_playing_panel import NowPlayingPanel
 from quantis.ui.views.widgets.resize_grips import WindowResizeGrips
-from quantis.ui.ui_extensions import NavExtension, UiExtensionHost
 from quantis.ui.views.widgets.side_nav import SideNavRail
+from quantis.ui.views.widgets.update_banner import UpdateBanner
 from quantis.ui.views.widgets.wallpaper_backdrop import BodyWithWallpaper
 
 
@@ -46,25 +49,28 @@ class QuantisMainWindow(QMainWindow):
     """Главное окно приложения.
 
     Страницы в QStackedWidget (индексы):
-      0 Home, 1 Search, 2 Library, 3 Plugins, 4 Member, 5 Settings,
-      6 Playlist (overlay, не в боковом nav), 7+ — страницы плагинов.
+      0 Home, 1 Search, 2 Library, 3 Stats, 4 Plugins, 5 Member, 6 Settings,
+      7 Playlist (overlay, не в боковом nav), 8+ — страницы плагинов.
 
-    Страницы 1–5 и 6 создаются лениво через ``_ensure_*_page`` при первом
+    Страницы 1–6 и 7 создаются лениво через ``_ensure_*_page`` при первом
     переходе (в stack изначально стоят пустые QWidget-заглушки).
     """
+
     PAGE_HOME = 0
     PAGE_SEARCH = 1
     PAGE_LIBRARY = 2
-    PAGE_PLUGINS = 3
-    PAGE_MEMBER = 4
-    PAGE_SETTINGS = 5
-    PAGE_PLAYLIST = 6
-    _CORE_STACK_COUNT = 7
+    PAGE_STATS = 3
+    PAGE_PLUGINS = 4
+    PAGE_MEMBER = 5
+    PAGE_SETTINGS = 6
+    PAGE_PLAYLIST = 7
+    _CORE_STACK_COUNT = 8
 
     _PAGE_META = {
         PAGE_HOME: ("Главная", ""),
         PAGE_SEARCH: ("Поиск", ""),
         PAGE_LIBRARY: ("Библиотека", ""),
+        PAGE_STATS: ("Статистика", ""),
         PAGE_PLUGINS: ("Плагины", ""),
         PAGE_MEMBER: ("Member", ""),
         PAGE_SETTINGS: ("Настройки", ""),
@@ -83,10 +89,7 @@ class QuantisMainWindow(QMainWindow):
         self._bundle = bundle
         self._bridge = bundle.async_bridge
         self.setWindowTitle("Quantis")
-        self.setWindowFlags(
-            Qt.WindowType.Window
-            | Qt.WindowType.FramelessWindowHint
-        )
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
         self.setMinimumSize(1024, 640)
         self._ui_prefs = UiPreferences()
         self._restore_window_geometry()
@@ -116,6 +119,11 @@ class QuantisMainWindow(QMainWindow):
             bridge=self._bridge,
             parent=self,
         )
+        self._stats_vm = StatsViewModel(
+            bundle.history,
+            bundle.playback,
+            parent=self,
+        )
         self._return_page_id = self.PAGE_HOME
         self._applied_theme = ""
         self._page_meta = dict(self._PAGE_META)
@@ -140,6 +148,11 @@ class QuantisMainWindow(QMainWindow):
         self._header.close_requested.connect(self.close)
         root.addWidget(self._header)
 
+        self._update_banner = UpdateBanner()
+        self._update_banner.open_requested.connect(self._open_cached_release)
+        self._update_banner.dismiss_requested.connect(self._dismiss_update_banner)
+        root.addWidget(self._update_banner)
+
         self._body_shell = BodyWithWallpaper(
             resources.wallpaper_path(),
             variant=self._ui_prefs.ui_theme,
@@ -163,6 +176,7 @@ class QuantisMainWindow(QMainWindow):
         self._home_page = HomePage(self._home_vm, self._bridge, self._ui_prefs)
         self._library_page = None
         self._search_page: SearchPage | None = None
+        self._stats_page: StatsPage | None = None
         self._plugins_page: PluginsPage | None = None
         self._member_page: MemberPage | None = None
         self._settings_page: SettingsPage | None = None
@@ -171,10 +185,11 @@ class QuantisMainWindow(QMainWindow):
         self._stack.addWidget(self._home_page)  # 0
         self._stack.addWidget(QWidget())  # 1 SEARCH
         self._stack.addWidget(QWidget())  # 2 LIBRARY (lazy)
-        self._stack.addWidget(QWidget())  # 3 PLUGINS
-        self._stack.addWidget(QWidget())  # 4 MEMBER
-        self._stack.addWidget(QWidget())  # 5 SETTINGS
-        self._stack.addWidget(QWidget())  # 6 PLAYLIST
+        self._stack.addWidget(QWidget())  # 3 STATS
+        self._stack.addWidget(QWidget())  # 4 PLUGINS
+        self._stack.addWidget(QWidget())  # 5 MEMBER
+        self._stack.addWidget(QWidget())  # 6 SETTINGS
+        self._stack.addWidget(QWidget())  # 7 PLAYLIST
 
         self._home_page.playlist_open_requested.connect(self._open_playlist_page)
 
@@ -224,7 +239,12 @@ class QuantisMainWindow(QMainWindow):
         body.addWidget(columns_host, stretch=1)
         root.addWidget(self._body_shell, stretch=1)
 
-        for view_model in (self._player_vm, self._search_vm, self._home_vm, self._playlist_vm):
+        for view_model in (
+            self._player_vm,
+            self._search_vm,
+            self._home_vm,
+            self._playlist_vm,
+        ):
             view_model.error_occurred.connect(self._show_error)
 
         bundle.event_bus.track_changed.connect(self._sync_playing_track)
@@ -241,6 +261,7 @@ class QuantisMainWindow(QMainWindow):
             bundle.async_bridge,
             self._ui_prefs,
             bundle.event_bus,
+            playback=bundle.playback,
             parent=self,
         )
         self._eco.subscribe(self._apply_eco)
@@ -253,9 +274,7 @@ class QuantisMainWindow(QMainWindow):
         self._mounted_layers: dict[str, QWidget] = {}
         self._extensions = UiExtensionHost.instance()
         self._extensions.pages_changed.connect(self._sync_plugin_pages)
-        self._extensions.background_layers_changed.connect(
-            self._sync_background_layers
-        )
+        self._extensions.background_layers_changed.connect(self._sync_background_layers)
         self._sync_plugin_pages()
         self._sync_background_layers()
         self._on_page_changed(self.PAGE_HOME)
@@ -263,6 +282,7 @@ class QuantisMainWindow(QMainWindow):
         from PySide6.QtCore import QTimer
 
         QTimer.singleShot(0, lambda: self._home_vm.request_load(self._bridge))
+        QTimer.singleShot(0, self._maybe_check_for_update)
 
     def _on_app_state_changed(self, state) -> None:
         self._refresh_eco_state()
@@ -334,6 +354,12 @@ class QuantisMainWindow(QMainWindow):
             self._replace_stack_page(self.PAGE_LIBRARY, self._library_page)
         return self._library_page
 
+    def _ensure_stats_page(self) -> StatsPage:
+        if self._stats_page is None:
+            self._stats_page = StatsPage(self._stats_vm, self._bridge)
+            self._replace_stack_page(self.PAGE_STATS, self._stats_page)
+        return self._stats_page
+
     def _ensure_plugins_page(self) -> PluginsPage:
         if self._plugins_page is None:
             self._plugins_page = PluginsPage(self._bridge)
@@ -349,11 +375,12 @@ class QuantisMainWindow(QMainWindow):
     def _ensure_settings_page(self) -> SettingsPage:
         if self._settings_page is None:
             self._settings_page = SettingsPage(self._ui_prefs, self._bridge)
+            self._settings_page.update_checked.connect(self._sync_update_banner)
             self._replace_stack_page(self.PAGE_SETTINGS, self._settings_page)
         return self._settings_page
 
     def _ensure_playlist_page(self) -> PlaylistPage:
-        """Ленивая инициализация детальной страницы плейлиста (index 6, вне nav)."""
+        """Ленивая инициализация детальной страницы плейлиста (index 7, вне nav)."""
         if self._playlist_page is None:
             self._playlist_page = PlaylistPage(self._playlist_vm, self._bridge)
             self._playlist_page.back_requested.connect(self._close_playlist_page)
@@ -450,6 +477,9 @@ class QuantisMainWindow(QMainWindow):
             self._ensure_search_page()
         elif page_id == self.PAGE_LIBRARY:
             self._ensure_library_page()
+        elif page_id == self.PAGE_STATS:
+            self._ensure_stats_page()
+            self._stats_vm.request_load(self._bridge)
         elif page_id == self.PAGE_PLUGINS:
             self._ensure_plugins_page()
         elif page_id == self.PAGE_MEMBER:
@@ -508,6 +538,8 @@ class QuantisMainWindow(QMainWindow):
         self._home_vm.recommendation_model.set_playing_track(track)
         if self._library_page is not None:
             self._library_page.set_playing_track(track)
+        if self._stats_page is not None:
+            self._stats_page.set_playing_track(track)
         if self._playlist_page is not None:
             self._playlist_page.set_playing_track(track)
         self._home_page.refresh_featured()
@@ -532,8 +564,12 @@ class QuantisMainWindow(QMainWindow):
         self._accent = color
         self._shell.set_accent(color)
         self._nav.set_accent(color)
+        if self._stats_page is not None:
+            self._stats_page.set_accent(color)
         self.setStyleSheet(
-            resources.load_stylesheet(self._applied_theme or self._ui_prefs.ui_theme, accent=color)
+            resources.load_stylesheet(
+                self._applied_theme or self._ui_prefs.ui_theme, accent=color
+            )
         )
         self._player_bar.refresh_theme()
 
@@ -543,6 +579,8 @@ class QuantisMainWindow(QMainWindow):
         from quantis.ui.async_ui import schedule
 
         schedule(self._home_vm.refresh_recent(self._bridge), self._bridge)
+        if self._current_page == self.PAGE_STATS or self._stats_page is not None:
+            self._stats_vm.request_load(self._bridge)
 
     def _on_playlists_updated(self) -> None:
         from quantis.ui.async_ui import schedule
@@ -573,7 +611,9 @@ class QuantisMainWindow(QMainWindow):
         self._sync_now_playing_visibility()
         self._player_bar.refresh_theme()
         if self._ui_prefs.dynamic_wallpaper_enabled and not self._eco.active:
-            self._dynamic_wallpaper.refresh_for_track(self._bundle.playback.current_track)
+            self._dynamic_wallpaper.refresh_for_track(
+                self._bundle.playback.current_track
+            )
 
     def _apply_wallpaper(self) -> None:
         path = resources.wallpaper_path()
@@ -636,6 +676,67 @@ class QuantisMainWindow(QMainWindow):
         import logging
 
         logging.getLogger(__name__).warning("Quantis: %s", message)
+
+    def _maybe_check_for_update(self) -> None:
+        import time
+
+        from quantis.services.app_update import should_auto_check
+
+        self._sync_update_banner()
+        if not should_auto_check(
+            last_check_at=self._ui_prefs.update_last_check_at,
+            now=time.time(),
+            enabled=self._ui_prefs.update_check_on_startup,
+        ):
+            return
+        self._bridge.schedule(self._run_update_check())
+
+    async def _run_update_check(self) -> None:
+        import logging
+
+        from quantis.services.app_update import fetch_latest_release
+
+        try:
+            info = await fetch_latest_release()
+        except Exception as exc:
+            logging.getLogger(__name__).warning("Проверка обновлений: %s", exc)
+            return
+        self._bridge.invoke_main(lambda i=info: self._on_update_check_ok(i))
+
+    def _on_update_check_ok(self, info) -> None:
+        import time
+
+        if info is not None:
+            self._ui_prefs.set_update_last_tag(info.tag)
+            self._ui_prefs.set_update_last_html_url(info.html_url)
+        self._ui_prefs.set_update_last_check_at(time.time())
+        self._sync_update_banner()
+        if self._settings_page is not None:
+            self._settings_page.apply_update_from_prefs()
+
+    def _sync_update_banner(self) -> None:
+        from quantis.services.app_update import (
+            app_version,
+            display_version,
+            should_announce,
+        )
+
+        tag = self._ui_prefs.update_last_tag
+        if should_announce(app_version(), tag, self._ui_prefs.update_dismissed_tag):
+            self._update_banner.show_version(display_version(tag))
+        else:
+            self._update_banner.hide()
+
+    def _open_cached_release(self) -> None:
+        url = self._ui_prefs.update_last_html_url
+        if url:
+            QDesktopServices.openUrl(QUrl(url))
+
+    def _dismiss_update_banner(self) -> None:
+        tag = self._ui_prefs.update_last_tag
+        if tag:
+            self._ui_prefs.set_update_dismissed_tag(tag)
+        self._update_banner.hide()
 
 
 Quantis = QuantisMainWindow

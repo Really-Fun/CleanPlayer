@@ -11,6 +11,7 @@ from typing import Any
 
 from quantis.models import Track, TrackSource
 from quantis.services.stream_cache import cached_stream_url
+from quantis.services.wallpaper_policy import WALLPAPER_DEFAULT_QUALITY
 from quantis.services.yandex_streamer import AsyncStreamerInterface, AsyncYandexStreamer
 from quantis.services.youtube_streamer import AsyncYoutubeStreamer
 
@@ -70,11 +71,27 @@ class AsyncStreamer(AsyncStreamerInterface):
         except Exception:
             logger.debug("Prefetch stream failed for %s", track.track_id, exc_info=True)
 
-    async def get_video_url(self, track: Track, finder: object | None = None) -> str | None:
+    async def get_video_url(
+        self,
+        track: Track,
+        finder: object | None = None,
+        *,
+        height: int = WALLPAPER_DEFAULT_QUALITY,
+    ) -> str | None:
+        url, _duration = await self.get_video_info(track, finder, height=height)
+        return url
+
+    async def get_video_info(
+        self,
+        track: Track,
+        finder: object | None = None,
+        *,
+        height: int = WALLPAPER_DEFAULT_QUALITY,
+    ) -> tuple[str | None, int]:
         video_id = await self._resolve_youtube_video_id(track, finder)
         if not video_id:
-            return None
-        return await self._youtube.get_video_url(video_id)
+            return None, 0
+        return await self._youtube.get_video_info(video_id, height=height)
 
     async def _resolve_youtube_video_id(
         self, track: Track, finder: object | None

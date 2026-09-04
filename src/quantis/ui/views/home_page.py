@@ -4,7 +4,6 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFrame,
-    QGridLayout,
     QHeaderView,
     QLabel,
     QScrollArea,
@@ -16,9 +15,10 @@ from PySide6.QtWidgets import (
 
 from quantis.config.credentials import yandex_token
 from quantis.core.async_bridge import AsyncBridge
+from quantis.models import UserPlaylist
 from quantis.models.playlist import Playlist
 from quantis.ui.async_ui import schedule
-from quantis.ui.models import TrackListModel
+from quantis.ui.models import PlaylistListModel, TrackListModel
 from quantis.ui.playlist_actions import (
     create_playlist_and_add,
     show_add_to_playlist_menu,
@@ -27,12 +27,13 @@ from quantis.ui.preferences import UiPreferences
 from quantis.ui.viewmodels.home_vm import HomeViewModel
 from quantis.ui.views.widgets.featured_track import FeaturedTrackPanel
 from quantis.ui.views.widgets.home_section import HomeSection
-from quantis.ui.views.widgets.playlist_card import PlaylistShelf, QuickPickTile
+from quantis.ui.views.widgets.playlist_card import QuickPickShelf
+from quantis.ui.views.widgets.playlist_row_delegate import PlaylistRowDelegate
 from quantis.ui.views.widgets.track_card import TrackCardDelegate
 from quantis.ui.views.widgets.wave_promo import WavePromoCard
 
-_QUICK_COLS = 3
 _MAX_VISIBLE_TRACKS = 12
+_MAX_VISIBLE_PLAYLISTS = 8
 
 
 class HomePage(QWidget):
@@ -97,20 +98,11 @@ class HomePage(QWidget):
         self._wave_card.play_requested.connect(self._on_wave_play)
         self._layout.addWidget(self._wave_card)
 
-        # —— Быстрый старт ——
-        self._quick_section = HomeSection("Быстрый старт", "Волна, любимые и системные подборки")
-        self._quick_host = QWidget()
-        self._quick_grid = QGridLayout(self._quick_host)
-        self._quick_grid.setContentsMargins(0, 0, 0, 0)
-        self._quick_grid.setHorizontalSpacing(12)
-        self._quick_grid.setVerticalSpacing(12)
-        for col in range(_QUICK_COLS):
-            self._quick_grid.setColumnStretch(col, 1)
-        self._quick_section.add_widget_block(self._quick_host)
-        self._layout.addWidget(self._quick_section)
+        self._quick_shelf = QuickPickShelf()
+        self._quick_shelf.playlist_activated.connect(self._on_playlist)
+        self._layout.addWidget(self._quick_shelf)
 
-        # —— Медиатека (горизонтальная полка) ——
-        self._library_section = HomeSection("Медиатека", "Листай вбок — как на стриминге")
+        self._library_section = HomeSection("Плейлисты")
         create_btn = QToolButton()
         create_btn.setObjectName("homeSectionAction")
         create_btn.setText("+ Плейлист")
@@ -118,9 +110,20 @@ class HomePage(QWidget):
         create_btn.setToolTip("Создать плейлист")
         create_btn.clicked.connect(self._on_create_playlist)
         self._library_section.set_header_action(create_btn)
-        self._shelf = PlaylistShelf()
-        self._shelf.playlist_activated.connect(self._on_playlist)
-        self._library_section.add_widget_block(self._shelf)
+        self._playlist_model = PlaylistListModel(self)
+        self._playlist_table = self._make_playlist_table()
+        self._playlist_empty = QLabel(
+            "Создай плейлист кнопкой «+ Плейлист» или добавь трек из плеера"
+        )
+        self._playlist_empty.setObjectName("homeEmptyHint")
+        self._playlist_empty.setWordWrap(True)
+        playlist_host = QWidget()
+        playlist_host_layout = QVBoxLayout(playlist_host)
+        playlist_host_layout.setContentsMargins(0, 0, 0, 0)
+        playlist_host_layout.setSpacing(0)
+        playlist_host_layout.addWidget(self._playlist_table)
+        playlist_host_layout.addWidget(self._playlist_empty)
+        self._library_section.add_widget_block(playlist_host)
         self._layout.addWidget(self._library_section)
 
         # —— Поток ——
@@ -186,6 +189,42 @@ class HomePage(QWidget):
         self._sync_table_height(table, model)
         return table
 
+    def _make_playlist_table(self) -> QTableView:
+        table = QTableView()
+        table.setObjectName("homeTrackList")
+        table.setModel(self._playlist_model)
+        table.verticalHeader().hide()
+        table.horizontalHeader().hide()
+        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        table.verticalHeader().setDefaultSectionSize(PlaylistRowDelegate.CARD_HEIGHT)
+        table.setShowGrid(False)
+        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        table.setItemDelegate(PlaylistRowDelegate(table))
+        table.setMouseTracking(True)
+        table.viewport().setMouseTracking(True)
+        table.clicked.connect(self._on_playlist_row)
+        self._playlist_model.modelReset.connect(
+            lambda: self._sync_playlist_table_height()
+        )
+        return table
+
+    def _sync_playlist_table_height(self) -> None:
+        rows = min(self._playlist_model.rowCount(), _MAX_VISIBLE_PLAYLISTS)
+        if rows <= 0:
+            self._playlist_table.setFixedHeight(0)
+            self._playlist_table.hide()
+            return
+        self._playlist_table.show()
+        self._playlist_table.setFixedHeight(
+            rows * PlaylistRowDelegate.CARD_HEIGHT + 4
+        )
+
     @staticmethod
     def _sync_table_height(table: QTableView, model: TrackListModel) -> None:
         rows = min(model.rowCount(), _MAX_VISIBLE_TRACKS)
@@ -193,13 +232,6 @@ class HomePage(QWidget):
             table.setFixedHeight(64)
             return
         table.setFixedHeight(rows * TrackCardDelegate.CARD_HEIGHT + 4)
-
-    def _clear_grid(self, grid: QGridLayout) -> None:
-        while grid.count():
-            item = grid.takeAt(0)
-            widget = item.widget()
-            if widget is not None:
-                widget.deleteLater()
 
     def _rebuild(self) -> None:
         snap = self._vm.snapshot
@@ -213,27 +245,36 @@ class HomePage(QWidget):
             loading=has_token and not snap.wave_ready,
         )
 
-        self._clear_grid(self._quick_grid)
-        for index, playlist in enumerate(snap.quick_playlists):
-            tile = QuickPickTile(playlist)
-            tile.activated.connect(self._on_playlist)
-            row, col = divmod(index, _QUICK_COLS)
-            self._quick_grid.addWidget(tile, row, col)
+        self._quick_shelf.set_playlists(list(snap.quick_playlists))
+        self._quick_shelf.setVisible(bool(snap.quick_playlists))
 
-        self._shelf.set_playlists(list(snap.library_playlists))
+        user_playlists = [
+            playlist
+            for playlist in snap.library_playlists
+            if isinstance(playlist, UserPlaylist)
+        ]
+        self._playlist_model.set_playlists(user_playlists)
+        self._playlist_empty.setVisible(not user_playlists)
         self._library_section.set_badge(
-            str(len(snap.library_playlists)) if snap.library_playlists else ""
+            str(len(user_playlists)) if user_playlists else ""
         )
+        self._sync_playlist_table_height()
 
         rec_count = len(snap.recommendation_tracks)
-        self._recommend_section.set_subtitle(
-            f"{rec_count} треков в потоке" if rec_count else "Включи любой трек — соберём поток",
+        rec_sub = (
+            f"{rec_count} треков в потоке"
+            if rec_count
+            else "Включи любой трек — соберём поток"
         )
+        self._recommend_section.set_subtitle(rec_sub)
         self._recommend_section.set_badge(str(rec_count) if rec_count else "")
         recent_count = len(snap.recent_tracks)
-        self._recent_section.set_subtitle(
-            f"{recent_count} треков" if recent_count else "Пока тихо — самое время начать",
+        recent_sub = (
+            f"{recent_count} треков"
+            if recent_count
+            else "Пока тихо — самое время начать"
         )
+        self._recent_section.set_subtitle(recent_sub)
         self._recent_section.set_badge(str(recent_count) if recent_count else "")
         self._sync_table_height(self._recommend_list, self._vm.recommendation_model)
         self._sync_table_height(self._recent_list, self._vm.recent_model)
@@ -241,10 +282,15 @@ class HomePage(QWidget):
 
     def _on_recent_changed(self) -> None:
         snap = self._vm.snapshot
+        self._quick_shelf.set_playlists(list(snap.quick_playlists))
+        self._quick_shelf.setVisible(bool(snap.quick_playlists))
         recent_count = len(snap.recent_tracks)
-        self._recent_section.set_subtitle(
-            f"{recent_count} треков" if recent_count else "Пока тихо — самое время начать",
+        recent_sub = (
+            f"{recent_count} треков"
+            if recent_count
+            else "Пока тихо — самое время начать"
         )
+        self._recent_section.set_subtitle(recent_sub)
         self._recent_section.set_badge(str(recent_count) if recent_count else "")
         self._sync_table_height(self._recent_list, self._vm.recent_model)
         self._sync_featured()
@@ -270,6 +316,11 @@ class HomePage(QWidget):
             self._on_wave_open()
             return
         self.playlist_open_requested.emit(self._vm.resolve_playlist(playlist))
+
+    def _on_playlist_row(self, index) -> None:
+        playlist = self._playlist_model.playlist_at(index.row())
+        if playlist is not None:
+            self._on_playlist(playlist)
 
     def _on_wave_open(self) -> None:
         if self._bridge is None:

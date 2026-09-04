@@ -7,12 +7,14 @@ QWidget#homeHero {
 }
 
 QScrollArea#homeScroll,
-QScrollArea#playlistShelfScroll {
+QScrollArea#playlistShelfScroll,
+QScrollArea#quickPickShelfScroll {
     background: transparent;
     border: none;
 }
 
-QWidget#playlistShelfHost {
+QWidget#playlistShelfHost,
+QWidget#quickPickShelfHost {
     background: transparent;
 }
 
@@ -133,15 +135,11 @@ QLabel#playlistCardMeta {
     background: transparent;
 }
 
-/* Быстрые плитки */
+/* Быстрые плитки — стекло, как «Моя волна» */
 QFrame#quickPickTile {
     background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: none;
     border-radius: 14px;
-}
-
-QFrame#quickPickTile:hover {
-    border-color: rgba(46, 230, 255, 0.4);
 }
 
 QLabel#quickPickTitle {
@@ -155,6 +153,21 @@ QLabel#quickPickMeta {
     font-size: 11px;
     color: rgba(226, 232, 240, 0.48);
     background: transparent;
+}
+
+QToolButton#homeSectionAction {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    padding: 6px 12px;
+    color: #e2e8f0;
+    font-size: 12px;
+    font-weight: 600;
+}
+QToolButton#homeSectionAction:hover {
+    background: rgba(46, 230, 255, 0.16);
+    border-color: rgba(46, 230, 255, 0.55);
+    color: #f8fafc;
 }
 
 QTableView#homeTrackList {
@@ -180,18 +193,22 @@ QTableView#homeTrackList QScrollBar:horizontal {
     background: transparent;
 }
 
-QScrollArea#playlistShelfScroll QScrollBar:horizontal {
+QScrollArea#playlistShelfScroll QScrollBar:horizontal,
+QScrollArea#quickPickShelfScroll QScrollBar:horizontal {
     height: 6px;
     background: transparent;
     margin: 0 4px;
 }
-QScrollArea#playlistShelfScroll QScrollBar::handle:horizontal {
+QScrollArea#playlistShelfScroll QScrollBar::handle:horizontal,
+QScrollArea#quickPickShelfScroll QScrollBar::handle:horizontal {
     background: rgba(46, 230, 255, 0.35);
     border-radius: 3px;
     min-width: 40px;
 }
 QScrollArea#playlistShelfScroll QScrollBar::add-line:horizontal,
-QScrollArea#playlistShelfScroll QScrollBar::sub-line:horizontal {
+QScrollArea#playlistShelfScroll QScrollBar::sub-line:horizontal,
+QScrollArea#quickPickShelfScroll QScrollBar::add-line:horizontal,
+QScrollArea#quickPickShelfScroll QScrollBar::sub-line:horizontal {
     width: 0;
 }
 

@@ -58,13 +58,13 @@ QFrame#playlistCard:hover {
 }
 
 QFrame#quickPickTile {
-    background: rgba(255, 255, 255, 0.05);
+    background: transparent;
     border: none;
-    border-radius: 0;
+    border-radius: 14px;
 }
 
 QFrame#quickPickTile:hover {
-    background: rgba(255, 255, 255, 0.09);
+    background: transparent;
 }
 
 #sectionTitle {

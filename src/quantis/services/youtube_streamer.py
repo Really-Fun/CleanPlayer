@@ -8,6 +8,12 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from quantis.models import Track
+from quantis.services.wallpaper_policy import (
+    WALLPAPER_DEFAULT_QUALITY,
+    clamp_wallpaper_quality,
+    wallpaper_yt_dlp_android_format,
+    wallpaper_yt_dlp_format,
+)
 from quantis.services.yandex_streamer import AsyncStreamerInterface
 
 logger = logging.getLogger(__name__)
@@ -31,15 +37,16 @@ class AsyncYoutubeStreamer(AsyncStreamerInterface):
         }
         self._executor = executor
 
-    def _attempt_opts(self, *, video: bool = False) -> list[dict]:
+    def _attempt_opts(
+        self, *, video: bool = False, height: int = WALLPAPER_DEFAULT_QUALITY
+    ) -> list[dict]:
         from quantis.config.credentials import youtube_yt_dlp_cookiefile
 
         cookiefile = youtube_yt_dlp_cookiefile()
+        if video:
+            height = clamp_wallpaper_quality(height)
         fmt = (
-            (
-                "best[vcodec!=none][acodec!=none][height<=720]/"
-                "best[height<=720]/best"
-            )
+            wallpaper_yt_dlp_format(height)
             if video
             else (
                 "ba[protocol=https][ext=m4a]/"
@@ -52,7 +59,9 @@ class AsyncYoutubeStreamer(AsyncStreamerInterface):
         attempts: list[dict] = [
             {
                 **self._common,
-                "format": fmt if not video else "18/best[height<=720]/best",
+                "format": (
+                    fmt if not video else wallpaper_yt_dlp_android_format(height)
+                ),
                 "extractor_args": {"youtube": {"player_client": ["android"]}},
             },
             {**self._common, "format": fmt},
@@ -71,7 +80,9 @@ class AsyncYoutubeStreamer(AsyncStreamerInterface):
                     },
                     {
                         **self._common,
-                        "format": "best/worst",
+                        "format": (
+                            f"18/best[height<={height}]" if video else "best/worst"
+                        ),
                         "cookiefile": cookiefile,
                     },
                 ]
@@ -103,7 +114,11 @@ class AsyncYoutubeStreamer(AsyncStreamerInterface):
 
     @classmethod
     def _pick_stream_url(
-        cls, info: dict[str, Any] | None, *, prefer_video: bool = False
+        cls,
+        info: dict[str, Any] | None,
+        *,
+        prefer_video: bool = False,
+        target_height: int = WALLPAPER_DEFAULT_QUALITY,
     ) -> str | None:
         if not info:
             return None
@@ -147,7 +162,7 @@ class AsyncYoutubeStreamer(AsyncStreamerInterface):
                 return (
                     1 if progressive else 0,
                     1 if has_video else 0,
-                    -abs(height - 720) if height else -9999,
+                    -abs(height - target_height) if height else -9999,
                     abr,
                 )
             return (
@@ -164,9 +179,17 @@ class AsyncYoutubeStreamer(AsyncStreamerInterface):
             self._executor, self.sync_stream, track.track_id
         )
 
-    async def get_video_url(self, video_id: str) -> str | None:
+    async def get_video_url(
+        self, video_id: str, height: int = WALLPAPER_DEFAULT_QUALITY
+    ) -> str | None:
+        url, _duration = await self.get_video_info(video_id, height=height)
+        return url
+
+    async def get_video_info(
+        self, video_id: str, height: int = WALLPAPER_DEFAULT_QUALITY
+    ) -> tuple[str | None, int]:
         return await get_running_loop().run_in_executor(
-            self._executor, self.sync_video_stream, video_id
+            self._executor, self.sync_video_stream, video_id, height
         )
 
     def sync_stream(self, track_id: str) -> str | None:
@@ -207,20 +230,25 @@ class AsyncYoutubeStreamer(AsyncStreamerInterface):
             logger.warning("YouTube: нет playable formats для %s", track_id)
         return None
 
-    def sync_video_stream(self, track_id: str) -> str | None:
+    def sync_video_stream(
+        self, track_id: str, height: int = WALLPAPER_DEFAULT_QUALITY
+    ) -> tuple[str | None, int]:
         from yt_dlp import YoutubeDL
 
         url = f"https://www.youtube.com/watch?v={track_id}"
-        for opts in self._attempt_opts(video=True):
+        for opts in self._attempt_opts(video=True, height=height):
             try:
                 with YoutubeDL(opts) as yt:
                     info = yt.extract_info(url, download=False)
-                picked = self._pick_stream_url(info, prefer_video=True)
+                picked = self._pick_stream_url(
+                    info, prefer_video=True, target_height=height
+                )
+                duration = int((info or {}).get("duration") or 0)
                 if picked:
-                    return picked
+                    return picked, duration
             except Exception:
                 logger.debug(
                     "YouTube video attempt failed: %s", track_id, exc_info=True
                 )
         logger.error("Не удалось получить URL видео YouTube: %s", track_id)
-        return None
+        return None, 0

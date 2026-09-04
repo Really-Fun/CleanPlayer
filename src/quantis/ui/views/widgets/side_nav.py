@@ -93,11 +93,12 @@ class SideNavRail(QFrame):
         ("recent.svg", "Главная", 0),
         ("search.svg", "Поиск", 1),
         ("download.svg", "Библиотека", 2),
-        ("puzzle.svg", "Плагины", 3),
+        ("stats.svg", "Статистика", 3),
+        ("puzzle.svg", "Плагины", 4),
     )
     CORE_BOTTOM = (
-        ("member.svg", "Member", 4),
-        ("settings.svg", "Настройки", 5),
+        ("member.svg", "Member", 5),
+        ("settings.svg", "Настройки", 6),
     )
 
     def __init__(self, parent: QWidget | None = None) -> None:

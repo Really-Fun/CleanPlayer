@@ -3,16 +3,24 @@ from __future__ import annotations
 from pathlib import Path
 from time import monotonic
 
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import Qt, QUrl, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPixmap, QRadialGradient
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer, QVideoFrame, QVideoSink
 from PySide6.QtWidgets import QHBoxLayout, QWidget
 
+from quantis.services.wallpaper_policy import (
+    WALLPAPER_DEFAULT_FPS,
+    wallpaper_decode_max_side,
+)
 from quantis.ui.views.widgets.cover_art import load_wallpaper_pixmap
 
-# Лимит fps для видео-фона: меньше кадров → меньше QImage в ОЗУ/CPU.
-_VIDEO_MIN_INTERVAL_SEC = 1.0 / 15.0
 _WALLPAPER_MAX_SIDE = 1920
+
+
+def _media_url(url: str) -> QUrl:
+    if url.startswith(("http://", "https://")):
+        return QUrl(url)
+    return QUrl.fromLocalFile(url)
 
 
 class _VideoSurface(QWidget):
@@ -22,29 +30,47 @@ class _VideoSurface(QWidget):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self._sink = QVideoSink(self)
+        self._source = QImage()
         self._scaled = QImage()
         self._opacity = 0.28
         self._last_frame_at = 0.0
+        self._min_interval = 1.0 / WALLPAPER_DEFAULT_FPS
+        self._max_side = wallpaper_decode_max_side(360)
         self._sink.videoFrameChanged.connect(self._on_frame)
 
     @property
     def sink(self) -> QVideoSink:
         return self._sink
 
+    def is_empty(self) -> bool:
+        return self._source.isNull() and self._scaled.isNull()
+
+    def set_limits(self, *, fps: int, max_side: int) -> None:
+        self._min_interval = 1.0 / max(1, int(fps))
+        self._max_side = max(320, int(max_side))
+
     def set_opacity(self, value: float) -> None:
         self._opacity = max(0.05, min(1.0, value))
         self.update()
 
     def clear(self) -> None:
+        self._source = QImage()
         self._scaled = QImage()
         self._last_frame_at = 0.0
         self.update()
+
+    def set_still(self, image: QImage) -> None:
+        if image.isNull():
+            return
+        self._last_frame_at = 0.0
+        self._source = self._downscale(image)
+        self._rescale()
 
     def _on_frame(self, frame: QVideoFrame) -> None:
         if not frame.isValid():
             return
         now = monotonic()
-        if now - self._last_frame_at < _VIDEO_MIN_INTERVAL_SEC:
+        if now - self._last_frame_at < self._min_interval:
             return
         self._last_frame_at = now
 
@@ -59,12 +85,26 @@ class _VideoSurface(QWidget):
         if image.isNull():
             return
 
+        self._source = self._downscale(image)
+        self._rescale()
+
+    def _downscale(self, image: QImage) -> QImage:
+        if max(image.width(), image.height()) <= self._max_side:
+            return image
+        return image.scaled(
+            self._max_side,
+            self._max_side,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.FastTransformation,
+        )
+
+    def _rescale(self) -> None:
+        if self._source.isNull():
+            return
         target = self.size()
         if target.width() <= 0 or target.height() <= 0:
             return
-
-        # Сразу даунскейл до размера виджета — полный кадр не храним.
-        self._scaled = image.scaled(
+        self._scaled = self._source.scaled(
             target,
             Qt.AspectRatioMode.KeepAspectRatioByExpanding,
             Qt.TransformationMode.FastTransformation,
@@ -73,9 +113,7 @@ class _VideoSurface(QWidget):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
-        # Размер изменился — следующий кадр пересоберёт scaled под новый size.
-        if not self._scaled.isNull():
-            self._scaled = QImage()
+        self._rescale()
 
     def paintEvent(self, event) -> None:
         if self._scaled.isNull():
@@ -101,6 +139,8 @@ class _VideoSurface(QWidget):
 class WallpaperBackdrop(QWidget):
     """Слой обоев: статичный jpg или видео-клип (только в зоне контента)."""
 
+    stream_stalled = Signal()
+
     def __init__(
         self,
         wallpaper: str | Path | None = None,
@@ -117,6 +157,10 @@ class WallpaperBackdrop(QWidget):
         self._cache_size = (0, 0)
         self._dynamic_enabled = False
         self._video_active = False
+        self._current_source: str | None = None
+        self._loop_enabled = False
+        self._pending_start_ms = 0
+        self._stall_notified = False
 
         self._video_surface = _VideoSurface(self)
         self._video_surface.hide()
@@ -134,11 +178,8 @@ class WallpaperBackdrop(QWidget):
             self._video_audio.setVolume(0.0)
             self._video_player.setAudioOutput(self._video_audio)
             self._video_player.setVideoSink(self._video_surface.sink)
-            loops = getattr(QMediaPlayer, "Loops", None)
-            if loops is not None:
-                self._video_player.setLoops(loops.Infinite)
-            else:
-                self._video_player.mediaStatusChanged.connect(self._loop_video)
+            self._video_player.mediaStatusChanged.connect(self._on_video_status)
+            self._video_player.durationChanged.connect(self._on_duration_ready)
             self._video_player.errorOccurred.connect(self._on_video_error)
         return self._video_player
 
@@ -162,23 +203,61 @@ class WallpaperBackdrop(QWidget):
         if not enabled:
             self.stop_video()
         else:
-            # Видео активно — освобождаем статичный кэш.
             self._cached = QPixmap()
             self._cache_size = (0, 0)
             self.update()
 
-    def play_video_url(self, url: str) -> None:
+    def set_video_limits(self, *, fps: int, max_side: int) -> None:
+        self._video_surface.set_limits(fps=fps, max_side=max_side)
+
+    def play_video_url(
+        self, url: str, *, loop: bool = False, start_ms: int = 0
+    ) -> None:
         if not self._dynamic_enabled or not url:
             return
+        self._loop_enabled = loop
+        self._pending_start_ms = max(0, int(start_ms))
+        self._stall_notified = False
         self._video_active = True
         self._cached = QPixmap()
         self._cache_size = (0, 0)
         self._video_surface.show()
         self.lower()
         player = self._ensure_video_player()
-        player.setSource(QUrl(url))
+        if url == self._current_source and player.playbackState() in (
+            QMediaPlayer.PlaybackState.PlayingState,
+            QMediaPlayer.PlaybackState.PausedState,
+        ):
+            self._apply_pending_seek()
+            return
+        self._current_source = url
+        player.setSource(_media_url(url))
         player.play()
         self.update()
+
+    def show_still(self, path: str) -> None:
+        if not self._dynamic_enabled or not path:
+            return
+        image = QImage(path)
+        if image.isNull():
+            return
+        self._loop_enabled = False
+        self._pending_start_ms = 0
+        self._stall_notified = False
+        self._video_active = True
+        self._current_source = path
+        self._cached = QPixmap()
+        self._cache_size = (0, 0)
+        if self._video_player is not None:
+            self._video_player.stop()
+            self._video_player.setSource(QUrl())
+        self._video_surface.set_still(image)
+        self._video_surface.show()
+        self.lower()
+        self.update()
+
+    def has_picture(self) -> bool:
+        return self._video_active and not self._video_surface.is_empty()
 
     def is_video_playing(self) -> bool:
         if self._video_player is None:
@@ -187,6 +266,17 @@ class WallpaperBackdrop(QWidget):
             QMediaPlayer.PlaybackState.PlayingState,
             QMediaPlayer.PlaybackState.PausedState,
         )
+
+    def position_ms(self) -> int:
+        if self._video_player is None:
+            return 0
+        return max(0, int(self._video_player.position()))
+
+    def seek_ms(self, position_ms: int) -> None:
+        if self._video_player is None or not self._video_active:
+            return
+        self._pending_start_ms = 0
+        self._video_player.setPosition(max(0, int(position_ms)))
 
     def pause_video(self) -> None:
         if self._video_active and self._video_player is not None:
@@ -198,6 +288,10 @@ class WallpaperBackdrop(QWidget):
 
     def stop_video(self) -> None:
         self._video_active = False
+        self._current_source = None
+        self._loop_enabled = False
+        self._pending_start_ms = 0
+        self._stall_notified = False
         if self._video_player is not None:
             self._video_player.stop()
         self._video_surface.clear()
@@ -212,18 +306,55 @@ class WallpaperBackdrop(QWidget):
         if not self._video_active and not self._dynamic_enabled:
             self._rebuild_cache()
 
-    def _loop_video(self, status: QMediaPlayer.MediaStatus) -> None:
+    def _is_http_source(self) -> bool:
+        source = self._current_source or ""
+        return source.startswith(("http://", "https://"))
+
+    def _apply_pending_seek(self) -> None:
+        if self._video_player is None or self._pending_start_ms <= 0:
+            return
+        duration = int(self._video_player.duration())
+        position = self._pending_start_ms
+        if duration > 0:
+            position = min(position, max(0, duration - 400))
+        self._video_player.setPosition(position)
+        self._pending_start_ms = 0
+
+    def _on_duration_ready(self, duration: int) -> None:
+        if duration > 0:
+            self._apply_pending_seek()
+
+    def _notify_stall(self) -> None:
+        if self._stall_notified or not self._is_http_source():
+            return
+        self._stall_notified = True
+        self.stream_stalled.emit()
+
+    def _on_video_status(self, status: QMediaPlayer.MediaStatus) -> None:
         if self._video_player is None:
             return
-        if status == QMediaPlayer.MediaStatus.EndOfMedia:
+        if status in (
+            QMediaPlayer.MediaStatus.LoadedMedia,
+            QMediaPlayer.MediaStatus.BufferedMedia,
+        ):
+            self._apply_pending_seek()
+            return
+        if status != QMediaPlayer.MediaStatus.EndOfMedia:
+            return
+        if self._loop_enabled:
             self._video_player.setPosition(0)
             self._video_player.play()
+            return
+        self._video_player.pause()
+        self._notify_stall()
 
     def _on_video_error(self, _error: QMediaPlayer.Error, message: str) -> None:
         import logging
 
         logging.getLogger(__name__).warning("Видео-фон: %s", message)
-        self.stop_video()
+        if self._video_player is not None:
+            self._video_player.pause()
+        self._notify_stall()
 
     def _rebuild_cache(self, *, force: bool = False) -> None:
         size = self.size()
@@ -237,7 +368,6 @@ class WallpaperBackdrop(QWidget):
         ):
             return
 
-        # Декод с лимитом стороны, сразу в размер окна — полный 4K не держим.
         source = load_wallpaper_pixmap(self._wallpaper_path, _WALLPAPER_MAX_SIDE)
         if source.isNull():
             self._cached = QPixmap()

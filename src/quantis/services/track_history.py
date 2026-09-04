@@ -6,6 +6,7 @@ import asyncio
 from time import monotonic
 
 from quantis.database import sync_history
+from quantis.database.sync_history import ListeningSummary
 from quantis.models import RecentlyPlayedPlaylist, Track
 from quantis.providers import TrackManager
 from quantis.services.track_builder import (
@@ -100,6 +101,31 @@ class TrackHistoryService:
             include_listen_count=True,
         )
         return RecentlyPlayedPlaylist(tracks=tracks)
+
+    async def get_listening_summary(self) -> ListeningSummary:
+        return await asyncio.to_thread(sync_history.fetch_listening_summary)
+
+    async def get_ranked_tracks(
+        self,
+        limit: int = 10,
+        *,
+        descending: bool = True,
+        min_listens: int = 1,
+    ) -> list[Track]:
+        entries = await asyncio.to_thread(
+            sync_history.fetch_ranked_entries,
+            limit,
+            descending=descending,
+            min_listens=min_listens,
+        )
+        if not entries:
+            return []
+        return await asyncio.to_thread(
+            build_tracks_from_entries,
+            entries,
+            self._track_manager,
+            include_listen_count=True,
+        )
 
     async def close(self) -> None:
         """Заглушка для совместимости при завершении приложения."""

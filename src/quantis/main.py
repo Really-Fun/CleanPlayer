@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QApplication
 from quantis.core.async_bridge import AsyncBridge
 from quantis.core.bootstrap import build_application, shutdown_application
 from quantis.ui import Quantis
+from quantis.version import __version__
 
 
 def main() -> None:
@@ -20,14 +21,16 @@ def main() -> None:
     logger.info(
         """
     --------------
-    Quantis v0.1.1
+    Quantis v%s
     --------------
-        """
+        """,
+        __version__,
     )
 
     app = QApplication(sys.argv)
     app.setApplicationName("Quantis")
     app.setApplicationDisplayName("Quantis")
+    app.setApplicationVersion(__version__)
     app.setOrganizationName("ReallyFun")
     # Wayland берёт app_id отсюда, иначе окно опознаётся как "python3".
     app.setDesktopFileName("quantis")

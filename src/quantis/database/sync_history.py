@@ -3,11 +3,21 @@
 from __future__ import annotations
 
 import sqlite3
+from dataclasses import dataclass
 from pathlib import Path
 from time import time
 from typing import Any
 
 from quantis.utils import app_paths
+
+
+@dataclass(frozen=True, slots=True)
+class ListeningSummary:
+    unique_tracks: int = 0
+    total_listens: int = 0
+    listened_ms: int = 0
+    top_artist: str = ""
+    top_artist_listens: int = 0
 
 
 def default_db_path() -> Path:
@@ -45,6 +55,12 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
         """
         CREATE INDEX IF NOT EXISTS idx_track_history_last_played
         ON track_history(last_played_at DESC);
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_track_history_listen_count
+        ON track_history(listen_count DESC);
         """
     )
     conn.execute(
@@ -137,6 +153,60 @@ def fetch_recent_entries(
             LIMIT ?;
             """,
             (max(1, limit),),
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def fetch_listening_summary(db_path: Path | None = None) -> ListeningSummary:
+    with _connect(db_path) as conn:
+        ensure_schema(conn)
+        totals = conn.execute(
+            """
+            SELECT COUNT(*) AS unique_tracks,
+                   COALESCE(SUM(listen_count), 0) AS total_listens,
+                   COALESCE(SUM(listen_count * duration_ms), 0) AS listened_ms
+            FROM track_history;
+            """
+        ).fetchone()
+        artist = conn.execute(
+            """
+            SELECT author, SUM(listen_count) AS listens
+            FROM track_history
+            WHERE trim(author) != ''
+            GROUP BY author
+            ORDER BY listens DESC, author ASC
+            LIMIT 1;
+            """
+        ).fetchone()
+        return ListeningSummary(
+            unique_tracks=int(totals["unique_tracks"] or 0),
+            total_listens=int(totals["total_listens"] or 0),
+            listened_ms=int(totals["listened_ms"] or 0),
+            top_artist=str(artist["author"]) if artist else "",
+            top_artist_listens=int(artist["listens"]) if artist else 0,
+        )
+
+
+def fetch_ranked_entries(
+    limit: int,
+    *,
+    descending: bool = True,
+    min_listens: int = 1,
+    db_path: Path | None = None,
+) -> list[dict[str, Any]]:
+    order = "DESC" if descending else "ASC"
+    with _connect(db_path) as conn:
+        ensure_schema(conn)
+        cursor = conn.execute(
+            f"""
+            SELECT track_key, title, author, source, position_ms, duration_ms,
+                   listen_count, last_played_at
+            FROM track_history
+            WHERE listen_count >= ?
+            ORDER BY listen_count {order}, last_played_at DESC
+            LIMIT ?;
+            """,
+            (max(0, min_listens), max(1, limit)),
         )
         return [dict(row) for row in cursor.fetchall()]
 

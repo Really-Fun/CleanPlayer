@@ -22,6 +22,18 @@ def test_audio_format_prefers_m4a_mp3() -> None:
 
 def test_video_format_is_mp4() -> None:
     assert "mp4" in _VIDEO_FORMAT
+    assert "height<=360" in _VIDEO_FORMAT
+    assert "height<=720" not in _VIDEO_FORMAT
+
+
+def test_video_opts_skip_long_mixes() -> None:
+    downloader = AsyncYoutubeDownloader()
+    opts = downloader._ydl_opts("/tmp/%(ext)s", video=True)
+    assert opts["match_filter"] is not None
+    assert opts["match_filter"]({"duration": 3600}) is not None
+    assert opts["match_filter"]({"duration": 120}) is None
+    audio_opts = downloader._ydl_opts("/tmp/%(ext)s", video=False)
+    assert "match_filter" not in audio_opts
 
 
 @pytest.mark.asyncio

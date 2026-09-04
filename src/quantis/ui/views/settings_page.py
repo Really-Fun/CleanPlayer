@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QShowEvent
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -19,6 +20,17 @@ from PySide6.QtWidgets import (
 
 from quantis.config.media_backend import backend_display_name, resolve_media_backend
 from quantis.core.async_bridge import AsyncBridge
+from quantis.services.app_update import (
+    ReleaseInfo,
+    app_version,
+    display_version,
+    fetch_latest_release,
+    is_newer,
+)
+from quantis.services.wallpaper_policy import (
+    WALLPAPER_FPS_CHOICES,
+    WALLPAPER_QUALITY_CHOICES,
+)
 from quantis.ui.preferences import UiPreferences
 from quantis.ui.resources import UI_THEME_LABELS
 from quantis.ui.views.widgets.glass_panel import GlassPanel
@@ -32,6 +44,8 @@ from quantis.utils import app_paths
 
 
 class SettingsPage(QWidget):
+    update_checked = Signal()
+
     def __init__(
         self,
         preferences: UiPreferences | None = None,
@@ -41,6 +55,8 @@ class SettingsPage(QWidget):
         super().__init__(parent)
         self._prefs = preferences or UiPreferences()
         self._bridge = bridge
+        self._update_loading = False
+        self._release_url = ""
         self.setObjectName("settingsPage")
 
         scroll = QScrollArea()
@@ -123,13 +139,47 @@ class SettingsPage(QWidget):
 
         wallpaper_row, wallpaper_body = self._row(
             "Динамические обои",
-            "Видео-клип YouTube вместо статичного фона (без звука)",
+            "Видео YouTube вместо статичного фона. Качество и FPS "
+            "можно снизить, если греется видеокарта.",
         )
         self._dynamic_wallpaper_cb = QCheckBox("Видео-фон при воспроизведении")
         self._dynamic_wallpaper_cb.setObjectName("settingsCheck")
         self._dynamic_wallpaper_cb.setCursor(Qt.CursorShape.PointingHandCursor)
         self._dynamic_wallpaper_cb.toggled.connect(self._on_dynamic_wallpaper_toggled)
         wallpaper_body.addWidget(self._dynamic_wallpaper_cb)
+
+        self._wallpaper_video_opts = QWidget()
+        video_opts = QVBoxLayout(self._wallpaper_video_opts)
+        video_opts.setContentsMargins(0, 4, 0, 0)
+        video_opts.setSpacing(8)
+
+        video_opts.addWidget(QLabel("Качество", objectName="settingsRowDesc"))
+        self._wallpaper_quality_combo = QComboBox()
+        self._wallpaper_quality_combo.setObjectName("themeCombo")
+        self._wallpaper_quality_combo.setCursor(Qt.CursorShape.PointingHandCursor)
+        quality_labels = {
+            360: "360p — меньше нагрузка",
+            480: "480p",
+            720: "720p — чётче",
+        }
+        for height in WALLPAPER_QUALITY_CHOICES:
+            self._wallpaper_quality_combo.addItem(quality_labels[height], height)
+        self._wallpaper_quality_combo.currentIndexChanged.connect(
+            self._on_wallpaper_quality_changed
+        )
+        video_opts.addWidget(self._wallpaper_quality_combo)
+
+        video_opts.addWidget(QLabel("Кадров в секунду", objectName="settingsRowDesc"))
+        self._wallpaper_fps_combo = QComboBox()
+        self._wallpaper_fps_combo.setObjectName("themeCombo")
+        self._wallpaper_fps_combo.setCursor(Qt.CursorShape.PointingHandCursor)
+        for fps in WALLPAPER_FPS_CHOICES:
+            self._wallpaper_fps_combo.addItem(f"{fps} FPS", fps)
+        self._wallpaper_fps_combo.currentIndexChanged.connect(
+            self._on_wallpaper_fps_changed
+        )
+        video_opts.addWidget(self._wallpaper_fps_combo)
+        wallpaper_body.addWidget(self._wallpaper_video_opts)
         panel_layout.addWidget(wallpaper_row)
 
         eco_row, eco_body = self._row(
@@ -144,9 +194,7 @@ class SettingsPage(QWidget):
         eco_body.addWidget(self._eco_cb)
         panel_layout.addWidget(eco_row)
 
-        panel_layout.addWidget(
-            QLabel("Хранилище", objectName="settingsSectionLabel")
-        )
+        panel_layout.addWidget(QLabel("Хранилище", objectName="settingsSectionLabel"))
 
         music_row, music_body = self._row(
             "Папка для скачанной музыки",
@@ -211,6 +259,50 @@ class SettingsPage(QWidget):
         engine_body.addWidget(self._engine_label)
         panel_layout.addWidget(engine_row)
 
+        panel_layout.addWidget(
+            QLabel("О приложении", objectName="settingsSectionLabel")
+        )
+
+        about_row, about_body = self._row(
+            "Версия",
+            "Проверка новых релизов на GitHub. Установка — вручную со страницы релиза.",
+        )
+        self._version_label = QLabel()
+        self._version_label.setObjectName("settingsRowDesc")
+        self._version_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        about_body.addWidget(self._version_label)
+
+        self._update_status = QLabel()
+        self._update_status.setObjectName("settingsRowDesc")
+        self._update_status.setWordWrap(True)
+        about_body.addWidget(self._update_status)
+
+        self._update_startup_cb = QCheckBox("Проверять при запуске")
+        self._update_startup_cb.setObjectName("settingsCheck")
+        self._update_startup_cb.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._update_startup_cb.toggled.connect(self._on_update_startup_toggled)
+        about_body.addWidget(self._update_startup_cb)
+
+        update_buttons = QHBoxLayout()
+        update_buttons.setContentsMargins(0, 4, 0, 0)
+        update_buttons.setSpacing(8)
+        self._update_check_btn = QPushButton("Проверить")
+        self._update_check_btn.setObjectName("settingsButton")
+        self._update_check_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._update_check_btn.clicked.connect(self.check_for_update)
+        self._update_open_btn = QPushButton("Открыть релиз")
+        self._update_open_btn.setObjectName("settingsButton")
+        self._update_open_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._update_open_btn.clicked.connect(self._on_open_release)
+        self._update_open_btn.setEnabled(False)
+        update_buttons.addWidget(self._update_check_btn)
+        update_buttons.addWidget(self._update_open_btn)
+        update_buttons.addStretch()
+        about_body.addLayout(update_buttons)
+        panel_layout.addWidget(about_row)
+
         panel_layout.addStretch()
         layout.addWidget(panel)
         layout.addStretch()
@@ -259,6 +351,23 @@ class SettingsPage(QWidget):
         self._dynamic_wallpaper_cb.blockSignals(True)
         self._dynamic_wallpaper_cb.setChecked(self._prefs.dynamic_wallpaper_enabled)
         self._dynamic_wallpaper_cb.blockSignals(False)
+        self._wallpaper_video_opts.setVisible(self._prefs.dynamic_wallpaper_enabled)
+
+        self._wallpaper_quality_combo.blockSignals(True)
+        quality_index = self._wallpaper_quality_combo.findData(
+            self._prefs.dynamic_wallpaper_quality
+        )
+        if quality_index >= 0:
+            self._wallpaper_quality_combo.setCurrentIndex(quality_index)
+        self._wallpaper_quality_combo.blockSignals(False)
+
+        self._wallpaper_fps_combo.blockSignals(True)
+        fps_index = self._wallpaper_fps_combo.findData(
+            self._prefs.dynamic_wallpaper_fps
+        )
+        if fps_index >= 0:
+            self._wallpaper_fps_combo.setCurrentIndex(fps_index)
+        self._wallpaper_fps_combo.blockSignals(False)
 
         self._eco_cb.blockSignals(True)
         self._eco_cb.setChecked(self._prefs.background_eco_enabled)
@@ -272,6 +381,7 @@ class SettingsPage(QWidget):
 
         self._sync_storage_labels()
         self._refresh_wallpapers(block_signals=True)
+        self._sync_update_row()
 
     def _sync_storage_labels(self) -> None:
         music = app_paths.music_dir()
@@ -316,7 +426,18 @@ class SettingsPage(QWidget):
             self._refresh_wallpapers()
 
     def _on_dynamic_wallpaper_toggled(self, checked: bool) -> None:
+        self._wallpaper_video_opts.setVisible(checked)
         self._prefs.set_dynamic_wallpaper_enabled(checked)
+
+    def _on_wallpaper_quality_changed(self, index: int) -> None:
+        height = self._wallpaper_quality_combo.itemData(index)
+        if height is not None:
+            self._prefs.set_dynamic_wallpaper_quality(int(height))
+
+    def _on_wallpaper_fps_changed(self, index: int) -> None:
+        fps = self._wallpaper_fps_combo.itemData(index)
+        if fps is not None:
+            self._prefs.set_dynamic_wallpaper_fps(int(fps))
 
     def _on_eco_toggled(self, checked: bool) -> None:
         self._prefs.set_background_eco_enabled(checked)
@@ -343,14 +464,10 @@ class SettingsPage(QWidget):
 
         folder = user_backgrounds_dir()
         if not files:
-            self._wallpaper_status.setText(
-                f"Пока пусто. Положите jpg/png в:\n{folder}"
-            )
+            self._wallpaper_status.setText(f"Пока пусто. Положите jpg/png в:\n{folder}")
         else:
             user_count = sum(
-                1
-                for p in files
-                if str(p.parent.resolve()) == str(folder.resolve())
+                1 for p in files if str(p.parent.resolve()) == str(folder.resolve())
             )
             self._wallpaper_status.setText(
                 f"Найдено: {len(files)} · ваших: {user_count}\nПапка: {folder}"
@@ -376,3 +493,73 @@ class SettingsPage(QWidget):
             self._prefs.set_ui_theme(theme_id)
             if theme_id == "glass" and not self._prefs.wallpaper_enabled:
                 self._prefs.set_wallpaper_enabled(True)
+
+    def _sync_update_row(self) -> None:
+        current = app_version()
+        engine = backend_display_name(resolve_media_backend())
+        self._version_label.setText(f"{current}  ·  {engine}")
+        self._update_startup_cb.blockSignals(True)
+        self._update_startup_cb.setChecked(self._prefs.update_check_on_startup)
+        self._update_startup_cb.blockSignals(False)
+        self.apply_update_from_prefs()
+
+    def apply_update_from_prefs(self) -> None:
+        if self._update_loading:
+            return
+        current = app_version()
+        tag = self._prefs.update_last_tag
+        url = self._prefs.update_last_html_url
+        self._release_url = url
+        if tag and is_newer(current, tag):
+            shown = display_version(tag)
+            self._update_status.setText(f"Доступна {shown}")
+            self._update_open_btn.setEnabled(bool(url))
+        elif self._prefs.update_last_check_at > 0:
+            self._update_status.setText("Актуальная")
+            self._update_open_btn.setEnabled(bool(url))
+        else:
+            self._update_status.setText("Ещё не проверяли")
+            self._update_open_btn.setEnabled(False)
+
+    def set_update_checking(self) -> None:
+        self._update_loading = True
+        self._update_check_btn.setEnabled(False)
+        self._update_status.setText("Проверка…")
+
+    def check_for_update(self) -> None:
+        if self._bridge is None or self._update_loading:
+            return
+        self.set_update_checking()
+        self._bridge.schedule(self._load_update())
+
+    async def _load_update(self) -> None:
+        try:
+            info = await fetch_latest_release()
+        except Exception as exc:
+            if self._bridge is not None:
+                self._bridge.invoke_main(lambda m=str(exc): self._on_update_failed(m))
+            return
+        if self._bridge is not None:
+            self._bridge.invoke_main(lambda i=info: self._on_update_ok(i))
+
+    def _on_update_failed(self, message: str) -> None:
+        self._update_loading = False
+        self._update_check_btn.setEnabled(True)
+        self._update_status.setText(f"Не удалось проверить: {message}")
+
+    def _on_update_ok(self, info: ReleaseInfo | None) -> None:
+        self._update_loading = False
+        self._update_check_btn.setEnabled(True)
+        if info is not None:
+            self._prefs.set_update_last_tag(info.tag)
+            self._prefs.set_update_last_html_url(info.html_url)
+        self._prefs.set_update_last_check_at(time.time())
+        self.apply_update_from_prefs()
+        self.update_checked.emit()
+
+    def _on_update_startup_toggled(self, checked: bool) -> None:
+        self._prefs.set_update_check_on_startup(checked)
+
+    def _on_open_release(self) -> None:
+        if self._release_url:
+            QDesktopServices.openUrl(QUrl(self._release_url))
