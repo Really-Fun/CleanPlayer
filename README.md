@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/logo.svg" alt="Quantis" width="720">
+  <img src="docs/assets/logo.jpg" alt="Quantis" width="360">
 </p>
 
 <p align="center">
@@ -8,11 +8,17 @@
 </p>
 
 <p align="center">
-  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.13%20%7C%203.14-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue?style=flat-square" alt="License"></a>
-  <a href="https://github.com/Really-Fun/Quantis"><img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-2ea043?style=flat-square" alt="Platform"></a>
-  <a href="https://github.com/Really-Fun/Quantis/releases"><img src="https://img.shields.io/github/v/release/Really-Fun/Quantis?style=flat-square" alt="Release"></a>
-  <img src="https://img.shields.io/badge/Qt-PySide6-41cd52?style=flat-square&logo=qt" alt="PySide6">
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.13%20%7C%203.14-3776AB?style=flat-square&logo=python&logoColor=white&labelColor=1f2430" alt="Python"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/Really-Fun/Quantis?style=flat-square&labelColor=1f2430" alt="License"></a>
+  <a href="https://github.com/Really-Fun/Quantis/releases"><img src="https://img.shields.io/github/v/release/Really-Fun/Quantis?style=flat-square&labelColor=1f2430&color=7c3aed" alt="Release"></a>
+  <a href="https://github.com/Really-Fun/Quantis/commits"><img src="https://img.shields.io/github/last-commit/Really-Fun/Quantis?style=flat-square&labelColor=1f2430" alt="Last commit"></a>
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-2ea043?style=flat-square&labelColor=1f2430" alt="Platform">
+  <img src="https://img.shields.io/badge/Qt-PySide6-41cd52?style=flat-square&logo=qt&logoColor=white&labelColor=1f2430" alt="PySide6">
+</p>
+
+<p align="center">
+  <a href="https://github.com/Really-Fun/Quantis/releases/latest"><img src="https://img.shields.io/badge/Скачать-Releases-7c3aed?style=for-the-badge&labelColor=1f2430" alt="Скачать"></a>
+  <a href="#поддержать-проект"><img src="https://img.shields.io/badge/CloudTips-Поддержать-F5426C?style=for-the-badge&labelColor=1f2430" alt="Поддержать"></a>
 </p>
 
 <p align="center">
@@ -40,18 +46,22 @@
 
 <table>
 <tr>
-<td width="50%"><img src="docs/assets/home.png" alt="Главная"></td>
-<td width="50%"><img src="docs/assets/search.png" alt="Поиск"></td>
+<td width="50%"><img src="docs/assets/home.jpg" alt="Главная"></td>
+<td width="50%"><img src="docs/assets/search.jpg" alt="Поиск"></td>
 </tr>
 <tr>
-<td align="center"><sub>Главная — библиотека и плейлисты</sub></td>
-<td align="center"><sub>Поиск — Яндекс и YouTube в одной выдаче</sub></td>
+<td align="center"><sub>Главная — «Для тебя», плейлисты и player bar</sub></td>
+<td align="center"><sub>Поиск — Яндекс, YouTube и SoundCloud в одной выдаче</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/assets/playlist.jpg" alt="Плейлист"></td>
+<td width="50%"><img src="docs/assets/glass.jpg" alt="Статистика"></td>
+</tr>
+<tr>
+<td align="center"><sub>Плейлист — обложка, треки, источники YA/YT</sub></td>
+<td align="center"><sub>Статистика — прослушивания на обоях</sub></td>
 </tr>
 </table>
-
-<p align="center">
-  <img src="docs/assets/playlist.png" alt="Плейлист" width="820">
-</p>
 
 ## Возможности
 
@@ -90,6 +100,8 @@ cd Quantis
 poetry install
 poetry run quantis
 ```
+
+Готовый установщик — на странице [Releases](https://github.com/Really-Fun/Quantis/releases/latest).
 
 ### Аккаунты
 
@@ -150,16 +162,14 @@ Quantis бесплатный и с открытым исходным кодом.
   </a>
 </p>
 
-
 <p align="center">
   <img src="docs/assets/qr.jpg" alt="QR для донатов CloudTips" width="180">
 </p>
-
 
 ## Лицензия
 
 [GNU GPL v3](LICENSE) · © [Really-Fun](https://github.com/Really-Fun)
 
 <p align="center">
-  <sub>Если Quantis полезен - поставьте звезду на GitHub. Это правда помогает.</sub>
+  <sub>Если Quantis полезен — поставьте звезду на GitHub. Это правда помогает.</sub>
 </p>
