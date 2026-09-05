@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="readme/logo.svg" alt="Quantis" width="720">
+  <img src="docs/assets/logo.svg" alt="Quantis" width="720">
 </p>
 
 <p align="center">
@@ -40,8 +40,8 @@
 
 <table>
 <tr>
-<td width="50%"><img src="readme/home.png" alt="Главная"></td>
-<td width="50%"><img src="readme/search.png" alt="Поиск"></td>
+<td width="50%"><img src="docs/assets/home.png" alt="Главная"></td>
+<td width="50%"><img src="docs/assets/search.png" alt="Поиск"></td>
 </tr>
 <tr>
 <td align="center"><sub>Главная — библиотека и плейлисты</sub></td>
@@ -50,7 +50,7 @@
 </table>
 
 <p align="center">
-  <img src="readme/playlist.png" alt="Плейлист" width="820">
+  <img src="docs/assets/playlist.png" alt="Плейлист" width="820">
 </p>
 
 ## Возможности
@@ -128,7 +128,7 @@ poetry run black --check src tests
 ```
 
 Отключить системный медиа-адаптер при отладке — `QUANTIS_ENABLE_ADAPTER=0`.
-Подробнее о процессе и code style — в [CONTRIBUTING.md](CONTRIBUTING.md).
+Подробнее о процессе и code style — в [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md).
 
 ## Дорожная карта
 
@@ -152,7 +152,7 @@ Quantis бесплатный и с открытым исходным кодом.
 
 
 <p align="center">
-  <img src="readme/qr.jpg" alt="QR для донатов CloudTips" width="180">
+  <img src="docs/assets/qr.jpg" alt="QR для донатов CloudTips" width="180">
 </p>
 
 

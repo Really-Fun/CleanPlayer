@@ -77,8 +77,12 @@ src/quantis/
 В корне репозитория, помимо `src/`:
 
 ```text
+.github/              # шаблоны Issues/PR, CoC, CONTRIBUTING, SECURITY, FUNDING
+docs/                 # архитектура, сборка, карта UI
+docs/assets/          # логотип и скриншоты для README
 packaging/            # PyInstaller rthooks для qt / vlc
 scripts/              # build_exe.py, build.ps1 — сборка Quantis / Quantis-VLC
+installer/            # Inno Setup
 main.spec             # spec-файл PyInstaller
 tests/                # pytest, маркер @pytest.mark.network для сетевых тестов
 ```

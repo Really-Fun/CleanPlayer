@@ -35,6 +35,7 @@ desktop.ini
 # IDE и редакторы
 .idea/
 .vscode/
+.cursor/
 
 # Python кэш и инструменты
 __pycache__/
