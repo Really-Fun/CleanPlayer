@@ -7,13 +7,14 @@ from .playlist import (
     UserPlaylist,
     WavePlaylist,
 )
-from .track import Track, TrackSource, YandexTrack, YoutubeTrack
+from .track import SoundCloudTrack, Track, TrackSource, YandexTrack, YoutubeTrack
 
 __all__ = [
     "Track",
     "TrackSource",
     "YandexTrack",
     "YoutubeTrack",
+    "SoundCloudTrack",
     "Playlist",
     "DownloadPlaylist",
     "UserPlaylist",

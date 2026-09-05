@@ -1,7 +1,9 @@
 from pathlib import Path
 from typing import List
 
-from quantis.models.track import YandexTrack, YoutubeTrack
+from quantis.models.track import SoundCloudTrack, YandexTrack, YoutubeTrack
+from quantis.services.soundcloud import parse_storage_id
+from quantis.services.soundcloud import storage_id as soundcloud_storage_id
 from quantis.utils import app_paths
 
 
@@ -44,16 +46,12 @@ class TrackManager:
                 ids.add(track_id)
         return ids
 
-    def is_downloaded(self, track_id) -> bool:
-        """Проверка, что трек скачан
-
-        Args:
-            track_id (_type_): id трека
-
-        Returns:
-            bool: True or False
-        """
-        return track_id in self.ids
+    def is_downloaded(self, track_id, source: str | None = None) -> bool:
+        """Проверка, что трек скачан."""
+        tid = str(track_id)
+        if (source or "").lower() == "soundcloud":
+            return soundcloud_storage_id(tid) in self.ids or tid in self.ids
+        return tid in self.ids
 
     def get_track_from_playlist(
         self,
@@ -61,10 +59,18 @@ class TrackManager:
         title: str,
         author: str,
         source: str | None = None,
-    ) -> YandexTrack | YoutubeTrack:
+    ) -> YandexTrack | YoutubeTrack | SoundCloudTrack:
         """Получаем трек по id / названию / автору (и опционально source)."""
         normalized_source = (source or "").lower().strip()
-        downloaded = self.is_downloaded(str(track_id))
+        downloaded = self.is_downloaded(str(track_id), source=normalized_source or None)
+        if normalized_source in ("soundcloud", "sc"):
+            numeric = parse_storage_id(str(track_id)) or track_id
+            return SoundCloudTrack(
+                track_id=numeric,
+                title=title,
+                author=author,
+                downloaded=downloaded,
+            )
         if normalized_source in ("youtube", "yt"):
             return YoutubeTrack(
                 track_id=track_id,

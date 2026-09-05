@@ -15,6 +15,22 @@ from quantis.ui.viewmodels.base_viewmodel import BaseViewModel
 
 logger = logging.getLogger(__name__)
 
+_SOURCE_FILTERS = ("all", "yandex", "youtube", "soundcloud")
+_SOURCE_LABELS = {
+    "yandex": "Yandex",
+    "youtube": "YouTube",
+    "soundcloud": "SoundCloud",
+}
+
+
+def _has_yandex_token() -> bool:
+    try:
+        from quantis.config.credentials import yandex_token
+
+        return bool(yandex_token())
+    except Exception:
+        return False
+
 
 class SearchViewModel(BaseViewModel):
     results_changed = Signal()
@@ -41,7 +57,7 @@ class SearchViewModel(BaseViewModel):
         self._search_generation = 0
         self._inflight_searches = 0
         self._all_tracks: list[Track] = []
-        self._source_filter = "all"  # all | yandex | youtube
+        self._source_filter = "all"  # all | yandex | youtube | soundcloud
 
     @property
     def model(self) -> TrackListModel:
@@ -69,7 +85,7 @@ class SearchViewModel(BaseViewModel):
 
     def set_source_filter(self, source: str) -> None:
         key = (source or "all").lower()
-        if key not in ("all", "yandex", "youtube"):
+        if key not in _SOURCE_FILTERS:
             key = "all"
         if self._source_filter == key:
             return
@@ -84,9 +100,7 @@ class SearchViewModel(BaseViewModel):
         if self._source_filter == "all":
             return list(self._all_tracks)
         return [
-            t
-            for t in self._all_tracks
-            if str(t.source).lower() == self._source_filter
+            t for t in self._all_tracks if str(t.source).lower() == self._source_filter
         ]
 
     def _apply_filter(self) -> None:
@@ -94,13 +108,18 @@ class SearchViewModel(BaseViewModel):
         self._model.set_tracks(filtered)
         self.results_changed.emit()
         if self._all_tracks:
-            ya = sum(1 for t in self._all_tracks if str(t.source).lower() == "yandex")
-            yt = sum(1 for t in self._all_tracks if str(t.source).lower() == "youtube")
+            counts = {
+                name: sum(1 for t in self._all_tracks if str(t.source).lower() == name)
+                for name in _SOURCE_LABELS
+            }
             shown = len(filtered)
             if self._source_filter == "all":
-                self.status_message.emit(f"Найдено: {shown} (Yandex: {ya}, YouTube: {yt})")
+                parts = ", ".join(
+                    f"{label}: {counts[name]}" for name, label in _SOURCE_LABELS.items()
+                )
+                self.status_message.emit(f"Найдено: {shown} ({parts})")
             else:
-                label = "Yandex" if self._source_filter == "yandex" else "YouTube"
+                label = _SOURCE_LABELS.get(self._source_filter, self._source_filter)
                 self.status_message.emit(f"{label}: {shown} из {len(self._all_tracks)}")
 
     def search_now(self) -> None:
@@ -126,7 +145,6 @@ class SearchViewModel(BaseViewModel):
         bridge = self._bridge
         try:
             logger.info("Поиск: %s", query)
-            from quantis.config.credentials import yandex_token
             from quantis.services.url_resolver import parse_track_id
 
             if parse_track_id(query) is not None:
@@ -154,38 +172,40 @@ class SearchViewModel(BaseViewModel):
                 return
 
             tracks: list[Track] = []
-            yandex_count = 0
-            youtube_count = 0
-            sources_done = 0
-            has_yandex = bool(yandex_token())
+            counts = {name: 0 for name in _SOURCE_LABELS}
+            done_sources: set[str] = set()
+            has_yandex = _has_yandex_token()
 
             async for source, batch in self._finder.iter_track_batches(query):
                 if generation != self._search_generation:
                     return
 
                 tracks.extend(batch)
-                if source == "yandex":
-                    yandex_count = len(batch)
-                else:
-                    youtube_count = len(batch)
-                sources_done += 1
+                if source in counts:
+                    counts[source] = len(batch)
+                done_sources.add(source)
 
                 snapshot = list(tracks)
-                if sources_done < 2:
-                    if source == "yandex":
-                        if has_yandex:
-                            status = f"Yandex: {yandex_count} — ищем YouTube…"
-                        else:
-                            status = "Ищем YouTube…"
-                    elif has_yandex:
-                        status = f"YouTube: {youtube_count} — ищем Yandex…"
+                pending = [
+                    _SOURCE_LABELS[name]
+                    for name in AsyncFinder.SEARCH_SOURCES
+                    if name not in done_sources and (name != "yandex" or has_yandex)
+                ]
+                if pending:
+                    label = _SOURCE_LABELS.get(source, source)
+                    if source == "yandex" and not has_yandex:
+                        status = f"Ищем {' и '.join(pending)}…"
                     else:
-                        status = ""
+                        status = (
+                            f"{label}: {counts.get(source, 0)} — "
+                            f"ищем {' и '.join(pending)}…"
+                        )
                 elif snapshot:
-                    status = (
-                        f"Найдено: {len(snapshot)} "
-                        f"(Yandex: {yandex_count}, YouTube: {youtube_count})"
+                    parts = ", ".join(
+                        f"{label}: {counts[name]}"
+                        for name, label in _SOURCE_LABELS.items()
                     )
+                    status = f"Найдено: {len(snapshot)} ({parts})"
                 else:
                     status = ""
 
@@ -208,11 +228,11 @@ class SearchViewModel(BaseViewModel):
             if not tracks:
 
                 def show_empty() -> None:
-                    hint = "Ничего не найдено."
-                    if not yandex_token():
-                        hint += " Укажите токен Yandex в Настройках."
-                    else:
-                        hint += " Попробуйте другой запрос."
+                    hint = "Ничего не найдено. Попробуйте другой запрос."
+                    if not _has_yandex_token():
+                        hint += (
+                            " Токен Yandex в Настройках добавит выдачу Яндекс.Музыки."
+                        )
                     self.status_message.emit(hint)
 
                 bridge.invoke_main(show_empty)
@@ -279,15 +299,16 @@ class SearchViewModel(BaseViewModel):
             bridge.invoke_main(refresh)
         except Exception as exc:
             logger.exception("Ошибка скачивания")
-            bridge.invoke_main(lambda: self.emit_error(str(exc)))
+            message = str(exc)
+            bridge.invoke_main(lambda: self.emit_error(message))
         finally:
             bridge.invoke_main(lambda: self.set_loading(False))
 
     async def search_advanced(
-            self,
-            url: str = "",
-            track_id: str = "",
-            source: str = "",
+        self,
+        url: str = "",
+        track_id: str = "",
+        source: str = "",
     ) -> None:
         """Расширенный поиск: по прямой ссылке или ID трека из источника.
 
@@ -310,7 +331,9 @@ class SearchViewModel(BaseViewModel):
         bridge.invoke_main(lambda: self.set_loading(True))
 
         try:
-            logger.info("Расширенный поиск: url=%r id=%r source=%r", url, track_id, source)
+            logger.info(
+                "Расширенный поиск: url=%r id=%r source=%r", url, track_id, source
+            )
             bridge.invoke_main(lambda: self.status_message.emit("Определяем трек…"))
 
             tracks = await self._finder.resolve_tracks(
@@ -341,6 +364,7 @@ class SearchViewModel(BaseViewModel):
                 message = str(exc)
                 bridge.invoke_main(lambda: self.emit_error(message))
         finally:
+
             def finish() -> None:
                 self._inflight_searches = max(0, self._inflight_searches - 1)
                 if self._inflight_searches == 0:

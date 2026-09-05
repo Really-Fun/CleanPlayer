@@ -132,7 +132,7 @@ poetry run black --check src tests
 
 ## Дорожная карта
 
-- [x] Android-клиент (MVP) — см. [android/README.md](android/README.md)
+- [ ] Android-клиент
 - [ ] Spotify / VK / SoundCloud
 - [ ] Горячие клавиши (Space, Ctrl+←/→)
 - [ ] Визуализатор

@@ -162,40 +162,104 @@ class PluginLoader:
         )
 
     @staticmethod
-    def _ensure_plugin_package(plugin_dir: Path) -> None:
-        """Регистрирует namespace-пакет quantis_plugins для относительных импортов."""
-        resolved = str(plugin_dir.resolve())
-        if _PLUGIN_PACKAGE not in sys.modules:
-            pkg = types.ModuleType(_PLUGIN_PACKAGE)
-            pkg.__path__ = []
-            sys.modules[_PLUGIN_PACKAGE] = pkg
-        pkg_path = sys.modules[_PLUGIN_PACKAGE].__path__
-        if resolved not in pkg_path:
-            pkg_path.append(resolved)
+    def _ensure_root_package() -> None:
+        if _PLUGIN_PACKAGE in sys.modules:
+            return
+        pkg = types.ModuleType(_PLUGIN_PACKAGE)
+        pkg.__path__ = []
+        pkg.__package__ = _PLUGIN_PACKAGE
+        sys.modules[_PLUGIN_PACKAGE] = pkg
+
+    @staticmethod
+    def _ensure_plugin_package(plugin_id: str, plugin_dir: Path) -> str:
+        """Пакет quantis_plugins.<id> с __path__ на папку плагина.
+
+        Не добавляем папки плагинов в __path__ корня quantis_plugins: иначе
+        ``import quantis_plugins.page`` находит page.py первого попавшегося плагина.
+        """
+        PluginLoader._ensure_root_package()
+        package_name = f"{_PLUGIN_PACKAGE}.{plugin_id}"
+        existing = sys.modules.get(package_name)
+        if existing is not None and getattr(existing, "__path__", None):
+            return package_name
+        pkg = types.ModuleType(package_name)
+        pkg.__path__ = [str(plugin_dir.resolve())]
+        pkg.__package__ = package_name
+        pkg.__file__ = str(plugin_dir / "__init__.py")
+        sys.modules[package_name] = pkg
+        return package_name
+
+    @staticmethod
+    def _prefer_on_sys_path(plugin_dir_str: str) -> None:
+        sys.path = [p for p in sys.path if p != plugin_dir_str]
+        sys.path.insert(0, plugin_dir_str)
+
+    @staticmethod
+    def _module_origin(module: types.ModuleType) -> Path | None:
+        filename = getattr(module, "__file__", None)
+        if filename:
+            try:
+                return Path(filename).resolve()
+            except OSError:
+                return None
+        paths = getattr(module, "__path__", None)
+        if not paths:
+            return None
+        try:
+            return Path(next(iter(paths))).resolve()
+        except (StopIteration, OSError, TypeError):
+            return None
+
+    @staticmethod
+    def _evict_shadowed_siblings(plugin_dir: Path) -> None:
+        """Убирает из sys.modules чужой ``page``/``widget``, чтобы импорт нашёл этот плагин."""
+        plugin_dir = plugin_dir.resolve()
+        local_names: set[str] = set()
+        for child in plugin_dir.iterdir():
+            if child.name.startswith(".") or child.name == "__pycache__":
+                continue
+            if child.suffix == ".py" and child.stem not in {"plugin", "__init__"}:
+                local_names.add(child.stem)
+            elif child.is_dir() and (
+                (child / "__init__.py").is_file() or any(child.glob("*.py"))
+            ):
+                local_names.add(child.name)
+
+        protected = sys.stdlib_module_names | set(sys.builtin_module_names)
+        for name in list(sys.modules):
+            top = name.split(".", 1)[0]
+            if top not in local_names or top in protected:
+                continue
+            origin = PluginLoader._module_origin(sys.modules[name])
+            if origin is None:
+                continue
+            try:
+                if origin.is_relative_to(plugin_dir):
+                    continue
+            except (OSError, ValueError):
+                continue
+            sys.modules.pop(name, None)
 
     @staticmethod
     def _import_module(meta: PluginMeta):
         plugin_dir = meta.path.resolve()
-        PluginLoader._ensure_plugin_package(plugin_dir)
-
-        module_name = f"{_PLUGIN_PACKAGE}.{meta.plugin_id}"
+        package_name = PluginLoader._ensure_plugin_package(meta.plugin_id, plugin_dir)
+        module_name = f"{package_name}.plugin"
         plugin_dir_str = str(plugin_dir)
 
         spec = importlib.util.spec_from_file_location(
             module_name,
             meta.entry,
-            submodule_search_locations=[plugin_dir_str],
         )
         if spec is None or spec.loader is None:
             raise ImportError(f"Не удалось загрузить спецификацию для {meta.entry}")
 
         module = importlib.util.module_from_spec(spec)
-        module.__package__ = _PLUGIN_PACKAGE
-
+        module.__package__ = package_name
         sys.modules[module_name] = module
 
-        if plugin_dir_str not in sys.path:
-            sys.path.insert(0, plugin_dir_str)
+        PluginLoader._evict_shadowed_siblings(plugin_dir)
+        PluginLoader._prefer_on_sys_path(plugin_dir_str)
 
         try:
             spec.loader.exec_module(module)

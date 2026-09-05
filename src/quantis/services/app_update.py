@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from typing import Any, Mapping
+from urllib.parse import urlparse
 
 import aiohttp
 
@@ -20,6 +21,8 @@ SKIP_ENV = "QUANTIS_SKIP_UPDATE_CHECK"
 CHECK_INTERVAL_SECONDS = 24 * 60 * 60
 _REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=12)
 _TRUTHY = ("1", "true", "yes", "on")
+_RELEASE_HOST = "github.com"
+_RELEASE_PATH_PREFIX = f"/{GITHUB_REPO}/"
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +96,19 @@ def should_announce(current: str, remote_tag: str, dismissed_tag: str) -> bool:
     return True
 
 
+def is_safe_release_url(url: str) -> bool:
+    """Только HTTPS-страницы релизов этого репозитория на GitHub."""
+    parsed = urlparse((url or "").strip())
+    if parsed.scheme != "https":
+        return False
+    if parsed.username or parsed.password:
+        return False
+    if (parsed.hostname or "").lower() != _RELEASE_HOST:
+        return False
+    path = parsed.path or ""
+    return path.startswith(_RELEASE_PATH_PREFIX)
+
+
 def parse_release_payload(data: Mapping[str, Any]) -> ReleaseInfo | None:
     """Собирает ReleaseInfo. Draft/prerelease — ``None`` (не предлагаем)."""
     if data.get("draft") or data.get("prerelease"):
@@ -103,6 +119,8 @@ def parse_release_payload(data: Mapping[str, Any]) -> ReleaseInfo | None:
     html_url = str(data.get("html_url") or "").strip()
     if not html_url:
         raise ValueError("GitHub release has no html_url")
+    if not is_safe_release_url(html_url):
+        raise ValueError("GitHub release html_url is not a Quantis GitHub URL")
     return ReleaseInfo(
         tag=tag,
         html_url=html_url,

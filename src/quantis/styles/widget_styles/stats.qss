@@ -15,9 +15,9 @@ QFrame#statsMetric {
 }
 
 QLabel#statsMetricValue {
-    font-size: 26px;
+    font-size: 22px;
     font-weight: 700;
-    letter-spacing: -0.6px;
+    letter-spacing: -0.4px;
     color: #f8fafc;
     background: transparent;
 }

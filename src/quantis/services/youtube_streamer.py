@@ -30,7 +30,6 @@ class AsyncYoutubeStreamer(AsyncStreamerInterface):
             "noplaylist": True,
             "extract_flat": False,
             "no_warnings": True,
-            "nocheckcertificate": True,
             "postprocessors": [],
             "skip_download": True,
             "ignore_no_formats_error": True,
@@ -96,8 +95,7 @@ class AsyncYoutubeStreamer(AsyncStreamerInterface):
             return False
         protocol = str(fmt.get("protocol") or "").lower()
         if any(
-            token in protocol
-            for token in ("m3u8", "dash", "fragment", "ism", "rtmp")
+            token in protocol for token in ("m3u8", "dash", "fragment", "ism", "rtmp")
         ):
             return False
         if protocol and not protocol.startswith("http"):
@@ -195,6 +193,12 @@ class AsyncYoutubeStreamer(AsyncStreamerInterface):
     def sync_stream(self, track_id: str) -> str | None:
         from yt_dlp import YoutubeDL
 
+        from quantis.services.url_resolver import is_youtube_video_id
+
+        if not is_youtube_video_id(str(track_id)):
+            logger.warning("Некорректный YouTube id: %s", track_id)
+            return None
+
         url = f"https://www.youtube.com/watch?v={track_id}"
         last_exc: BaseException | None = None
         for opts in self._attempt_opts(video=False):
@@ -234,6 +238,12 @@ class AsyncYoutubeStreamer(AsyncStreamerInterface):
         self, track_id: str, height: int = WALLPAPER_DEFAULT_QUALITY
     ) -> tuple[str | None, int]:
         from yt_dlp import YoutubeDL
+
+        from quantis.services.url_resolver import is_youtube_video_id
+
+        if not is_youtube_video_id(str(track_id)):
+            logger.warning("Некорректный YouTube id: %s", track_id)
+            return None, 0
 
         url = f"https://www.youtube.com/watch?v={track_id}"
         for opts in self._attempt_opts(video=True, height=height):

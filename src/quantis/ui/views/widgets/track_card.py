@@ -50,6 +50,7 @@ class TrackCardDelegate(QStyledItemDelegate):
     _C_EDITORIAL_TITLE = QColor(242, 240, 235)
     _GRAD_YT = (QColor(255, 78, 69), QColor(140, 30, 30))
     _GRAD_YA = (QColor(255, 219, 77), QColor(160, 120, 20))
+    _GRAD_SC = (QColor(255, 119, 0), QColor(140, 70, 0))
 
     def __init__(
         self,
@@ -184,7 +185,11 @@ class TrackCardDelegate(QStyledItemDelegate):
             c1, c2 = (
                 self._GRAD_YT
                 if str(track.source).lower() == TrackSource.YOUTUBE
-                else self._GRAD_YA
+                else (
+                    self._GRAD_SC
+                    if str(track.source).lower() == TrackSource.SOUNDCLOUD
+                    else self._GRAD_YA
+                )
             )
             grad = QLinearGradient(cover_rect.topLeft(), cover_rect.bottomRight())
             grad.setColorAt(0.0, c1)
@@ -257,10 +262,18 @@ class TrackCardDelegate(QStyledItemDelegate):
 
         if is_playing:
             painter.fillRect(
-                inner.left(), inner.top() + 8, 3, inner.height() - 16, QColor(0, 229, 255, 220)
+                inner.left(),
+                inner.top() + 8,
+                3,
+                inner.height() - 16,
+                QColor(0, 229, 255, 220),
             )
             painter.fillRect(
-                inner.left() + 3, inner.top() + 8, 2, inner.height() - 16, QColor(230, 59, 46, 200)
+                inner.left() + 3,
+                inner.top() + 8,
+                2,
+                inner.height() - 16,
+                QColor(230, 59, 46, 200),
             )
 
         painter.setFont(FONT_EDITORIAL_INDEX)

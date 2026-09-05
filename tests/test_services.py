@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from quantis.models import TrackSource, YandexTrack, YoutubeTrack
+from quantis.models import SoundCloudTrack, YandexTrack, YoutubeTrack
 from quantis.services.async_finder import AsyncFinder, AsyncYandexFinder
 from quantis.services.async_streamer import AsyncStreamer
 from quantis.services.music_service import MusicService
@@ -18,12 +18,33 @@ async def test_streamer_routes_youtube_track() -> None:
     track = YoutubeTrack(track_id="abc123", title="Test", author="Artist")
 
     with patch.object(
-        streamer._youtube, "get_stream_url", new_callable=AsyncMock, return_value="http://yt"
+        streamer._youtube,
+        "get_stream_url",
+        new_callable=AsyncMock,
+        return_value="http://yt",
     ) as youtube_mock:
         url = await streamer.get_stream_url(track)
 
     assert url == "http://yt"
     youtube_mock.assert_awaited_once_with(track)
+    streamer.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_streamer_routes_soundcloud_track() -> None:
+    streamer = AsyncStreamer()
+    track = SoundCloudTrack(track_id="123", title="Test", author="Artist")
+
+    with patch.object(
+        streamer._soundcloud,
+        "get_stream_url",
+        new_callable=AsyncMock,
+        return_value="http://sc",
+    ) as sc_mock:
+        url = await streamer.get_stream_url(track)
+
+    assert url == "http://sc"
+    sc_mock.assert_awaited_once_with(track)
     streamer.shutdown()
 
 
@@ -34,7 +55,10 @@ async def test_streamer_cache_key_includes_source() -> None:
     youtube = YoutubeTrack(track_id="123", title="T", author="A")
 
     with patch.object(
-        streamer._yandex, "get_stream_url", new_callable=AsyncMock, return_value="yandex-url"
+        streamer._yandex,
+        "get_stream_url",
+        new_callable=AsyncMock,
+        return_value="yandex-url",
     ):
         first = await streamer.get_stream_url(yandex)
         second = await streamer.get_stream_url(yandex)
@@ -73,7 +97,10 @@ async def test_finder_skips_yandex_for_youtube_id() -> None:
 
     with (
         patch.object(
-            finder._yandex_finder, "get_track", new_callable=AsyncMock, return_value=None
+            finder._yandex_finder,
+            "get_track",
+            new_callable=AsyncMock,
+            return_value=None,
         ) as yandex_mock,
         patch.object(
             finder._youtube_finder,
@@ -102,7 +129,9 @@ async def test_finder_tries_yandex_for_numeric_id() -> None:
             new_callable=AsyncMock,
             return_value=yandex_track,
         ) as yandex_mock,
-        patch.object(finder._youtube_finder, "get_track", new_callable=AsyncMock) as youtube_mock,
+        patch.object(
+            finder._youtube_finder, "get_track", new_callable=AsyncMock
+        ) as youtube_mock,
     ):
         result = await finder.get_track("42")
 

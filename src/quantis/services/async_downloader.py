@@ -6,7 +6,6 @@ Youtube"""
 import logging
 from abc import ABC, abstractmethod
 from asyncio import Semaphore, get_running_loop
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Optional
 
@@ -14,7 +13,13 @@ import aiofiles
 import aiohttp
 
 from quantis.config import Clients
-from quantis.models.track import Track, TrackSource, YandexTrack, YoutubeTrack
+from quantis.models.track import (
+    SoundCloudTrack,
+    Track,
+    TrackSource,
+    YandexTrack,
+    YoutubeTrack,
+)
 from quantis.providers import PathProvider
 from quantis.services.wallpaper_policy import (
     wallpaper_cache_format,
@@ -30,18 +35,32 @@ _AUDIO_FORMAT = (
 )
 _VIDEO_FORMAT = wallpaper_cache_format(360)
 _AUDIO_EXTENSIONS = frozenset({"m4a", "mp3"})
+_MAX_COVER_BYTES = 8 * 1024 * 1024
+
+
+def _is_http_url(url: str) -> bool:
+    return url.startswith("https://") or url.startswith("http://")
+
+
+async def _read_http_body(response: aiohttp.ClientResponse, limit: int) -> bytes | None:
+    data = await response.content.read(limit + 1)
+    if len(data) > limit:
+        return None
+    return data
 
 
 class AsyncDownloaderInterface(ABC):
     """Абстрактный класс для Downloader'ов"""
 
     @abstractmethod
-    async def download_track(self, track: Track | YandexTrack | YoutubeTrack) -> None: 
-        ...
+    async def download_track(
+        self, track: Track | YandexTrack | YoutubeTrack
+    ) -> None: ...
 
     @abstractmethod
-    async def download_cover(self, track: Track | YandexTrack | YoutubeTrack) -> None:
-        ...
+    async def download_cover(
+        self, track: Track | YandexTrack | YoutubeTrack
+    ) -> None: ...
 
 
 class AsyncYandexDownloader(AsyncDownloaderInterface):
@@ -66,8 +85,10 @@ class AsyncYandexDownloader(AsyncDownloaderInterface):
             track (YandexTrack): Трек с Яндекса
         """
         if self.client is None:
-            logger.warning("Клиент ЯндексМузыки не инициализирован." \
-            "Невозможно скачать трек: %s", track)
+            logger.warning(
+                "Клиент ЯндексМузыки не инициализирован." "Невозможно скачать трек: %s",
+                track,
+            )
             return
         try:
             PathProvider.ensure_storage_dirs()
@@ -92,8 +113,10 @@ class AsyncYandexDownloader(AsyncDownloaderInterface):
             track (YandexTrack): Трек с Яндекса
         """
         if self.client is None:
-            logger.warning("Клиент ЯндексМузыки не инициализирован." \
-            "Невозможно скачать трек: %s", track)
+            logger.warning(
+                "Клиент ЯндексМузыки не инициализирован." "Невозможно скачать трек: %s",
+                track,
+            )
             return
         try:
             PathProvider.ensure_storage_dirs()
@@ -114,7 +137,6 @@ class AsyncYoutubeDownloader(AsyncDownloaderInterface):
             "noplaylist": True,
             "extract_flat": False,
             "no_warnings": True,
-            "nocheckcertificate": True,
             "postprocessors": [],
         }
         self.path_provider = PathProvider()
@@ -228,7 +250,7 @@ class AsyncYoutubeDownloader(AsyncDownloaderInterface):
         if self._video_wallpaper_enabled():
             await self._download_video_cache(track)
 
-    async def download_cover(self, track:  Track | YandexTrack | YoutubeTrack) -> None:
+    async def download_cover(self, track: Track | YandexTrack | YoutubeTrack) -> None:
         """Асинхронное получение обложки с ютуб.
 
         Args:
@@ -244,7 +266,9 @@ class AsyncYoutubeDownloader(AsyncDownloaderInterface):
                 async with session.get(cover_url) as response:
                     if response.status != 200:
                         return
-                    data = await response.read()
+                    data = await _read_http_body(response, _MAX_COVER_BYTES)
+                    if data is None:
+                        return
 
                     Path(cover_path).parent.mkdir(parents=True, exist_ok=True)
                     async with aiofiles.open(cover_path, "wb") as file:
@@ -256,10 +280,13 @@ class AsyncYoutubeDownloader(AsyncDownloaderInterface):
     def sync_download(opts: dict, track_id: int | str) -> None:
         from yt_dlp import YoutubeDL
 
+        from quantis.services.url_resolver import is_youtube_video_id
+
+        if not is_youtube_video_id(str(track_id)):
+            raise ValueError(f"Некорректный YouTube id: {track_id!r}")
+
         with YoutubeDL(opts) as ydl:
-            ydl.extract_info(
-                f"https://youtube.com/watch?v={track_id}", download=True
-            )
+            ydl.extract_info(f"https://youtube.com/watch?v={track_id}", download=True)
 
     async def close(self) -> None:
         if self._session is not None and not self._session.closed:
@@ -271,10 +298,136 @@ class AsyncYoutubeDownloader(AsyncDownloaderInterface):
         return
 
 
+class AsyncSoundCloudDownloader(AsyncDownloaderInterface):
+    """Скачивание треков и обложек SoundCloud через yt-dlp."""
+
+    def __init__(self) -> None:
+        self.path_provider = PathProvider()
+        from quantis.core.worker_pool import get_worker_pool
+
+        self._executor = get_worker_pool()
+        self._session: Optional[aiohttp.ClientSession] = None
+        self._semaphore = Semaphore(value=8)
+
+    def _ydl_opts(self, outtmpl: str) -> dict:
+        return {
+            "quiet": True,
+            "noplaylist": True,
+            "extract_flat": False,
+            "no_warnings": True,
+            "outtmpl": outtmpl,
+            "format": (
+                "http_mp3_128/bestaudio[format_id!*=preview][ext=mp3]/"
+                "bestaudio[format_id!*=preview]/bestaudio"
+            ),
+        }
+
+    def _apply_downloaded_extension(self, track: Track) -> str | None:
+        prefix = f"{self.path_provider.storage_id(track)}_"
+        music_dir = Path(
+            self.path_provider.MUSIC_FOLDER or self.path_provider.music_folder()
+        )
+        for candidate in music_dir.glob(f"{prefix}*"):
+            ext = candidate.suffix.lstrip(".").lower()
+            if ext in _AUDIO_EXTENSIONS:
+                if isinstance(track, SoundCloudTrack):
+                    track.extension = ext
+                return ext
+        return None
+
+    async def download_track(self, track: Track | YandexTrack | YoutubeTrack) -> None:
+        from quantis.services.soundcloud import watch_url
+
+        outtmpl = self.path_provider.get_track_path(track, extension="%(ext)s")
+        PathProvider.ensure_storage_dirs()
+        try:
+            await get_running_loop().run_in_executor(
+                self._executor,
+                self.sync_download,
+                self._ydl_opts(outtmpl),
+                watch_url(track.track_id),
+            )
+        except Exception:
+            logger.exception("Не удалось скачать трек с SoundCloud: %s", track.track_id)
+            return
+        if self._apply_downloaded_extension(track) is None:
+            logger.error("Не удалось скачать трек с SoundCloud: %s", track.track_id)
+
+    async def get_session(self) -> aiohttp.ClientSession:
+        if self._session is None:
+            self._session = aiohttp.ClientSession()
+        return self._session
+
+    async def download_cover(self, track: Track | YandexTrack | YoutubeTrack) -> None:
+        cover_url = ""
+        if isinstance(track, SoundCloudTrack):
+            cover_url = track.thumbnail_url
+        if not cover_url:
+            cover_url = await get_running_loop().run_in_executor(
+                self._executor, self._sync_thumbnail, str(track.track_id)
+            )
+        if not cover_url or not _is_http_url(cover_url):
+            return
+
+        cover_path = self.path_provider.get_cover_path(track)
+        session = await self.get_session()
+        async with self._semaphore:
+            try:
+                async with session.get(cover_url) as response:
+                    if response.status != 200:
+                        return
+                    data = await _read_http_body(response, _MAX_COVER_BYTES)
+                    if data is None:
+                        return
+                    Path(cover_path).parent.mkdir(parents=True, exist_ok=True)
+                    async with aiofiles.open(cover_path, "wb") as file:
+                        await file.write(data)
+            except aiohttp.ClientError:
+                logger.exception(
+                    "Ошибка при скачивании обложки SoundCloud для %s",
+                    track.track_id,
+                )
+
+    @staticmethod
+    def _sync_thumbnail(track_id: str) -> str:
+        from yt_dlp import YoutubeDL
+
+        from quantis.services.soundcloud import track_from_ydl, watch_url, ydl_opts
+
+        try:
+            with YoutubeDL(ydl_opts(extract_flat=False)) as ydl:
+                info = ydl.extract_info(watch_url(track_id), download=False)
+            track = track_from_ydl(info)
+            return track.thumbnail_url if track is not None else ""
+        except Exception:
+            logger.debug(
+                "SoundCloud thumbnail extract failed: %s",
+                track_id,
+                exc_info=True,
+            )
+            return ""
+
+    @staticmethod
+    def sync_download(opts: dict, url: str) -> None:
+        from yt_dlp import YoutubeDL
+
+        with YoutubeDL(opts) as ydl:
+            ydl.extract_info(url, download=True)
+
+    async def close(self) -> None:
+        if self._session is not None and not self._session.closed:
+            await self._session.close()
+            self._session = None
+
+    def shutdown(self) -> None:
+        return
+
+
 class AsyncDownloader(AsyncDownloaderInterface):
     def __init__(self) -> None:
         self._yandex_downloader = AsyncYandexDownloader()
         self._youtube_downloader = AsyncYoutubeDownloader()
+        self._soundcloud_downloader = AsyncSoundCloudDownloader()
 
     async def download_track(self, track: Track) -> None:
         match track.source:
@@ -282,6 +435,8 @@ class AsyncDownloader(AsyncDownloaderInterface):
                 await self._yandex_downloader.download_track(track)
             case TrackSource.YOUTUBE:
                 await self._youtube_downloader.download_track(track)
+            case TrackSource.SOUNDCLOUD:
+                await self._soundcloud_downloader.download_track(track)
 
     async def download_cover(self, track: Track) -> None:
         match track.source:
@@ -289,6 +444,8 @@ class AsyncDownloader(AsyncDownloaderInterface):
                 await self._yandex_downloader.download_cover(track)
             case TrackSource.YOUTUBE:
                 await self._youtube_downloader.download_cover(track)
+            case TrackSource.SOUNDCLOUD:
+                await self._soundcloud_downloader.download_cover(track)
 
     async def ensure_cover(self, track: Track) -> bool:
         """Скачивает обложку, если файла ещё нет. True если файл есть/появился."""
@@ -318,6 +475,8 @@ class AsyncDownloader(AsyncDownloaderInterface):
 
     def shutdown(self) -> None:
         self._youtube_downloader.shutdown()
+        self._soundcloud_downloader.shutdown()
 
     async def close(self) -> None:
         await self._youtube_downloader.close()
+        await self._soundcloud_downloader.close()

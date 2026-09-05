@@ -231,6 +231,18 @@ class PluginsPage(QWidget):
 
         self._bridge.schedule(_run())
 
+    def _confirm_untrusted_plugin(self, source: str) -> bool:
+        reply = QMessageBox.warning(
+            self,
+            "Установка плагина",
+            "Плагины выполняются с правами Quantis: доступ к токенам, "
+            "файлам и сети. Ставьте только архивы из доверенных источников.\n\n"
+            f"{source}\n\nПродолжить установку?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        return reply == QMessageBox.StandardButton.Yes
+
     def _import_archive(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self,
@@ -239,6 +251,8 @@ class PluginsPage(QWidget):
             "Архив плагина (*.zip)",
         )
         if not path:
+            return
+        if not self._confirm_untrusted_plugin(path):
             return
         try:
             plugin_id = install_plugin_from_zip(path, overwrite=True)
@@ -254,13 +268,15 @@ class PluginsPage(QWidget):
         url, ok = QInputDialog.getText(
             self,
             "Скачать плагин",
-            "URL zip-архива плагина:",
+            "HTTPS-URL zip-архива плагина:",
         )
         if not ok or not url.strip():
             return
+        url = url.strip()
+        if not self._confirm_untrusted_plugin(url):
+            return
         self._status.setText("Скачивание…")
         self._download_btn.setEnabled(False)
-        url = url.strip()
 
         if self._bridge is None:
             try:

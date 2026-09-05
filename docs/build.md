@@ -1,5 +1,13 @@
 # Сборка Quantis
 
+Версия приложения живёт **только** в `pyproject.toml` (`[project].version`).
+Её подхватывают UI и установщик Inno Setup.
+
+```bash
+poetry version 0.2.1    # поставить конкретную
+poetry version patch    # 0.2.1 → 0.2.2
+```
+
 Собираются два варианта приложения — они отличаются только медиадвижком.
 
 | Сборка | Движок | Артефакт |
@@ -58,14 +66,15 @@ poetry run quantis
 
 ```bat
 poetry run python scripts/build_exe.py qt
-iscc installer\quantis.iss
+poetry run python scripts/build_installer.py
 
 REM VLC-сборка
 poetry run python scripts/build_exe.py vlc
-iscc /DBackend=vlc installer\quantis.iss
+poetry run python scripts/build_installer.py --backend vlc
 ```
 
-Результат — `dist\installer\Quantis-0.1.1-setup.exe`. По умолчанию установка
+Версия установщика берётся из `pyproject.toml` (``poetry version``).
+Результат — `dist\installer\Quantis-<версия>-setup.exe`. По умолчанию установка
 идёт в `{autopf}` (Program Files при установке для всех, `%LOCALAPPDATA%\Programs`
 при установке «только для меня» — тогда UAC не появляется).
 

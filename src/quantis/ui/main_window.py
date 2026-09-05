@@ -728,8 +728,10 @@ class QuantisMainWindow(QMainWindow):
             self._update_banner.hide()
 
     def _open_cached_release(self) -> None:
+        from quantis.services.app_update import is_safe_release_url
+
         url = self._ui_prefs.update_last_html_url
-        if url:
+        if url and is_safe_release_url(url):
             QDesktopServices.openUrl(QUrl(url))
 
     def _dismiss_update_banner(self) -> None:

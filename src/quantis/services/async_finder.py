@@ -2,6 +2,7 @@
 Асинхронный поиск треков по платформам:
 Yandex
 Youtube
+SoundCloud
 """
 
 from __future__ import annotations
@@ -17,7 +18,11 @@ import yandex_music.exceptions
 from quantis.config import Clients
 from quantis.config.credentials import yandex_token
 from quantis.models import Track, YoutubeTrack
-from quantis.services.yandex_finder import yandex_track_from_api, yandex_tracks_from_search
+from quantis.services.soundcloud_finder import AsyncSoundCloudFinder
+from quantis.services.yandex_finder import (
+    yandex_track_from_api,
+    yandex_tracks_from_search,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +167,8 @@ class AsyncYoutubeFinder(AsyncFinderInterface):
             if not results:
                 results = self.client.search(query=title, limit=value * 3)
                 results = [
-                    r for r in (results or [])
+                    r
+                    for r in (results or [])
                     if r.get("resultType") in ("song", "video")
                 ][:value]
             if not results:
@@ -214,7 +220,9 @@ class AsyncYoutubeFinder(AsyncFinderInterface):
 
 class AsyncFinder(AsyncFinderInterface):
     _SOURCE_TIMEOUT_SEC = 10.0
+    _SOUNDCLOUD_TIMEOUT_SEC = 15.0
     _DEFAULT_PER_SOURCE = 12
+    SEARCH_SOURCES = ("yandex", "youtube", "soundcloud")
 
     def __init__(self, executor: ThreadPoolExecutor | None = None) -> None:
         from quantis.core.worker_pool import get_worker_pool
@@ -223,6 +231,7 @@ class AsyncFinder(AsyncFinderInterface):
         self._executor = executor or get_worker_pool()
         self._yandex_finder = AsyncYandexFinder(self._executor)
         self._youtube_finder = AsyncYoutubeFinder(self._executor)
+        self._soundcloud_finder = AsyncSoundCloudFinder(self._executor)
 
     @property
     def youtube(self) -> AsyncYoutubeFinder:
@@ -232,11 +241,19 @@ class AsyncFinder(AsyncFinderInterface):
     async def _fetch_source(
         self, source: str, title: str, value: int
     ) -> tuple[str, list[Track]]:
-        timeout = self._SOURCE_TIMEOUT_SEC
+        timeout = (
+            self._SOUNDCLOUD_TIMEOUT_SEC
+            if source == "soundcloud"
+            else self._SOURCE_TIMEOUT_SEC
+        )
         try:
             if source == "yandex":
                 tracks = await asyncio.wait_for(
                     self._yandex_finder.get_tracks(title, value), timeout=timeout
+                )
+            elif source == "soundcloud":
+                tracks = await asyncio.wait_for(
+                    self._soundcloud_finder.get_tracks(title, value), timeout=timeout
                 )
             else:
                 tracks = await asyncio.wait_for(
@@ -256,8 +273,8 @@ class AsyncFinder(AsyncFinderInterface):
         """Отдаёт результаты по мере готовности каждого источника."""
         limit = value if value is not None else self._DEFAULT_PER_SOURCE
         tasks = [
-            asyncio.create_task(self._fetch_source("yandex", title, limit)),
-            asyncio.create_task(self._fetch_source("youtube", title, limit)),
+            asyncio.create_task(self._fetch_source(source, title, limit))
+            for source in self.SEARCH_SOURCES
         ]
         try:
             for done in asyncio.as_completed(tasks):
@@ -268,15 +285,19 @@ class AsyncFinder(AsyncFinderInterface):
                 try:
                     task.cancel()
                 except RuntimeError:
-                    logger.debug("Пропущена отмена задачи поиска: event loop уже закрыт")
+                    logger.debug(
+                        "Пропущена отмена задачи поиска: event loop уже закрыт"
+                    )
             if pending:
                 try:
                     await asyncio.gather(*pending, return_exceptions=True)
                 except RuntimeError:
-                    logger.debug("Пропущено завершение задач поиска: event loop уже закрыт")
+                    logger.debug(
+                        "Пропущено завершение задач поиска: event loop уже закрыт"
+                    )
 
     async def get_tracks(self, title: str, value: int = 5) -> list[Track]:
-        """Ищет треки на Яндексе и YouTube одновременно."""
+        """Ищет треки на Яндексе, YouTube и SoundCloud одновременно."""
         tracks: list[Track] = []
         async for _source, batch in self.iter_track_batches(title, value):
             tracks.extend(batch)
@@ -302,7 +323,7 @@ class AsyncFinder(AsyncFinderInterface):
         """Разрешает трек(и) по прямой ссылке или ID из конкретного источника.
 
         - Если передан url — определяет источник автоматически по домену.
-        - Если передан track_id — требуется source (yandex|youtube).
+        - Если передан track_id — требуется source (yandex|youtube|soundcloud).
         Возвращает список Track (для альбома/плейлиста может быть > 1).
         """
         from quantis.services.url_resolver import parse_track_id
@@ -315,6 +336,8 @@ class AsyncFinder(AsyncFinderInterface):
             src, resolved_id = parsed
             if src == "yandex":
                 track = await self._yandex_finder.get_track(resolved_id)
+            elif src == "soundcloud":
+                track = await self._soundcloud_finder.get_track_from_url(url)
             else:
                 track = await self._youtube_finder.get_track_from_url(url)
             return [track] if track is not None else []
@@ -325,9 +348,12 @@ class AsyncFinder(AsyncFinderInterface):
                 track = await self._yandex_finder.get_track(track_id)
             elif normalized_source == "youtube":
                 track = await self._youtube_finder.get_track(track_id)
+            elif normalized_source == "soundcloud":
+                track = await self._soundcloud_finder.get_track(track_id)
             else:
                 logger.warning(
-                    "resolve_tracks: для track_id=%r нужен source (yandex|youtube)",
+                    "resolve_tracks: для track_id=%r нужен source "
+                    "(yandex|youtube|soundcloud)",
                     track_id,
                 )
                 return []

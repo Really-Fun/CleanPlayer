@@ -1,8 +1,8 @@
 """Константы для клиентов:
 - Яндекс Музыка
 - YouTube Music
+- SoundCloud (публичные треки, без токена)
 - Spotify (TODO) - приоритет
-- SoundCloud (TODO)
 - Vk Music (TODO)
 """
 

@@ -60,7 +60,8 @@ class PlaybackController:
 
     def handle_stream_error(self, message: str) -> None:
         """Повтор воспроизведения при ошибке медиадвижка."""
-        position = max(0, self.player.time)
+        paused_at = getattr(self.player, "paused_at_ms", 0) or 0
+        position = max(0, self.player.time, int(paused_at))
         self.request_playback_recovery(position, reason=message)
 
     def request_playback_recovery(self, position_ms: int, *, reason: str = "stall") -> None:
@@ -85,6 +86,8 @@ class PlaybackController:
         track_key = f"{track.source}:{track.track_id}"
         if self._stall_track_key != track_key:
             self._stall_track_key = track_key
+            self._stall_recoveries = 0
+        if reason == "resume-after-pause":
             self._stall_recoveries = 0
         if self._stall_recoveries >= 3:
             logger.warning(
@@ -111,9 +114,10 @@ class PlaybackController:
             resume_at = position_ms
 
             def replay() -> None:
-                self.player.play(new_source)
                 if resume_at > 0:
-                    self.player.time = resume_at
+                    self.player.play(new_source, start_ms=resume_at)
+                else:
+                    self.player.play(new_source)
 
             self._bridge.invoke_main(replay)  # type: ignore[union-attr]
         except Exception:
@@ -199,9 +203,13 @@ class PlaybackController:
             self._stall_track_key = None
             self._stall_recoveries = 0
             self.player.current_track = track
-            self.player.play(source)
+            start_ms = 0
             if resume_ms > 0 and not str(source).startswith(("http://", "https://")):
-                self.player.time = resume_ms
+                start_ms = resume_ms
+            if start_ms > 0:
+                self.player.play(source, start_ms=start_ms)
+            else:
+                self.player.play(source)
             if self._event_bus is not None:
                 self._event_bus.track_changed.emit(track)
 

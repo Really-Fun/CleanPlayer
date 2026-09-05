@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from quantis.models import Track, YandexTrack, YoutubeTrack
+from quantis.models import SoundCloudTrack, Track, YandexTrack, YoutubeTrack
 from quantis.providers import TrackManager
 
 
@@ -28,7 +28,7 @@ def build_tracks_from_entries(
     tracks: list[Track] = []
     for entry in entries:
         source, track_id = split_track_key(entry["track_key"], entry["source"])
-        downloaded = manager.is_downloaded(str(track_id))
+        downloaded = manager.is_downloaded(str(track_id), source=source)
         kwargs: dict = {
             "title": entry["title"],
             "author": entry["author"],
@@ -43,6 +43,8 @@ def build_tracks_from_entries(
                     **kwargs,
                 )
             )
+        elif source == "soundcloud":
+            tracks.append(SoundCloudTrack(track_id=str(track_id), **kwargs))
         else:
             tracks.append(YoutubeTrack(track_id=str(track_id), **kwargs))
     return tracks

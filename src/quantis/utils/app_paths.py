@@ -231,7 +231,12 @@ def playlist_covers_dir() -> Path:
 
 
 def credentials_dir() -> Path:
-    return _subdir("credentials")
+    path = _subdir("credentials")
+    try:
+        os.chmod(path, 0o700)
+    except OSError:
+        pass
+    return path
 
 
 def user_plugins_dir() -> Path:

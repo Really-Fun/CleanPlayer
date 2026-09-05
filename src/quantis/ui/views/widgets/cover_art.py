@@ -18,10 +18,11 @@ from PySide6.QtGui import (
 
 from quantis.models.track import Track
 from quantis.providers.path_provider import PathProvider
-from quantis.ui.design_tokens import BADGE_YANDEX, BADGE_YOUTUBE
+from quantis.ui.design_tokens import BADGE_SOUNDCLOUD, BADGE_YANDEX, BADGE_YOUTUBE
 
 _GRAD_YT = (QColor(BADGE_YOUTUBE), QColor(140, 30, 30))
 _GRAD_YA = (QColor(BADGE_YANDEX), QColor(180, 140, 20))
+_GRAD_SC = (QColor(BADGE_SOUNDCLOUD), QColor(140, 70, 0))
 
 # Общий LRU: ключ "(path|track)|size" → pixmap. Ограничивает рост ОЗУ.
 _COVER_CACHE_MAX = 96
@@ -194,6 +195,8 @@ def paint_rounded_cover(
             c1, c2 = _GRAD_YT
         elif key == "yandex":
             c1, c2 = _GRAD_YA
+        elif key == "soundcloud":
+            c1, c2 = _GRAD_SC
         else:
             c1, c2 = gradient_for_name(label)
         grad = QLinearGradient(rect.topLeft(), rect.bottomRight())

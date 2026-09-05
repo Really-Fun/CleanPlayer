@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from quantis.models import YandexTrack, YoutubeTrack
+from quantis.models import SoundCloudTrack, YandexTrack, YoutubeTrack
 from quantis.services.async_finder import AsyncFinder
 from quantis.services.async_streamer import AsyncStreamer
 
@@ -50,6 +50,25 @@ async def test_resolve_tracks_youtube_url() -> None:
 
 
 @pytest.mark.asyncio
+async def test_resolve_tracks_soundcloud_url() -> None:
+    finder = AsyncFinder()
+    track = SoundCloudTrack(track_id="123", title="T", author="A")
+    url = "https://soundcloud.com/artist/track-name"
+
+    with patch.object(
+        finder._soundcloud_finder,
+        "get_track_from_url",
+        new_callable=AsyncMock,
+        return_value=track,
+    ) as sc_mock:
+        result = await finder.resolve_tracks(url=url)
+
+    assert result == [track]
+    sc_mock.assert_awaited_once_with(url)
+    finder.shutdown()
+
+
+@pytest.mark.asyncio
 async def test_resolve_tracks_by_id_and_source() -> None:
     finder = AsyncFinder()
     track = YoutubeTrack(track_id="abc", title="T", author="A")
@@ -61,6 +80,24 @@ async def test_resolve_tracks_by_id_and_source() -> None:
 
     assert result == [track]
     yt_mock.assert_awaited_once_with("abc")
+    finder.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_resolve_tracks_by_id_soundcloud() -> None:
+    finder = AsyncFinder()
+    track = SoundCloudTrack(track_id="99", title="T", author="A")
+
+    with patch.object(
+        finder._soundcloud_finder,
+        "get_track",
+        new_callable=AsyncMock,
+        return_value=track,
+    ) as sc_mock:
+        result = await finder.resolve_tracks(track_id="99", source="soundcloud")
+
+    assert result == [track]
+    sc_mock.assert_awaited_once_with("99")
     finder.shutdown()
 
 
@@ -108,6 +145,32 @@ async def test_open_playback_youtube_uses_direct_url() -> None:
         result = await streamer.open_playback(track)
 
     assert result == "https://googlevideo.com/videoplayback"
+    url_mock.assert_awaited_once_with(track)
+    buffer_mock.assert_not_awaited()
+    streamer.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_open_playback_soundcloud_uses_direct_url() -> None:
+    streamer = AsyncStreamer()
+    track = SoundCloudTrack(track_id="123", title="T", author="A")
+
+    with (
+        patch.object(
+            streamer._stream_buffer,
+            "open",
+            new_callable=AsyncMock,
+        ) as buffer_mock,
+        patch.object(
+            streamer,
+            "get_stream_url",
+            new_callable=AsyncMock,
+            return_value="https://cf-media.sndcdn.com/track.mp3",
+        ) as url_mock,
+    ):
+        result = await streamer.open_playback(track)
+
+    assert result == "https://cf-media.sndcdn.com/track.mp3"
     url_mock.assert_awaited_once_with(track)
     buffer_mock.assert_not_awaited()
     streamer.shutdown()

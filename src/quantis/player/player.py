@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from time import monotonic
 from typing import Callable
 
 from quantis.models import Track
@@ -21,6 +22,8 @@ class Player:
         self.current_source: str | None = None
         self.current_track: Track | None = None
         self.on_pause: bool = False
+        self._paused_at_ms: int = 0
+        self._paused_at_mono: float = 0.0
         self._playback_active: bool = False
         self._loading_source: bool = False
         self._was_playing: bool = False
@@ -61,20 +64,28 @@ class Player:
     def on_stream_error(self, callback: Callable[[str], None]) -> None:
         self._stream_error_callbacks.append(callback)
 
-    def play(self, source: str) -> None:
+    def play(self, source: str, *, start_ms: int = 0) -> None:
         self._stream_retry_used = False
         self._loading_source = True
         self._playback_active = False
         self._was_playing = False
         self.on_pause = False
+        self._paused_at_ms = 0
+        self._paused_at_mono = 0.0
         self.current_source = source
         self._engine.play_media(source)
+        if start_ms > 0:
+            self._request_seek(start_ms)
         for callback in self._source_changed_callbacks:
             callback(source)
 
     def pause(self) -> None:
         if not self.current_source:
             return
+        position = max(0, self.time)
+        if position > 0:
+            self._paused_at_ms = position
+        self._paused_at_mono = monotonic()
         self.on_pause = True
         self._engine.pause_media()
         for callback in self._playback_paused_callbacks:
@@ -83,13 +94,28 @@ class Player:
     def resume(self) -> None:
         if not self.current_source:
             return
+        resume_at = max(0, self._paused_at_ms, self.time)
+        if self._http_source_likely_stale(resume_at):
+            logger.info(
+                "HTTP-поток после паузы — обновление источника @ %dms",
+                resume_at,
+            )
+            for callback in self._stream_error_callbacks:
+                callback("resume-after-pause")
+            return
         self.on_pause = False
         self._engine.resume_media()
+        if resume_at > 1000:
+            self._request_seek(resume_at)
+        self._paused_at_ms = 0
+        self._paused_at_mono = 0.0
         for callback in self._playback_resumed_callbacks:
             callback()
 
     def stop(self) -> None:
         self.on_pause = True
+        self._paused_at_ms = 0
+        self._paused_at_mono = 0.0
         self._playback_active = False
         self._was_playing = False
         self._engine.stop_media()
@@ -165,6 +191,33 @@ class Player:
         )
         for callback in self._stream_error_callbacks:
             callback(message)
+
+    def _request_seek(self, ms: int) -> None:
+        engine = self._engine
+        request = getattr(engine, "request_seek", None)
+        if callable(request):
+            request(ms)
+        else:
+            engine.set_position_ms(ms)
+
+    @property
+    def paused_at_ms(self) -> int:
+        return max(0, self._paused_at_ms)
+
+    def paused_for_sec(self) -> float:
+        if self._paused_at_mono <= 0:
+            return 0.0
+        return max(0.0, monotonic() - self._paused_at_mono)
+
+    def _http_source_likely_stale(self, resume_at: int) -> bool:
+        source = self.current_source or ""
+        if not str(source).startswith(("http://", "https://")):
+            return False
+        if resume_at <= 1000:
+            return False
+        if self.paused_for_sec() >= 15.0:
+            return True
+        return self.time < 1000
 
     @property
     def volume(self) -> int:

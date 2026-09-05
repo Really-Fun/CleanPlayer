@@ -23,6 +23,11 @@ from pathlib import Path
 from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules
 
 try:
+    from PyInstaller.utils.hooks import copy_metadata
+except ImportError:
+    copy_metadata = None
+
+try:
     ROOT = Path(SPECPATH).resolve()
 except NameError:
     ROOT = Path.cwd()
@@ -53,6 +58,26 @@ binaries: list = []
 hiddenimports: list[str] = []
 runtime_hooks: list[str] = []
 
+# Версия из pyproject.toml — в бандл, чтобы exe не зависел от stale dist-info.
+try:
+    import tomllib
+
+    _app_version = str(
+        tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        .get("project", {})
+        .get("version")
+        or ""
+    ).strip()
+except Exception:
+    _app_version = ""
+if _app_version:
+    _stamp_dir = ROOT / "build"
+    _stamp_dir.mkdir(parents=True, exist_ok=True)
+    _stamp = _stamp_dir / "quantis_version.txt"
+    _stamp.write_text(_app_version + "\n", encoding="utf-8")
+    datas.append((str(_stamp), "quantis"))
+    print(f"[Quantis] version {_app_version}")
+
 rthook = PACKAGING / f"rthook_backend_{BACKEND}.py"
 if rthook.is_file():
     runtime_hooks.append(str(rthook))
@@ -68,6 +93,12 @@ if (QUANTIS / "assets").is_dir():
     datas.append((str(QUANTIS / "assets"), "quantis/assets"))
 if (QUANTIS / "styles").is_dir():
     datas.append((str(QUANTIS / "styles"), "quantis/styles"))
+
+if copy_metadata is not None:
+    try:
+        datas += copy_metadata("quantis")
+    except Exception:
+        pass
 
 if (SITE / "ytmusicapi").is_dir():
     try:

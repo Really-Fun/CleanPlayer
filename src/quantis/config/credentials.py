@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from pathlib import Path
 
@@ -31,6 +32,38 @@ logger = logging.getLogger(__name__)
 
 _YTM_ORIGIN = "https://music.youtube.com"
 _COOKIE_NAME_RE = re.compile(r"^[A-Za-z0-9_.\-]+$")
+_MAX_SECRET_BYTES = 1_048_576
+
+
+def _chmod_private(path: Path, mode: int = 0o600) -> None:
+    try:
+        os.chmod(path, mode)
+    except OSError:
+        pass
+
+
+def _write_private_text(path: Path, text: str) -> None:
+    """Пишет секрет в файл с правами 0o600 (на POSIX)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    encoded = text.encode("utf-8")
+    if len(encoded) > _MAX_SECRET_BYTES:
+        raise ValueError("Файл cookies слишком большой")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    fd = os.open(path, flags, 0o600)
+    try:
+        os.write(fd, encoded)
+    finally:
+        os.close(fd)
+    _chmod_private(path)
+
+
+def _read_text_limited(path: Path, limit: int = _MAX_SECRET_BYTES) -> str:
+    data = path.read_bytes()
+    if len(data) > limit:
+        raise ValueError("Файл cookies слишком большой")
+    return data.decode("utf-8")
 
 
 def _youtube_cookie_path() -> Path:
@@ -74,11 +107,13 @@ def _write_netscape_cookies(cookie_header: str, dest: Path | None = None) -> Pat
         if not name or not _COOKIE_NAME_RE.match(name):
             continue
         # domain, include_subdomains, path, secure, expires, name, value
-        secure = "TRUE" if name.startswith("__Secure-") or name.startswith("__Host-") else "FALSE"
-        lines.append(
-            f".youtube.com\tTRUE\t/\t{secure}\t0\t{name}\t{value}"
+        secure = (
+            "TRUE"
+            if name.startswith("__Secure-") or name.startswith("__Host-")
+            else "FALSE"
         )
-    dest.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        lines.append(f".youtube.com\tTRUE\t/\t{secure}\t0\t{name}\t{value}")
+    _write_private_text(dest, "\n".join(lines) + "\n")
     return dest
 
 
@@ -94,9 +129,13 @@ def ensure_youtube_netscape_cookies() -> Path | None:
         return netscape if netscape.is_file() else None
 
     try:
-        auth_text = auth_path.read_text(encoding="utf-8").strip()
+        auth_text = _read_text_limited(auth_path).strip()
+        _chmod_private(auth_path)
     except OSError:
         logger.exception("Не удалось прочитать auth cookies")
+        return netscape if netscape.is_file() else None
+    except ValueError:
+        logger.warning("Auth cookies слишком большие, пропускаем")
         return netscape if netscape.is_file() else None
 
     cookie_header = _cookie_header_from_auth_json(auth_text)
@@ -117,7 +156,10 @@ def ensure_youtube_netscape_cookies() -> Path | None:
         except OSError:
             logger.exception("Не удалось записать Netscape cookies для yt-dlp")
             return None
-    return netscape if netscape.is_file() else None
+    if netscape.is_file():
+        _chmod_private(netscape)
+        return netscape
+    return None
 
 
 def youtube_yt_dlp_cookiefile() -> str | None:
@@ -180,7 +222,10 @@ def _looks_like_cookie_header(text: str) -> bool:
     parts = [p.strip() for p in text.split(";") if p.strip()]
     if len(parts) < 2:
         return False
-    return all("=" in p and _COOKIE_NAME_RE.match(p.split("=", 1)[0].strip()) for p in parts[:5])
+    return all(
+        "=" in p and _COOKIE_NAME_RE.match(p.split("=", 1)[0].strip())
+        for p in parts[:5]
+    )
 
 
 def _looks_like_raw_headers(text: str) -> bool:
@@ -192,7 +237,11 @@ def _looks_like_raw_headers(text: str) -> bool:
 
 def _auth_json_from_cookie_header(cookie_header: str) -> str:
     """Собирает browser.json для ytmusicapi из Cookie header."""
-    from ytmusicapi.helpers import get_authorization, initialize_headers, sapisid_from_cookie
+    from ytmusicapi.helpers import (
+        get_authorization,
+        initialize_headers,
+        sapisid_from_cookie,
+    )
 
     has_secure = "__Secure-3PAPISID=" in cookie_header
     has_sapisid = re.search(r"(?:^|;\s*)SAPISID=", cookie_header) is not None
@@ -207,12 +256,17 @@ def _auth_json_from_cookie_header(cookie_header: str) -> str:
     if not has_secure and has_sapisid:
         match = re.search(r"(?:^|;\s*)SAPISID=([^;]+)", cookie_header)
         if match:
-            cookie_header = cookie_header.rstrip("; ") + f"; __Secure-3PAPISID={match.group(1).strip()}"
+            cookie_header = (
+                cookie_header.rstrip("; ")
+                + f"; __Secure-3PAPISID={match.group(1).strip()}"
+            )
 
     try:
         sapisid = sapisid_from_cookie(cookie_header)
     except Exception as exc:
-        match = re.search(r"(?:^|;\s*)(?:__Secure-3PAPISID|SAPISID)=([^;]+)", cookie_header)
+        match = re.search(
+            r"(?:^|;\s*)(?:__Secure-3PAPISID|SAPISID)=([^;]+)", cookie_header
+        )
         if not match:
             raise ValueError(
                 "Не удалось прочитать SAPISID из кук. "
@@ -324,7 +378,12 @@ def yotube_cookie() -> str:
     path = _youtube_cookie_path()
     if path.is_file():
         try:
-            return path.read_text(encoding="utf-8").strip()
+            text = _read_text_limited(path).strip()
+            _chmod_private(path)
+            return text
+        except ValueError:
+            logger.warning("YouTube cookies слишком большие: %s", path)
+            return ""
         except OSError:
             logger.exception("Не удалось прочитать YouTube cookies из %s", path)
     try:
@@ -333,7 +392,7 @@ def yotube_cookie() -> str:
         legacy = ""
     if legacy:
         try:
-            path.write_text(legacy, encoding="utf-8")
+            _write_private_text(path, legacy)
             try:
                 delete_password(SERVICE_NAME_YOUTUBE_COOKIE, USER)
             except (KeyringError, PasswordDeleteError):
@@ -363,10 +422,15 @@ def save_youtube_cookie(cookie: str) -> None:
     path = _youtube_cookie_path()
     as_path = Path(value)
     if as_path.is_file() and as_path.resolve() != path.resolve():
-        value = as_path.read_text(encoding="utf-8")
+        try:
+            value = _read_text_limited(as_path)
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
         value = _normalize_youtube_auth(value)
     try:
-        path.write_text(value, encoding="utf-8")
+        _write_private_text(path, value)
+    except ValueError:
+        raise
     except OSError as exc:
         raise RuntimeError(f"Не удалось сохранить cookies: {exc}") from exc
 

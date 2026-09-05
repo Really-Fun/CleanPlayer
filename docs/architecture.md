@@ -81,7 +81,6 @@ packaging/            # PyInstaller rthooks для qt / vlc
 scripts/              # build_exe.py, build.ps1 — сборка Quantis / Quantis-VLC
 main.spec             # spec-файл PyInstaller
 tests/                # pytest, маркер @pytest.mark.network для сетевых тестов
-android/              # нативный Android-клиент (Kotlin + Compose)
 ```
 
 Карта интерфейса — страницы, оболочка окна и сигналы `EventBus` —

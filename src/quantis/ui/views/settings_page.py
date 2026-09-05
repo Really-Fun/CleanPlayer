@@ -26,6 +26,7 @@ from quantis.services.app_update import (
     display_version,
     fetch_latest_release,
     is_newer,
+    is_safe_release_url,
 )
 from quantis.services.wallpaper_policy import (
     WALLPAPER_FPS_CHOICES,
@@ -509,7 +510,7 @@ class SettingsPage(QWidget):
         current = app_version()
         tag = self._prefs.update_last_tag
         url = self._prefs.update_last_html_url
-        self._release_url = url
+        self._release_url = url if is_safe_release_url(url) else ""
         if tag and is_newer(current, tag):
             shown = display_version(tag)
             self._update_status.setText(f"Доступна {shown}")
@@ -561,5 +562,5 @@ class SettingsPage(QWidget):
         self._prefs.set_update_check_on_startup(checked)
 
     def _on_open_release(self) -> None:
-        if self._release_url:
+        if self._release_url and is_safe_release_url(self._release_url):
             QDesktopServices.openUrl(QUrl(self._release_url))

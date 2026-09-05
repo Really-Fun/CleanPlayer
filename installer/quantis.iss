@@ -5,8 +5,8 @@
 ;     poetry run python scripts/build_exe.py vlc
 ;
 ; Затем:
-;     iscc installer\quantis.iss
-;     iscc /DBackend=vlc installer\quantis.iss
+;     poetry run python scripts/build_installer.py
+;     poetry run python scripts/build_installer.py --backend vlc
 ;
 ; Приложение НЕ пишет ничего в свой каталог установки: музыка идёт в
 ; «Музыка\Quantis», остальные данные — в %LOCALAPPDATA%\Quantis. Поэтому
@@ -14,6 +14,10 @@
 
 #ifndef Backend
   #define Backend "qt"
+#endif
+
+#ifndef AppVersion
+  #error AppVersion is required. Use: poetry run python scripts/build_installer.py
 #endif
 
 #if Backend == "vlc"
@@ -25,7 +29,6 @@
 #endif
 
 #define AppName "Quantis" + AppSuffix
-#define AppVersion "0.1.1"
 #define AppPublisher "Really-Fun"
 #define AppUrl "https://github.com/Really-Fun/Quantis"
 #define SourceDir "..\dist\" + AppExeName

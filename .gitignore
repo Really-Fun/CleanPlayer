@@ -9,6 +9,7 @@ htmlcov/
 
 # PyInstaller
 *.spec.bak
+src/quantis/version.txt
 
 # Secrets
 *.pem

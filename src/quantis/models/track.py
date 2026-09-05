@@ -5,6 +5,7 @@
 2. Track — базовый дата класс трека
 3. YandexTrack — трек ЯндексМузыки
 4. YoutubeTrack — трек YouTube
+5. SoundCloudTrack — трек SoundCloud
 """
 
 from __future__ import annotations
@@ -16,12 +17,14 @@ from enum import StrEnum
 class TrackSource(StrEnum):
     """Перечисление поддерживаемых платформ.
 
-    Используется вместо строк ``"yandex"`` / ``"youtube"`` по всему коду.
+    Используется вместо строк ``"yandex"`` / ``"youtube"`` / ``"soundcloud"``
+    по всему коду.
     Совместимо со строками: ``TrackSource.YANDEX == "yandex"`` → ``True``.
     """
 
-    YANDEX  = "yandex"
+    YANDEX = "yandex"
     YOUTUBE = "youtube"
+    SOUNDCLOUD = "soundcloud"
 
 
 @dataclass(eq=False)
@@ -44,9 +47,8 @@ class Track:
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Track):
             return False
-        return (
-            str(self.source) == str(other.source)
-            and str(self.track_id) == str(other.track_id)
+        return str(self.source) == str(other.source) and str(self.track_id) == str(
+            other.track_id
         )
 
     def __hash__(self) -> int:
@@ -55,14 +57,23 @@ class Track:
 
 @dataclass(eq=False)
 class YandexTrack(Track):
-    """Трек Яндекс.Музыки."""
+    """Трек Яндекс.Музыки"""
 
     source: str = TrackSource.YANDEX
 
 
 @dataclass(eq=False)
 class YoutubeTrack(Track):
-    """Трек YouTube."""
+    """Трек YouTube"""
 
     source: str = TrackSource.YOUTUBE
     extension: str = "m4a"
+
+
+@dataclass(eq=False)
+class SoundCloudTrack(Track):
+    """Трек SoundCloud"""
+
+    source: str = TrackSource.SOUNDCLOUD
+    extension: str = "mp3"
+    thumbnail_url: str = ""

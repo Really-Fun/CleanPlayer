@@ -218,7 +218,8 @@ class HomeViewModel(BaseViewModel):
                 )
         except Exception as exc:
             logger.exception("Не удалось загрузить главную страницу")
-            bridge.invoke_main(lambda: self.emit_error(str(exc)))
+            message = str(exc)
+            bridge.invoke_main(lambda: self.emit_error(message))
         finally:
             bridge.invoke_main(lambda: self.set_loading(False))
 
@@ -607,7 +608,8 @@ class HomeViewModel(BaseViewModel):
             self.refresh_downloaded(bridge)
         except Exception as exc:
             logger.exception("Ошибка скачивания")
-            bridge.invoke_main(lambda: self.emit_error(str(exc)))
+            message = str(exc)
+            bridge.invoke_main(lambda: self.emit_error(message))
         finally:
             bridge.invoke_main(lambda: self.set_loading(False))
 

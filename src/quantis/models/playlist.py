@@ -11,14 +11,16 @@
 3. DownloadPlaylist - класс плейлиста системы
 4. RecentlyPlayedPlaylist - системный плейлист недавно прослушанных
 """
+
 from __future__ import annotations
 
 import json
 import os
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Iterable, Tuple
 
-from quantis.models.track import Track, YandexTrack, YoutubeTrack
+from quantis.models.track import SoundCloudTrack, Track, YandexTrack, YoutubeTrack
 from quantis.providers import PathProvider, TrackManager
 from quantis.types.upgrade_cycle import UpgradeCycle
 from quantis.utils import app_paths, get_asset_path
@@ -129,6 +131,7 @@ class Playlist(ABC):
 
     __repr__ = __str__
 
+
 class RecommendationPlaylist(Playlist):
     """Плейлист рекомендаций."""
 
@@ -169,16 +172,29 @@ class DownloadPlaylist(Playlist):
         return tuple(self.tracks.values)
 
     def delete_track(self, track: Track) -> bool:
-        path = PathProvider().get_track_path(track)
+        provider = PathProvider()
+        candidates = [Path(provider.get_track_path(track))]
+        music_dir = Path(provider.music_folder())
+        prefix = f"{provider.storage_id(track)}_"
         try:
-            os.remove(path)
-            super().delete_track(track)
-        except FileNotFoundError:
-            pass
+            for extra in music_dir.glob(f"{prefix}*"):
+                if extra.suffix.lower() in {".mp3", ".m4a"}:
+                    candidates.append(extra)
         except OSError:
             pass
+        seen: set[str] = set()
+        for path in candidates:
+            key = str(path)
+            if key in seen:
+                continue
+            seen.add(key)
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        super().delete_track(track)
         return True
-    
+
     @classmethod
     def get_playlist_from_path(cls, path_to_playlist: str) -> "DownloadPlaylist | None":
         """Получаем плейлист из файла
@@ -214,7 +230,17 @@ class DownloadPlaylist(Playlist):
                 if len(parts) < 3:
                     continue
                 track_id, track_title, track_author = parts
-                if track_id.isdigit():
+                if track_id.startswith("sc") and track_id[2:].isdigit():
+                    tracks.append(
+                        SoundCloudTrack(
+                            track_id=track_id[2:],
+                            title=track_title,
+                            author=track_author,
+                            downloaded=True,
+                            extension=ext,
+                        )
+                    )
+                elif track_id.isdigit():
                     tracks.append(
                         YandexTrack(
                             track_id=track_id,

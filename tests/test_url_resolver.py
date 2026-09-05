@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from quantis.services.url_resolver import (
     detect_source,
+    is_youtube_video_id,
+    parse_soundcloud_track_id,
     parse_track_id,
     parse_yandex_track_id,
     parse_youtube_video_id,
@@ -25,7 +27,10 @@ def test_parse_yandex_track_id() -> None:
 
 
 def test_parse_youtube_video_id_watch() -> None:
-    assert parse_youtube_video_id("https://www.youtube.com/watch?v=dQw4w9WgXcQ") == "dQw4w9WgXcQ"
+    assert (
+        parse_youtube_video_id("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        == "dQw4w9WgXcQ"
+    )
 
 
 def test_parse_youtube_video_id_short() -> None:
@@ -44,3 +49,38 @@ def test_parse_track_id_youtube() -> None:
 
 def test_parse_track_id_invalid() -> None:
     assert parse_track_id("https://example.com/foo") is None
+
+
+def test_detect_source_soundcloud() -> None:
+    assert detect_source("https://soundcloud.com/artist/track-name") == "soundcloud"
+    assert detect_source("https://m.soundcloud.com/artist/track-name") == "soundcloud"
+    assert detect_source("https://on.soundcloud.com/AbCdE") == "soundcloud"
+
+
+def test_parse_soundcloud_permalink() -> None:
+    assert (
+        parse_soundcloud_track_id("https://soundcloud.com/artist/track-name")
+        == "artist/track-name"
+    )
+
+
+def test_parse_soundcloud_api_id() -> None:
+    url = "https://api.soundcloud.com/tracks/123456"
+    assert parse_soundcloud_track_id(url) == "123456"
+
+
+def test_parse_soundcloud_skips_sets_and_profiles() -> None:
+    assert parse_soundcloud_track_id("https://soundcloud.com/artist/sets/album") is None
+    assert parse_soundcloud_track_id("https://soundcloud.com/artist") is None
+
+
+def test_parse_track_id_soundcloud() -> None:
+    parsed = parse_track_id("https://soundcloud.com/nemi/chill-phonk")
+    assert parsed == ("soundcloud", "nemi/chill-phonk")
+
+
+def test_is_youtube_video_id() -> None:
+    assert is_youtube_video_id("dQw4w9WgXcQ")
+    assert not is_youtube_video_id("vid")
+    assert not is_youtube_video_id("dQw4w9WgXcQ&list=evil")
+    assert not is_youtube_video_id("https://youtube.com/watch?v=dQw4w9WgXcQ")

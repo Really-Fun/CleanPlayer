@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from quantis.models import Track, TrackSource
+from quantis.services.soundcloud_streamer import AsyncSoundCloudStreamer
 from quantis.services.stream_cache import cached_stream_url
 from quantis.services.wallpaper_policy import WALLPAPER_DEFAULT_QUALITY
 from quantis.services.yandex_streamer import AsyncStreamerInterface, AsyncYandexStreamer
@@ -32,6 +33,7 @@ class AsyncStreamer(AsyncStreamerInterface):
         self._executor = executor or get_worker_pool()
         self._yandex = AsyncYandexStreamer(self._executor)
         self._youtube = AsyncYoutubeStreamer(self._executor)
+        self._soundcloud = AsyncSoundCloudStreamer(self._executor)
         self._stream_buffer = ProgressiveStreamBuffer(self._fetch_fresh_stream_url)
         self._buffer_loop: Any = None
         self._cache: OrderedDict[str, tuple[str, float]] = OrderedDict()
@@ -43,6 +45,8 @@ class AsyncStreamer(AsyncStreamerInterface):
             return await self._youtube.get_stream_url(track)
         if source_type == TrackSource.YANDEX:
             return await self._yandex.get_stream_url(track)
+        if source_type == TrackSource.SOUNDCLOUD:
+            return await self._soundcloud.get_stream_url(track)
         return None
 
     @cached_stream_url
@@ -52,6 +56,8 @@ class AsyncStreamer(AsyncStreamerInterface):
             return await self._youtube.get_stream_url(track)
         if source_type == TrackSource.YANDEX:
             return await self._yandex.get_stream_url(track)
+        if source_type == TrackSource.SOUNDCLOUD:
+            return await self._soundcloud.get_stream_url(track)
         raise ValueError(f"Неизвестный источник платформы у трека: {track.source!r}")
 
     async def open_playback(self, track: Track) -> str | None:

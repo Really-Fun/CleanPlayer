@@ -3,12 +3,20 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from time import time
 from typing import Any
 
 from quantis.utils import app_paths
+
+# Между сохранениями прогресса не больше этого (тики 5–20 с).
+# Отсекает перемотку в конец, которая иначе засчитывала бы весь микс.
+_MAX_PLAY_DELTA_MS = 45_000
+# Старые записи: listen_count × duration. Миксы 12–24 ч раздували «эфир».
+_LEGACY_LISTEN_CAP_MS = 20 * 60 * 1000
+_schema_lock = threading.Lock()
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,8 +45,12 @@ def _connect(db_path: Path | None = None) -> sqlite3.Connection:
 
 
 def ensure_schema(conn: sqlite3.Connection) -> None:
-    conn.execute(
-        """
+    with _schema_lock:
+        _ensure_schema_locked(conn)
+
+
+def _ensure_schema_locked(conn: sqlite3.Connection) -> None:
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS track_history (
             track_key TEXT PRIMARY KEY,
             title TEXT NOT NULL,
@@ -47,24 +59,19 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             position_ms INTEGER NOT NULL DEFAULT 0,
             duration_ms INTEGER NOT NULL DEFAULT 0,
             listen_count INTEGER NOT NULL DEFAULT 0,
-            last_played_at INTEGER NOT NULL
+            last_played_at INTEGER NOT NULL,
+            played_ms INTEGER NOT NULL DEFAULT 0
         );
-        """
-    )
-    conn.execute(
-        """
+        """)
+    conn.execute("""
         CREATE INDEX IF NOT EXISTS idx_track_history_last_played
         ON track_history(last_played_at DESC);
-        """
-    )
-    conn.execute(
-        """
+        """)
+    conn.execute("""
         CREATE INDEX IF NOT EXISTS idx_track_history_listen_count
         ON track_history(listen_count DESC);
-        """
-    )
-    conn.execute(
-        """
+        """)
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS liked_tracks (
             track_key TEXT PRIMARY KEY,
             title TEXT NOT NULL,
@@ -72,27 +79,57 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             source TEXT NOT NULL,
             liked_at INTEGER NOT NULL
         );
-        """
-    )
-    conn.execute(
-        """
+        """)
+    conn.execute("""
         CREATE INDEX IF NOT EXISTS idx_liked_tracks_liked_at
         ON liked_tracks(liked_at DESC);
-        """
-    )
+        """)
+    _ensure_played_ms_column(conn)
     conn.commit()
+
+
+def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    names: set[str] = set()
+    for row in rows:
+        name = row["name"] if isinstance(row, sqlite3.Row) else row[1]
+        names.add(str(name))
+    return names
+
+
+def _ensure_played_ms_column(conn: sqlite3.Connection) -> None:
+    if "played_ms" in _table_columns(conn, "track_history"):
+        return
+    try:
+        conn.execute(
+            "ALTER TABLE track_history ADD COLUMN played_ms INTEGER NOT NULL DEFAULT 0;"
+        )
+    except sqlite3.OperationalError as exc:
+        if "duplicate column" not in str(exc).lower():
+            raise
+        return
+    conn.execute(
+        """
+        UPDATE track_history
+        SET played_ms = listen_count * CASE
+            WHEN duration_ms <= 0 THEN 0
+            WHEN duration_ms > ? THEN ?
+            ELSE duration_ms
+        END
+        WHERE listen_count > 0;
+        """,
+        (_LEGACY_LISTEN_CAP_MS, _LEGACY_LISTEN_CAP_MS),
+    )
 
 
 def fetch_liked_entries(db_path: Path | None = None) -> list[dict[str, Any]]:
     with _connect(db_path) as conn:
         ensure_schema(conn)
-        cursor = conn.execute(
-            """
+        cursor = conn.execute("""
             SELECT track_key, title, author, source, liked_at
             FROM liked_tracks
             ORDER BY liked_at DESC;
-            """
-        )
+            """)
         return [dict(row) for row in cursor.fetchall()]
 
 
@@ -160,24 +197,20 @@ def fetch_recent_entries(
 def fetch_listening_summary(db_path: Path | None = None) -> ListeningSummary:
     with _connect(db_path) as conn:
         ensure_schema(conn)
-        totals = conn.execute(
-            """
+        totals = conn.execute("""
             SELECT COUNT(*) AS unique_tracks,
                    COALESCE(SUM(listen_count), 0) AS total_listens,
-                   COALESCE(SUM(listen_count * duration_ms), 0) AS listened_ms
+                   COALESCE(SUM(played_ms), 0) AS listened_ms
             FROM track_history;
-            """
-        ).fetchone()
-        artist = conn.execute(
-            """
+            """).fetchone()
+        artist = conn.execute("""
             SELECT author, SUM(listen_count) AS listens
             FROM track_history
             WHERE trim(author) != ''
             GROUP BY author
             ORDER BY listens DESC, author ASC
             LIMIT 1;
-            """
-        ).fetchone()
+            """).fetchone()
         return ListeningSummary(
             unique_tracks=int(totals["unique_tracks"] or 0),
             total_listens=int(totals["total_listens"] or 0),
@@ -235,19 +268,35 @@ def upsert_progress(
 ) -> None:
     with _connect(db_path) as conn:
         ensure_schema(conn)
+        position = max(0, int(position_ms))
+        duration = max(0, int(duration_ms))
+        increment = max(0, int(listen_increment))
+        initial_played = 0
+        if increment > 0:
+            initial_played = position if duration <= 0 else min(position, duration)
         conn.execute(
             """
             INSERT INTO track_history (
                 track_key, title, author, source, position_ms, duration_ms,
-                listen_count, last_played_at
+                listen_count, last_played_at, played_ms
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(track_key) DO UPDATE SET
                 title = excluded.title,
                 author = excluded.author,
                 source = excluded.source,
+                played_ms = track_history.played_ms + MAX(
+                    0,
+                    MIN(
+                        excluded.position_ms - track_history.position_ms,
+                        ?
+                    )
+                ),
                 position_ms = excluded.position_ms,
-                duration_ms = excluded.duration_ms,
+                duration_ms = CASE
+                    WHEN excluded.duration_ms > 0 THEN excluded.duration_ms
+                    ELSE track_history.duration_ms
+                END,
                 listen_count = track_history.listen_count + excluded.listen_count,
                 last_played_at = excluded.last_played_at;
             """,
@@ -256,10 +305,12 @@ def upsert_progress(
                 title,
                 author,
                 source,
-                max(0, position_ms),
-                max(0, duration_ms),
-                max(0, listen_increment),
+                position,
+                duration,
+                increment,
                 int(time()),
+                initial_played,
+                _MAX_PLAY_DELTA_MS,
             ),
         )
         conn.commit()

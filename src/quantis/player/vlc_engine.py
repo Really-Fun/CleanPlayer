@@ -78,6 +78,7 @@ class VlcMediaEngine:
         self._stopped_cbs: list[Callable[[], None]] = []
         self._ended_cbs: list[Callable[[], None]] = []
         self._error_cbs: list[Callable[[str], None]] = []
+        self._pending_seek_ms = 0
 
         self._bridge.playing.connect(lambda: self._fire(self._playing_cbs))
         self._bridge.paused.connect(lambda: self._fire(self._paused_cbs))
@@ -107,6 +108,7 @@ class VlcMediaEngine:
 
     def _on_vlc_playing(self, _event) -> None:
         self._emit(self._bridge.playing)
+        QTimer.singleShot(0, self._apply_pending_seek)
 
     def _on_vlc_paused(self, _event) -> None:
         self._emit(self._bridge.paused)
@@ -121,6 +123,7 @@ class VlcMediaEngine:
         QTimer.singleShot(0, lambda: self._bridge.errored.emit("VLC playback error"))
 
     def play_media(self, source: str) -> None:
+        self._pending_seek_ms = 0
         path = source
         if not source.startswith(("http://", "https://", "file:")):
             path = str(Path(source).resolve())
@@ -135,8 +138,10 @@ class VlcMediaEngine:
 
     def resume_media(self) -> None:
         self._player.set_pause(0)
+        self._schedule_pending_seek()
 
     def stop_media(self) -> None:
+        self._pending_seek_ms = 0
         self._player.stop()
 
     def is_playing(self) -> bool:
@@ -148,6 +153,28 @@ class VlcMediaEngine:
 
     def set_position_ms(self, ms: int) -> None:
         self._player.set_time(max(0, int(ms)))
+
+    def request_seek(self, ms: int) -> None:
+        self._pending_seek_ms = max(0, int(ms))
+        self._schedule_pending_seek()
+
+    def _schedule_pending_seek(self) -> None:
+        QTimer.singleShot(0, self._apply_pending_seek)
+        QTimer.singleShot(250, self._apply_pending_seek)
+        QTimer.singleShot(800, self._apply_pending_seek)
+
+    def _apply_pending_seek(self) -> None:
+        ms = self._pending_seek_ms
+        if ms <= 0:
+            return
+        duration = self.get_duration_ms()
+        target = ms
+        if duration > 400:
+            target = min(ms, duration - 400)
+        self._player.set_time(target)
+        position = self.get_position_ms()
+        if duration > 0 and abs(position - target) <= 2000:
+            self._pending_seek_ms = 0
 
     def get_duration_ms(self) -> int:
         value = self._player.get_length()

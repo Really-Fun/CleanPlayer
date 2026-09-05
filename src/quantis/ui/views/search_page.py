@@ -58,7 +58,7 @@ class SearchPage(QWidget):
 
         self._query = QLineEdit()
         self._query.setObjectName("searchInput")
-        self._query.setPlaceholderText("Трек, артист или альбом…")
+        self._query.setPlaceholderText("Трек, артист, альбом или ссылка…")
         self._query.setClearButtonEnabled(True)
         self._query.textChanged.connect(self._vm.search)
         self._query.returnPressed.connect(self._trigger_search)
@@ -69,7 +69,9 @@ class SearchPage(QWidget):
         self._advanced_toggle.setText("Расширенный")
         self._advanced_toggle.setCheckable(True)
         self._advanced_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._advanced_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._advanced_toggle.setToolButtonStyle(
+            Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+        )
         self._advanced_toggle.toggled.connect(self._on_advanced_toggled)
         search_row.addWidget(self._advanced_toggle)
 
@@ -84,6 +86,7 @@ class SearchPage(QWidget):
             ("all", "Все"),
             ("yandex", "Яндекс"),
             ("youtube", "YouTube"),
+            ("soundcloud", "SoundCloud"),
         ):
             chip = QToolButton()
             chip.setObjectName("sourceFilterChip")
@@ -95,7 +98,9 @@ class SearchPage(QWidget):
                 chip.setChecked(True)
             self._filter_group.addButton(chip)
             filters.addWidget(chip)
-            chip.clicked.connect(lambda checked=False, k=key: self._vm.set_source_filter(k))
+            chip.clicked.connect(
+                lambda checked=False, k=key: self._vm.set_source_filter(k)
+            )
         filters.addStretch()
         panel_layout.addLayout(filters)
 
@@ -115,7 +120,9 @@ class SearchPage(QWidget):
         self._list.setModel(self._vm.model)
         self._list.verticalHeader().hide()
         self._list.horizontalHeader().hide()
-        self._list.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self._list.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.Stretch
+        )
         self._list.verticalHeader().setDefaultSectionSize(TrackCardDelegate.CARD_HEIGHT)
         self._list.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         self._list.setShowGrid(False)
@@ -156,7 +163,9 @@ class SearchPage(QWidget):
         grid.addWidget(title, 0, 0, 1, 3)
 
         self._adv_url = QLineEdit()
-        self._adv_url.setPlaceholderText("Ссылка на трек (YouTube или Yandex Music)")
+        self._adv_url.setPlaceholderText(
+            "Ссылка на трек (YouTube, Yandex Music или SoundCloud)"
+        )
         self._adv_url.setObjectName("advancedField")
 
         self._adv_track_id = QLineEdit()
@@ -167,6 +176,7 @@ class SearchPage(QWidget):
         self._adv_source.setObjectName("advancedSort")
         self._adv_source.addItem("Яндекс", "yandex")
         self._adv_source.addItem("YouTube", "youtube")
+        self._adv_source.addItem("SoundCloud", "soundcloud")
 
         grid.addWidget(self._labeled("Ссылка", self._adv_url), 1, 0, 1, 3)
         grid.addWidget(self._labeled("ID трека", self._adv_track_id), 2, 0)

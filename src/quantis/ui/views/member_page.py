@@ -191,8 +191,9 @@ class MemberPage(QWidget):
         try:
             snapshot = await fetch_membership_snapshot()
         except Exception as exc:
+            message = str(exc)
             if self._bridge is not None:
-                self._bridge.invoke_main(lambda: self._on_membership_failed(str(exc)))
+                self._bridge.invoke_main(lambda: self._on_membership_failed(message))
             return
         if self._bridge is not None:
             self._bridge.invoke_main(lambda: self._apply_membership(snapshot))

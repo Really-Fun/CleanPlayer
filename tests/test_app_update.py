@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from quantis.services.app_update import (
@@ -11,13 +13,14 @@ from quantis.services.app_update import (
     display_version,
     fetch_latest_release,
     is_newer,
+    is_safe_release_url,
     normalize_version,
     parse_release_payload,
     should_announce,
     should_auto_check,
     skip_update_check,
 )
-from quantis.version import __version__
+from quantis.version import __version__, project_version
 
 
 @pytest.fixture(autouse=True)
@@ -25,9 +28,18 @@ def _clear_skip_env(monkeypatch) -> None:
     monkeypatch.delenv(SKIP_ENV, raising=False)
 
 
-def test_app_version_matches_package_constant() -> None:
+def test_app_version_matches_pyproject() -> None:
+    assert project_version()
+    assert __version__ == project_version()
     assert app_version() == __version__
-    assert __version__ == "0.1.1"
+
+
+def test_project_version_reads_given_root(tmp_path: Path) -> None:
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "quantis"\nversion = "9.9.9"\n',
+        encoding="utf-8",
+    )
+    assert project_version(tmp_path) == "9.9.9"
 
 
 def test_display_version_strips_v_prefix() -> None:
@@ -93,6 +105,23 @@ def test_parse_release_requires_tag_and_url() -> None:
         parse_release_payload({"html_url": "https://example.com"})
     with pytest.raises(ValueError, match="html_url"):
         parse_release_payload({"tag_name": "v0.2.0"})
+
+
+def test_parse_release_rejects_foreign_html_url() -> None:
+    with pytest.raises(ValueError, match="html_url"):
+        parse_release_payload(
+            {
+                "tag_name": "v0.2.0",
+                "html_url": "https://evil.example/Quantis",
+            }
+        )
+    assert not is_safe_release_url("javascript:alert(1)")
+    assert not is_safe_release_url(
+        "https://github.com/Really-Fun/Quantis-malware/releases"
+    )
+    assert is_safe_release_url(
+        "https://github.com/Really-Fun/Quantis/releases/tag/v0.2.0"
+    )
 
 
 def test_should_announce_respects_dismissed_tag() -> None:

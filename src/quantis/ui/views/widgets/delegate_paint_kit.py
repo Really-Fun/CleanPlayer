@@ -16,6 +16,7 @@ C_INDEX = QColor(138, 146, 166)
 C_INDEX_PLAYING = QColor(108, 92, 231)
 C_YT = QColor(255, 78, 69)
 C_YA = QColor(255, 219, 77)
+C_SC = QColor(255, 119, 0)
 C_PILL_TEXT = QColor(20, 22, 28)
 
 _UI = "Bahnschrift"
@@ -32,9 +33,11 @@ FONT_EDITORIAL_INDEX = QFont("Georgia", 28, QFont.Weight.Light)
 SOURCE_LABELS = {
     "youtube": "YT",
     "yandex": "YA",
+    "soundcloud": "SC",
 }
 
 SOURCE_COLORS = {
     "youtube": C_YT,
     "yandex": C_YA,
+    "soundcloud": C_SC,
 }

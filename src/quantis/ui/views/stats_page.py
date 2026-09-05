@@ -38,14 +38,17 @@ def _ru_times(count: int) -> str:
 
 
 def _format_span(ms: int) -> str:
-    total_min = max(0, ms) // 60_000
+    """Часы до двух суток, затем дни — чтобы карточка не резала «1 д 12 ч»."""
+    total_min = max(0, int(ms)) // 60_000
     if total_min < 60:
         return f"{total_min} мин"
     hours, minutes = divmod(total_min, 60)
-    if hours < 24:
+    if hours < 48:
         return f"{hours} ч {minutes} мин" if minutes else f"{hours} ч"
-    days, hours = divmod(hours, 24)
-    return f"{days} д {hours} ч"
+    days, rest_hours = divmod(hours, 24)
+    if rest_hours:
+        return f"{days} д {rest_hours} ч"
+    return f"{days} д"
 
 
 class _MetricCard(QFrame):
@@ -57,6 +60,10 @@ class _MetricCard(QFrame):
         layout.setSpacing(4)
         self._value = QLabel("—")
         self._value.setObjectName("statsMetricValue")
+        self._value.setWordWrap(True)
+        self._value.setAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
         layout.addWidget(self._value)
         caption = QLabel(label)
         caption.setObjectName("statsMetricLabel")
@@ -65,6 +72,7 @@ class _MetricCard(QFrame):
 
     def set_value(self, text: str) -> None:
         self._value.setText(text)
+        self._value.setToolTip(text)
 
 
 class StatsPage(QWidget):
@@ -208,12 +216,8 @@ class StatsPage(QWidget):
             )
         else:
             self._subtitle.setText("Дослушай трек до конца — он попадёт в топ")
-        self._most_section.set_badge(
-            str(len(snap.most)) if snap.most else ""
-        )
-        self._least_section.set_badge(
-            str(len(snap.least)) if snap.least else ""
-        )
+        self._most_section.set_badge(str(len(snap.most)) if snap.most else "")
+        self._least_section.set_badge(str(len(snap.least)) if snap.least else "")
         self._bars.set_tracks(list(snap.most))
 
     def _on_play_most(self, index: int) -> None:

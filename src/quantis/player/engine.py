@@ -26,9 +26,11 @@ class QtMediaEngine:
         self._ended_cbs: list[Callable[[], None]] = []
         self._error_cbs: list[Callable[[str], None]] = []
 
+        self._pending_seek_ms = 0
         self._player.mediaStatusChanged.connect(self._on_media_status)
         self._player.playbackStateChanged.connect(self._on_playback_state)
         self._player.errorOccurred.connect(self._on_error)
+        self._player.durationChanged.connect(self._on_duration_changed)
 
     @property
     def media_player(self) -> QMediaPlayer:
@@ -46,6 +48,7 @@ class QtMediaEngine:
         return QUrl.fromLocalFile(str(Path(source).resolve()))
 
     def play_media(self, source: str) -> None:
+        self._pending_seek_ms = 0
         self._player.setSource(self._to_url(source))
         self._player.play()
 
@@ -54,8 +57,10 @@ class QtMediaEngine:
 
     def resume_media(self) -> None:
         self._player.play()
+        self._apply_pending_seek()
 
     def stop_media(self) -> None:
+        self._pending_seek_ms = 0
         self._player.stop()
 
     def is_playing(self) -> bool:
@@ -68,6 +73,34 @@ class QtMediaEngine:
 
     def set_position_ms(self, ms: int) -> None:
         self._player.setPosition(max(0, int(ms)))
+
+    def request_seek(self, ms: int) -> None:
+        self._pending_seek_ms = max(0, int(ms))
+        self._apply_pending_seek()
+
+    def _apply_pending_seek(self) -> None:
+        ms = self._pending_seek_ms
+        if ms <= 0:
+            return
+        duration = self.get_duration_ms()
+        status = self._player.mediaStatus()
+        ready = status in (
+            QMediaPlayer.MediaStatus.LoadedMedia,
+            QMediaPlayer.MediaStatus.BufferingMedia,
+            QMediaPlayer.MediaStatus.BufferedMedia,
+        )
+        if duration <= 0 and not ready:
+            return
+        target = ms
+        if duration > 400:
+            target = min(ms, duration - 400)
+        self._player.setPosition(target)
+        position = self.get_position_ms()
+        if duration > 0 and abs(position - target) <= 1500:
+            self._pending_seek_ms = 0
+
+    def _on_duration_changed(self, _duration: int) -> None:
+        self._apply_pending_seek()
 
     def get_duration_ms(self) -> int:
         return max(0, int(self._player.duration()))
@@ -94,6 +127,7 @@ class QtMediaEngine:
         self._error_cbs.append(callback)
 
     def _on_media_status(self, status: QMediaPlayer.MediaStatus) -> None:
+        self._apply_pending_seek()
         if status != QMediaPlayer.MediaStatus.EndOfMedia:
             return
         duration = self.get_duration_ms()
