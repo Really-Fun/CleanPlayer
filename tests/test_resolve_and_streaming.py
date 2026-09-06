@@ -8,7 +8,34 @@ import pytest
 
 from quantis.models import SoundCloudTrack, YandexTrack, YoutubeTrack
 from quantis.services.async_finder import AsyncFinder
-from quantis.services.async_streamer import AsyncStreamer
+from quantis.services.async_streamer import (
+    AsyncStreamer,
+    is_hls_url,
+    should_buffer_stream,
+)
+
+_BACKEND = "quantis.services.async_streamer.resolve_media_backend"
+
+
+def test_is_hls_url() -> None:
+    assert is_hls_url("https://cf-hls-media.sndcdn.com/playlist.m3u8")
+    assert is_hls_url("https://api.soundcloud.com/media/x/stream/hls")
+    assert not is_hls_url("https://cf-media.sndcdn.com/track.mp3")
+    assert not is_hls_url(None)
+
+
+def test_should_buffer_stream_by_backend() -> None:
+    yandex = YandexTrack(track_id="1", title="T", author="A")
+    sc = SoundCloudTrack(track_id="2", title="T", author="A")
+    youtube = YoutubeTrack(track_id="abc", title="T", author="A")
+    hls = "https://cf-hls-media.sndcdn.com/playlist.m3u8"
+    mp3 = "https://cf-media.sndcdn.com/track.mp3"
+
+    assert should_buffer_stream(yandex, backend="qt")
+    assert not should_buffer_stream(yandex, backend="vlc")
+    assert should_buffer_stream(sc, backend="qt", url=mp3)
+    assert not should_buffer_stream(sc, backend="qt", url=hls)
+    assert not should_buffer_stream(youtube, backend="qt")
 
 
 @pytest.mark.asyncio
@@ -151,11 +178,13 @@ async def test_open_playback_youtube_uses_direct_url() -> None:
 
 
 @pytest.mark.asyncio
-async def test_open_playback_soundcloud_uses_direct_url() -> None:
+async def test_open_playback_vlc_yandex_uses_direct_url() -> None:
     streamer = AsyncStreamer()
-    track = SoundCloudTrack(track_id="123", title="T", author="A")
+    track = YandexTrack(track_id="1", title="T", author="A")
+    direct = "https://storage.mds.yandex.net/get-mp3/track.mp3"
 
     with (
+        patch(_BACKEND, return_value="vlc"),
         patch.object(
             streamer._stream_buffer,
             "open",
@@ -165,12 +194,40 @@ async def test_open_playback_soundcloud_uses_direct_url() -> None:
             streamer,
             "get_stream_url",
             new_callable=AsyncMock,
-            return_value="https://cf-media.sndcdn.com/track.mp3",
+            return_value=direct,
         ) as url_mock,
     ):
         result = await streamer.open_playback(track)
 
-    assert result == "https://cf-media.sndcdn.com/track.mp3"
+    assert result == direct
+    url_mock.assert_awaited_once_with(track)
+    buffer_mock.assert_not_awaited()
+    streamer.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_open_playback_soundcloud_uses_direct_url() -> None:
+    streamer = AsyncStreamer()
+    track = SoundCloudTrack(track_id="123", title="T", author="A")
+    direct = "https://cf-media.sndcdn.com/track.mp3"
+
+    with (
+        patch(_BACKEND, return_value="vlc"),
+        patch.object(
+            streamer._stream_buffer,
+            "open",
+            new_callable=AsyncMock,
+        ) as buffer_mock,
+        patch.object(
+            streamer,
+            "get_stream_url",
+            new_callable=AsyncMock,
+            return_value=direct,
+        ) as url_mock,
+    ):
+        result = await streamer.open_playback(track)
+
+    assert result == direct
     url_mock.assert_awaited_once_with(track)
     buffer_mock.assert_not_awaited()
     streamer.shutdown()
@@ -182,7 +239,7 @@ async def test_open_playback_qt_yandex_uses_buffer() -> None:
     track = YandexTrack(track_id="1", title="T", author="A")
 
     with (
-        patch("quantis.config.media_backend.resolve_media_backend", return_value="qt"),
+        patch(_BACKEND, return_value="qt"),
         patch.object(
             streamer._stream_buffer,
             "open",
@@ -197,4 +254,61 @@ async def test_open_playback_qt_yandex_uses_buffer() -> None:
     assert result == "/tmp/quantis_stream/yandex_1.mp3"
     buffer_mock.assert_awaited_once_with(track)
     url_mock.assert_not_awaited()
+    streamer.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_open_playback_qt_soundcloud_uses_buffer() -> None:
+    streamer = AsyncStreamer()
+    track = SoundCloudTrack(track_id="123", title="T", author="A")
+
+    with (
+        patch(_BACKEND, return_value="qt"),
+        patch.object(
+            streamer._stream_buffer,
+            "open",
+            new_callable=AsyncMock,
+            return_value="/tmp/quantis_stream/soundcloud_123.mp3",
+        ) as buffer_mock,
+        patch.object(streamer._stream_buffer, "cleanup_old_files"),
+        patch.object(
+            streamer,
+            "get_stream_url",
+            new_callable=AsyncMock,
+            return_value="https://cf-media.sndcdn.com/track.mp3",
+        ) as url_mock,
+    ):
+        result = await streamer.open_playback(track)
+
+    assert result == "/tmp/quantis_stream/soundcloud_123.mp3"
+    buffer_mock.assert_awaited_once_with(track)
+    url_mock.assert_awaited_once_with(track)
+    streamer.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_open_playback_qt_soundcloud_hls_uses_direct_url() -> None:
+    streamer = AsyncStreamer()
+    track = SoundCloudTrack(track_id="123", title="T", author="A")
+    hls = "https://cf-hls-media.sndcdn.com/playlist.m3u8"
+
+    with (
+        patch(_BACKEND, return_value="qt"),
+        patch.object(
+            streamer._stream_buffer,
+            "open",
+            new_callable=AsyncMock,
+        ) as buffer_mock,
+        patch.object(
+            streamer,
+            "get_stream_url",
+            new_callable=AsyncMock,
+            return_value=hls,
+        ) as url_mock,
+    ):
+        result = await streamer.open_playback(track)
+
+    assert result == hls
+    url_mock.assert_awaited_once_with(track)
+    buffer_mock.assert_not_awaited()
     streamer.shutdown()

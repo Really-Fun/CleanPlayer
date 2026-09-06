@@ -79,10 +79,18 @@ def track_from_ydl(info: dict[str, Any] | None) -> SoundCloudTrack | None:
         thumbs = info.get("thumbnails") or []
         if thumbs:
             thumbnail = str(thumbs[-1].get("url") or "")
+    duration_sec = info.get("duration")
+    duration_ms = 0
+    try:
+        if duration_sec:
+            duration_ms = max(0, int(float(duration_sec) * 1000))
+    except (TypeError, ValueError):
+        duration_ms = 0
     return SoundCloudTrack(
         track_id=str(track_id),
         title=title,
         author=str(author),
         downloaded=False,
         thumbnail_url=thumbnail,
+        duration_ms=duration_ms,
     )

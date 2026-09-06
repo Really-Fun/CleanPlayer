@@ -7,6 +7,7 @@ from pathlib import Path
 from quantis.database.sync_history import (
     fetch_listening_summary,
     fetch_ranked_entries,
+    listen_delta_ms,
     upsert_progress,
 )
 from quantis.ui.views.stats_page import _format_span
@@ -276,3 +277,121 @@ def test_format_span_keeps_hours_until_two_days() -> None:
     assert _format_span(36 * 3_600_000) == "36 ч"
     assert _format_span(48 * 3_600_000) == "2 д"
     assert _format_span(50 * 3_600_000) == "2 д 2 ч"
+
+
+def test_wall_clock_counts_when_duration_and_position_are_zero(tmp_path: Path) -> None:
+    """Плеер часто отдаёт duration=0 — эфир должен идти по реальному времени."""
+    db = tmp_path / "wall.db"
+    upsert_progress(
+        track_key="youtube:x",
+        title="Clip",
+        author="A",
+        source="youtube",
+        position_ms=0,
+        duration_ms=0,
+        played_delta_ms=0,
+        db_path=db,
+    )
+    for _ in range(36):
+        upsert_progress(
+            track_key="youtube:x",
+            title="Clip",
+            author="A",
+            source="youtube",
+            position_ms=0,
+            duration_ms=0,
+            played_delta_ms=5_000,
+            db_path=db,
+        )
+    upsert_progress(
+        track_key="youtube:x",
+        title="Clip",
+        author="A",
+        source="youtube",
+        position_ms=0,
+        duration_ms=180_000,
+        listen_increment=1,
+        played_delta_ms=0,
+        db_path=db,
+    )
+    summary = fetch_listening_summary(db)
+    assert summary.listened_ms == 180_000
+    row = fetch_ranked_entries(1, min_listens=0, db_path=db)[0]
+    assert row["duration_ms"] == 180_000
+
+
+def test_listen_delta_normal_playback_takes_agreed_progress() -> None:
+    assert listen_delta_ms(
+        wall_ms=5_000,
+        position_ms=15_000,
+        last_position_ms=10_000,
+        duration_ms=180_000,
+    ) == 5_000
+    assert listen_delta_ms(
+        wall_ms=5_000,
+        position_ms=16_000,
+        last_position_ms=10_000,
+        duration_ms=180_000,
+    ) == 6_000
+
+
+def test_listen_delta_stuck_slider_uses_wall_clock() -> None:
+    assert listen_delta_ms(
+        wall_ms=5_000,
+        position_ms=0,
+        last_position_ms=0,
+        duration_ms=0,
+    ) == 5_000
+
+
+def test_listen_delta_seek_to_end_of_long_mix_uses_wall_only() -> None:
+    assert listen_delta_ms(
+        wall_ms=2_000,
+        position_ms=3_600_000,
+        last_position_ms=10_000,
+        duration_ms=3_600_000,
+    ) == 2_000
+
+
+def test_listen_delta_seek_backward_uses_wall_only() -> None:
+    assert listen_delta_ms(
+        wall_ms=5_000,
+        position_ms=1_000,
+        last_position_ms=50_000,
+        duration_ms=180_000,
+    ) == 5_000
+
+
+def test_listen_delta_paused_does_not_count_slider_moves() -> None:
+    assert listen_delta_ms(
+        wall_ms=0,
+        position_ms=15_000,
+        last_position_ms=10_000,
+        duration_ms=180_000,
+    ) == 0
+
+
+def test_catalog_duration_is_kept_when_player_reports_zero(tmp_path: Path) -> None:
+    db = tmp_path / "catalog.db"
+    upsert_progress(
+        track_key="yandex:1",
+        title="Hit",
+        author="A",
+        source="yandex",
+        position_ms=1_000,
+        duration_ms=180_000,
+        db_path=db,
+    )
+    upsert_progress(
+        track_key="yandex:1",
+        title="Hit",
+        author="A",
+        source="yandex",
+        position_ms=2_000,
+        duration_ms=0,
+        played_delta_ms=5_000,
+        db_path=db,
+    )
+    row = fetch_ranked_entries(1, min_listens=0, db_path=db)[0]
+    assert row["duration_ms"] == 180_000
+    assert fetch_listening_summary(db).listened_ms == 5_000

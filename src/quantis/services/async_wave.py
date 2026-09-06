@@ -164,6 +164,8 @@ class AsyncWaveService:
 
     def _duration_seconds(self, track: Track) -> float:
         ms = self._durations_ms.get(str(track.track_id))
+        if not ms:
+            ms = int(getattr(track, "duration_ms", 0) or 0)
         if ms and ms > 0:
             return float(ms) / 1000.0
         return 0.0

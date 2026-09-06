@@ -18,6 +18,7 @@ import yandex_music.exceptions
 from quantis.config import Clients
 from quantis.config.credentials import yandex_token
 from quantis.models import Track, YoutubeTrack
+from quantis.models.track import clock_to_ms, seconds_to_ms
 from quantis.services.soundcloud_finder import AsyncSoundCloudFinder
 from quantis.services.yandex_finder import (
     yandex_track_from_api,
@@ -25,6 +26,23 @@ from quantis.services.yandex_finder import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _youtube_duration_ms(payload: dict | None) -> int:
+    if not payload:
+        return 0
+    for key in ("duration_seconds", "lengthSeconds", "length_seconds"):
+        ms = seconds_to_ms(payload.get(key))
+        if ms:
+            return ms
+    duration = payload.get("duration")
+    if isinstance(duration, (int, float)) or (
+        isinstance(duration, str) and duration.strip().isdigit()
+    ):
+        ms = seconds_to_ms(duration)
+        if ms:
+            return ms
+    return clock_to_ms(duration)
 
 
 class AsyncFinderInterface(ABC):
@@ -156,6 +174,7 @@ class AsyncYoutubeFinder(AsyncFinderInterface):
                 title=title,
                 author=str(artists),
                 downloaded=False,
+                duration_ms=_youtube_duration_ms(info),
             )
         except Exception as exc:
             logger.debug("yt-dlp не разобрал URL %s: %s", url, exc)
@@ -192,6 +211,7 @@ class AsyncYoutubeFinder(AsyncFinderInterface):
                     title=track.get("title"),
                     author=authors,
                     downloaded=False,
+                    duration_ms=_youtube_duration_ms(track),
                 )
             )
         return tracks
@@ -212,6 +232,7 @@ class AsyncYoutubeFinder(AsyncFinderInterface):
                 title=track_title,
                 author=authors,
                 downloaded=False,
+                duration_ms=_youtube_duration_ms(video_details),
             )
         except Exception as e:
             logger.error("Ошибка YTMusic при получении трека %s: %s", track_id, e)

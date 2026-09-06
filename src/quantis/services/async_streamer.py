@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
+from quantis.config.media_backend import resolve_media_backend
 from quantis.models import Track, TrackSource
 from quantis.services.soundcloud_streamer import AsyncSoundCloudStreamer
 from quantis.services.stream_cache import cached_stream_url
@@ -17,6 +18,31 @@ from quantis.services.yandex_streamer import AsyncStreamerInterface, AsyncYandex
 from quantis.services.youtube_streamer import AsyncYoutubeStreamer
 
 logger = logging.getLogger(__name__)
+
+_BUFFER_SOURCES = frozenset({TrackSource.YANDEX, TrackSource.SOUNDCLOUD})
+
+
+def is_hls_url(url: str | None) -> bool:
+    """HLS (m3u8) Qt Multimedia обычно не открывает; VLC — да."""
+    if not url:
+        return False
+    lower = url.lower()
+    return ".m3u8" in lower or "m3u8" in lower or "/hls" in lower
+
+
+def should_buffer_stream(
+    track: Track,
+    *,
+    backend: str | None = None,
+    url: str | None = None,
+) -> bool:
+    """Qt + progressive MP3 (Yandex/SoundCloud). VLC и HLS — прямой URL."""
+    chosen = backend or resolve_media_backend()
+    if chosen == "vlc":
+        return False
+    if str(track.source).lower() not in _BUFFER_SOURCES:
+        return False
+    return not is_hls_url(url)
 
 
 class AsyncStreamer(AsyncStreamerInterface):
@@ -61,14 +87,33 @@ class AsyncStreamer(AsyncStreamerInterface):
         raise ValueError(f"Неизвестный источник платформы у трека: {track.source!r}")
 
     async def open_playback(self, track: Track) -> str | None:
-        """Yandex — progressive buffer; YouTube — прямой HTTPS URL (часовые ролики)."""
+        """VLC — прямой URL. Qt: Yandex/SoundCloud MP3 в temp, YouTube/HLS — URL."""
         source_type = str(track.source).lower()
-        if source_type == TrackSource.YANDEX:
+        url: str | None = None
+        if source_type == TrackSource.SOUNDCLOUD:
+            url = await self.get_stream_url(track)
+            if not url:
+                return None
+            if is_hls_url(url) and resolve_media_backend() != "vlc":
+                logger.warning(
+                    "SoundCloud HLS «%s» — Qt Multimedia может не открыть поток",
+                    track.title,
+                )
+
+        if should_buffer_stream(track, url=url):
             self._buffer_loop = get_running_loop()
             path = await self._stream_buffer.open(track)
             if path:
                 self._stream_buffer.cleanup_old_files(keep=Path(path))
-            return path
+                return path
+            logger.warning(
+                "Stream buffer не открылся для «%s» — прямой URL",
+                track.title,
+            )
+            return url or await self.get_stream_url(track)
+
+        if url:
+            return url
         return await self.get_stream_url(track)
 
     async def prefetch_stream(self, track: Track) -> None:

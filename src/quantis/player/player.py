@@ -169,8 +169,22 @@ class Player:
             return
         duration = self.duration
         position = self.time
-        truncated = duration > 60_000 and 15_000 <= position <= 45_000
+        is_http = str(self.current_source).startswith(("http://", "https://"))
+        # ~30с preview на прямом HTTP. Локальный growing MP3 на этом окне
+        # восстанавливаем, а не считаем трек законченным.
+        truncated = (
+            is_http
+            and duration > 60_000
+            and 15_000 <= position <= 45_000
+        )
         if duration > 1000 and position < duration - 1000 and not truncated:
+            logger.warning(
+                "Поток оборвался рано (%sms из %sms) — восстановление",
+                position,
+                duration,
+            )
+            for callback in self._stream_error_callbacks:
+                callback("ended-early")
             return
         if truncated:
             logger.warning(
@@ -237,4 +251,9 @@ class Player:
 
     @property
     def duration(self) -> int:
-        return self._engine.get_duration_ms()
+        engine_ms = max(0, int(self._engine.get_duration_ms()))
+        catalog_ms = 0
+        track = self.current_track
+        if track is not None:
+            catalog_ms = max(0, int(getattr(track, "duration_ms", 0) or 0))
+        return max(engine_ms, catalog_ms)

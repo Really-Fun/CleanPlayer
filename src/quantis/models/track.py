@@ -14,6 +14,33 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 
+def seconds_to_ms(value: object) -> int:
+    """Секунды (int/float/str) → миллисекунды. Мусор даёт 0."""
+    try:
+        sec = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 0
+    if sec <= 0:
+        return 0
+    return int(sec * 1000)
+
+
+def clock_to_ms(text: object) -> int:
+    """'3:21' / '1:02:03' → миллисекунды."""
+    raw = str(text or "").strip()
+    if not raw or ":" not in raw:
+        return 0
+    parts = raw.split(":")
+    if not all(p.isdigit() for p in parts):
+        return 0
+    nums = [int(p) for p in parts]
+    if len(nums) == 2:
+        return (nums[0] * 60 + nums[1]) * 1000
+    if len(nums) == 3:
+        return (nums[0] * 3600 + nums[1] * 60 + nums[2]) * 1000
+    return 0
+
+
 class TrackSource(StrEnum):
     """Перечисление поддерживаемых платформ.
 
@@ -37,6 +64,7 @@ class Track:
     downloaded: bool = False
     source: str = ""
     listen_count: int = 0
+    duration_ms: int = 0
 
     def __repr__(self) -> str:
         return f"{self.source}:{self.track_id}"

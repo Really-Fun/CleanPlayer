@@ -47,6 +47,31 @@ async def test_play_track_sets_current_and_emits_event() -> None:
 
 
 @pytest.mark.asyncio
+async def test_play_track_resumes_http_stream() -> None:
+    player = MagicMock()
+    music = MagicMock()
+    music.streamer.open_playback = AsyncMock(return_value="https://cdn.example/a.mp3")
+    music.provider.get_track_path = MagicMock(return_value="/path")
+    history = MagicMock()
+    history.get_resume_position = AsyncMock(return_value=15_000)
+    event_bus = EventBus()
+
+    playback = PlaybackController(
+        player=player,
+        playlist_manager=PlaylistManager(),
+        music_service=music,
+        event_bus=event_bus,
+        history=history,
+        async_bridge=None,
+    )
+
+    track = YandexTrack(track_id="1", title="Song", author="Artist")
+    await playback.play_track(track)
+
+    player.play.assert_called_once_with("https://cdn.example/a.mp3", start_ms=15_000)
+
+
+@pytest.mark.asyncio
 async def test_prefetch_next_track_uses_upgrade_cycle() -> None:
     player = MagicMock()
     music = MagicMock()

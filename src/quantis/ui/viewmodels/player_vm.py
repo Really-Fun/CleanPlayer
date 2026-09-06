@@ -92,9 +92,7 @@ class PlayerViewModel(BaseViewModel):
         if self._playback.current_track is not None:
             self.track_changed.emit(self._playback.current_track)
         self.is_playing_changed.emit(self._player.is_playing())
-        duration = max(0, self._player.duration)
-        if duration > 0:
-            self.duration_changed.emit(duration)
+        self._publish_duration(max(0, self._player.duration))
         self.position_changed.emit(max(0, self._player.time))
         if self._player.current_source:
             self.start_updates()
@@ -105,10 +103,8 @@ class PlayerViewModel(BaseViewModel):
         position = max(0, self._player.time)
         duration = max(0, self._player.duration)
         self.position_changed.emit(position)
-        if duration > 0 and duration != self._last_duration:
-            self._last_duration = duration
-            self.duration_changed.emit(duration)
-        self._check_playback_stall(position, duration)
+        self._publish_duration(duration)
+        self._check_playback_stall(position, max(duration, self._last_duration))
 
     def _check_playback_stall(self, position: int, duration: int) -> None:
         now = time.monotonic()
@@ -125,10 +121,24 @@ class PlayerViewModel(BaseViewModel):
         self._stall_last_move = now
         self._playback.request_playback_recovery(position)
 
+    def _publish_duration(self, duration: int) -> None:
+        if duration <= 0:
+            return
+        if duration == self._last_duration:
+            return
+        # Growing temp MP3 часто врёт в меньшую сторону — длину не ужимаем.
+        if 0 < duration < self._last_duration:
+            return
+        self._last_duration = duration
+        self.duration_changed.emit(duration)
+
     def _on_track_changed(self, track: Track) -> None:
         self._stall_last_pos = -1
         self._stall_last_move = time.monotonic()
+        self._last_duration = -1
         self.track_changed.emit(track)
+        catalog = max(0, int(getattr(track, "duration_ms", 0) or 0))
+        self._publish_duration(max(catalog, self._player.duration))
         self.start_updates()
 
     def _on_paused(self) -> None:

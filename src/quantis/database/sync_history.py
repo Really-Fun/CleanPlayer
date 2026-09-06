@@ -14,6 +14,8 @@ from quantis.utils import app_paths
 # Между сохранениями прогресса не больше этого (тики 5–20 с).
 # Отсекает перемотку в конец, которая иначе засчитывала бы весь микс.
 _MAX_PLAY_DELTA_MS = 45_000
+# Скачок ползунка больше часов+slack считается перемоткой, не эфиром.
+_SEEK_SLACK_MS = 2_500
 # Старые записи: listen_count × duration. Миксы 12–24 ч раздували «эфир».
 _LEGACY_LISTEN_CAP_MS = 20 * 60 * 1000
 _schema_lock = threading.Lock()
@@ -244,6 +246,41 @@ def fetch_ranked_entries(
         return [dict(row) for row in cursor.fetchall()]
 
 
+def listen_delta_ms(
+    *,
+    wall_ms: int,
+    position_ms: int,
+    last_position_ms: int,
+    duration_ms: int = 0,
+    interval_cap_ms: int = 8_000,
+) -> int:
+    """Эфир за один интервал: часы + ползунок, без зачёта перемотки.
+
+    * Ползунок едет примерно как часы — берём согласованный ход (обычно max).
+    * Ползунок завис или duration неизвестен — доверяем часам.
+    * Скачок вперёд сильно больше часов — перемотка, в эфир только часы.
+    * Назад — повторное прослушивание, снова только часы.
+    """
+    wall = max(0, int(wall_ms))
+    if wall <= 0:
+        return 0
+    pos = max(0, int(position_ms))
+    last = max(0, int(last_position_ms))
+    cap = max(1, int(interval_cap_ms))
+    duration = max(0, int(duration_ms))
+    if duration > 0:
+        cap = min(cap, duration)
+        pos = min(pos, duration)
+    cap = min(cap, _MAX_PLAY_DELTA_MS)
+
+    forward = max(0, pos - last)
+    if 0 < forward <= wall + _SEEK_SLACK_MS:
+        add = max(wall, forward)
+    else:
+        add = wall
+    return max(0, min(add, cap))
+
+
 def get_saved_position(track_key: str, db_path: Path | None = None) -> int:
     with _connect(db_path) as conn:
         ensure_schema(conn)
@@ -264,6 +301,7 @@ def upsert_progress(
     position_ms: int,
     duration_ms: int,
     listen_increment: int = 0,
+    played_delta_ms: int | None = None,
     db_path: Path | None = None,
 ) -> None:
     with _connect(db_path) as conn:
@@ -271,46 +309,89 @@ def upsert_progress(
         position = max(0, int(position_ms))
         duration = max(0, int(duration_ms))
         increment = max(0, int(listen_increment))
-        initial_played = 0
-        if increment > 0:
-            initial_played = position if duration <= 0 else min(position, duration)
-        conn.execute(
-            """
-            INSERT INTO track_history (
-                track_key, title, author, source, position_ms, duration_ms,
-                listen_count, last_played_at, played_ms
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(track_key) DO UPDATE SET
-                title = excluded.title,
-                author = excluded.author,
-                source = excluded.source,
-                played_ms = track_history.played_ms + MAX(
-                    0,
-                    MIN(
-                        excluded.position_ms - track_history.position_ms,
-                        ?
-                    )
-                ),
-                position_ms = excluded.position_ms,
-                duration_ms = CASE
-                    WHEN excluded.duration_ms > 0 THEN excluded.duration_ms
-                    ELSE track_history.duration_ms
-                END,
-                listen_count = track_history.listen_count + excluded.listen_count,
-                last_played_at = excluded.last_played_at;
-            """,
-            (
-                track_key,
-                title,
-                author,
-                source,
-                position,
-                duration,
-                increment,
-                int(time()),
-                initial_played,
-                _MAX_PLAY_DELTA_MS,
-            ),
+        explicit_delta = played_delta_ms is not None
+        add = (
+            max(0, min(int(played_delta_ms), _MAX_PLAY_DELTA_MS))
+            if explicit_delta
+            else 0
         )
+        initial_played = add
+        if not explicit_delta:
+            initial_played = 0
+            if increment > 0:
+                initial_played = position if duration <= 0 else min(position, duration)
+        if explicit_delta:
+            conn.execute(
+                """
+                INSERT INTO track_history (
+                    track_key, title, author, source, position_ms, duration_ms,
+                    listen_count, last_played_at, played_ms
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(track_key) DO UPDATE SET
+                    title = excluded.title,
+                    author = excluded.author,
+                    source = excluded.source,
+                    played_ms = track_history.played_ms + ?,
+                    position_ms = excluded.position_ms,
+                    duration_ms = CASE
+                        WHEN excluded.duration_ms > 0 THEN excluded.duration_ms
+                        ELSE track_history.duration_ms
+                    END,
+                    listen_count = track_history.listen_count + excluded.listen_count,
+                    last_played_at = excluded.last_played_at;
+                """,
+                (
+                    track_key,
+                    title,
+                    author,
+                    source,
+                    position,
+                    duration,
+                    increment,
+                    int(time()),
+                    initial_played,
+                    add,
+                ),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO track_history (
+                    track_key, title, author, source, position_ms, duration_ms,
+                    listen_count, last_played_at, played_ms
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(track_key) DO UPDATE SET
+                    title = excluded.title,
+                    author = excluded.author,
+                    source = excluded.source,
+                    played_ms = track_history.played_ms + MAX(
+                        0,
+                        MIN(
+                            excluded.position_ms - track_history.position_ms,
+                            ?
+                        )
+                    ),
+                    position_ms = excluded.position_ms,
+                    duration_ms = CASE
+                        WHEN excluded.duration_ms > 0 THEN excluded.duration_ms
+                        ELSE track_history.duration_ms
+                    END,
+                    listen_count = track_history.listen_count + excluded.listen_count,
+                    last_played_at = excluded.last_played_at;
+                """,
+                (
+                    track_key,
+                    title,
+                    author,
+                    source,
+                    position,
+                    duration,
+                    increment,
+                    int(time()),
+                    initial_played,
+                    _MAX_PLAY_DELTA_MS,
+                ),
+            )
         conn.commit()

@@ -15,9 +15,11 @@ def yandex_tracks_from_search(search_result: Any, value: int) -> list[Track]:
 
 
 def yandex_track_from_api(track: Any) -> YandexTrack:
+    duration_ms = int(getattr(track, "duration_ms", 0) or 0)
     return YandexTrack(
         track_id=str(track.id),
         title=track.title,
         author=" & ".join(artist.name for artist in track.artists if artist.name),
         downloaded=False,
+        duration_ms=max(0, duration_ms),
     )

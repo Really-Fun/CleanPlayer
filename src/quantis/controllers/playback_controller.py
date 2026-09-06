@@ -203,9 +203,7 @@ class PlaybackController:
             self._stall_track_key = None
             self._stall_recoveries = 0
             self.player.current_track = track
-            start_ms = 0
-            if resume_ms > 0 and not str(source).startswith(("http://", "https://")):
-                start_ms = resume_ms
+            start_ms = resume_ms if resume_ms > 0 else 0
             if start_ms > 0:
                 self.player.play(source, start_ms=start_ms)
             else:

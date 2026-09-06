@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from quantis.models import YandexTrack
 from quantis.player.player import Player
 
 
@@ -122,6 +123,74 @@ def test_long_http_pause_refreshes_source() -> None:
 
     assert errors == ["resume-after-pause"]
     assert engine.resume_calls == 0
+
+
+def test_duration_uses_catalog_when_engine_is_short() -> None:
+    engine = StubEngine()
+    engine._duration = 8_000
+    player = Player(engine=engine)
+    player.current_track = YandexTrack(
+        track_id="1", title="T", author="A", duration_ms=180_000
+    )
+    assert player.duration == 180_000
+
+
+def test_duration_prefers_longer_engine() -> None:
+    engine = StubEngine()
+    engine._duration = 200_000
+    player = Player(engine=engine)
+    player.current_track = YandexTrack(
+        track_id="1", title="T", author="A", duration_ms=180_000
+    )
+    assert player.duration == 200_000
+
+
+def _start(player: Player, engine: StubEngine, source: str) -> None:
+    player.play(source)
+    for callback in list(engine._playing_cbs):
+        callback()
+
+
+def test_local_early_end_requests_recovery() -> None:
+    engine = StubEngine()
+    engine._duration = 20_000
+    player = Player(engine=engine)
+    player.current_track = YandexTrack(
+        track_id="1", title="T", author="A", duration_ms=180_000
+    )
+    errors: list[str] = []
+    finished: list[int] = []
+    player.on_stream_error(errors.append)
+    player.on_track_finished(lambda: finished.append(1))
+    _start(player, engine, "/tmp/quantis_stream/yandex_1.mp3")
+    engine._position = 20_000
+
+    for callback in list(engine._ended_cbs):
+        callback()
+
+    assert errors == ["ended-early"]
+    assert finished == []
+
+
+def test_http_preview_still_finishes() -> None:
+    engine = StubEngine()
+    engine._duration = 30_000
+    player = Player(engine=engine)
+    player.current_track = YandexTrack(
+        track_id="1", title="T", author="A", duration_ms=180_000
+    )
+    errors: list[str] = []
+    finished: list[int] = []
+    player.on_stream_error(errors.append)
+    player.on_track_finished(lambda: finished.append(1))
+    _start(player, engine, "https://cdn.example/preview.mp3")
+    engine._position = 30_000
+
+    for callback in list(engine._ended_cbs):
+        callback()
+
+    assert errors == []
+    assert finished == [1]
 
 
 def test_http_pause_reset_to_zero_refreshes_source() -> None:

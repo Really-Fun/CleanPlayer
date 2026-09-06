@@ -33,6 +33,7 @@ def build_tracks_from_entries(
             "title": entry["title"],
             "author": entry["author"],
             "downloaded": downloaded,
+            "duration_ms": max(0, int(entry.get("duration_ms") or 0)),
         }
         if include_listen_count:
             kwargs["listen_count"] = int(entry.get("listen_count", 0))

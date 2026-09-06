@@ -8,6 +8,7 @@ from typing import Any
 
 from quantis.config import Clients
 from quantis.models import RecommendationPlaylist, Track, YoutubeTrack
+from quantis.models.track import clock_to_ms, seconds_to_ms
 
 from .async_finder import AsyncYoutubeFinder
 
@@ -47,6 +48,8 @@ class AsyncRecommendation:
                 title=track_info["title"],
                 author=", ".join(a["name"] for a in track_info.get("artists", [])),
                 downloaded=False,
+                duration_ms=seconds_to_ms(track_info.get("lengthSeconds"))
+                or clock_to_ms(track_info.get("duration")),
             )
             for track_info in result.get("tracks", [])
         ]

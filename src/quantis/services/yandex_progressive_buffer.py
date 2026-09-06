@@ -1,8 +1,9 @@
 """Прогрессивный буфер потока: фоновая запись в temp, воспроизведение сразу.
 
-Для Yandex MP3 range-загрузка в локальный файл стабильнее прямого HTTP в Qt:
-CDN-URL короткоживущие. YouTube так буферить нельзя — неполный MP4/m4a
-не открывается (moov/CTTS), часовые ролики ломаются.
+Для Qt Multimedia Yandex/SoundCloud MP3 range-загрузка в локальный файл
+стабильнее прямого HTTP: CDN-URL короткоживущие. VLC играет эти ссылки
+напрямую. YouTube так буферить нельзя — неполный MP4/m4a не открывается
+(moov/CTTS), часовые ролики ломаются. HLS (SoundCloud) тоже не буферим.
 """
 
 from __future__ import annotations
@@ -53,7 +54,10 @@ def _total_from_content_range(value: str | None) -> int | None:
 def _buffer_path(track: Track, root: Path) -> Path:
     source = str(track.source).lower()
     ext = "m4a" if source == TrackSource.YOUTUBE else "mp3"
-    return root / f"{source}_{track.track_id}.{ext}"
+    safe_id = "".join(
+        ch if ch.isalnum() or ch in "-_." else "_" for ch in str(track.track_id)
+    )
+    return root / f"{source}_{safe_id}.{ext}"
 
 
 class ProgressiveStreamBuffer:

@@ -53,6 +53,7 @@ class TrackHistoryService:
         duration_ms: int,
         *,
         force: bool = False,
+        played_delta_ms: int | None = None,
     ) -> None:
         track_key = self.build_track_key(track)
         now = monotonic()
@@ -69,11 +70,17 @@ class TrackHistoryService:
             position_ms=position_ms,
             duration_ms=duration_ms,
             listen_increment=0,
+            played_delta_ms=played_delta_ms,
         )
         self._last_saved_by_key[track_key] = now
 
     async def mark_track_finished(
-        self, track: Track, position_ms: int, duration_ms: int
+        self,
+        track: Track,
+        position_ms: int,
+        duration_ms: int,
+        *,
+        played_delta_ms: int | None = None,
     ) -> None:
         track_key = self.build_track_key(track)
         await asyncio.to_thread(
@@ -85,6 +92,7 @@ class TrackHistoryService:
             position_ms=position_ms,
             duration_ms=duration_ms,
             listen_increment=1,
+            played_delta_ms=played_delta_ms,
         )
         self._last_saved_by_key[track_key] = monotonic()
 
