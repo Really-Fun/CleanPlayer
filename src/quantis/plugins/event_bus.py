@@ -17,6 +17,7 @@ class EventBus(QObject):
     playback_paused = Signal()
     playback_resumed = Signal()
     playback_stopped = Signal()
+    playback_seeked = Signal(int)      # Позиция в мс после перемотки
     track_finished = Signal()
     
     next_requested = Signal()

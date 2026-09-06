@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import logging
 from pathlib import Path
 
@@ -14,6 +15,11 @@ from quantis.services import MusicService, TrackHistoryService
 from quantis.ui.preferences import UiPreferences
 
 logger = logging.getLogger(__name__)
+
+_MAX_RECOVERIES = 3
+_MAX_FAILOVERS = 3
+# Столько отыгранных миллисекунд считаем доказательством, что связь жива.
+_HEALTHY_POSITION_MS = 15_000
 
 
 class PlaybackController:
@@ -39,6 +45,11 @@ class PlaybackController:
         self._stream_retry_pending = False
         self._stall_recoveries = 0
         self._stall_track_key: str | None = None
+        self._failovers = 0
+        self._play_seq = 0
+        self._seek_seq = 0
+        self._seek_pending = False
+        self._audio_live = False
         self._repeat_mode = UiPreferences().repeat_mode
 
     @property
@@ -57,6 +68,24 @@ class PlaybackController:
                 await self.play_track(track)
             return
         await self.play_next()
+
+    @property
+    def is_seeking(self) -> bool:
+        return self._seek_pending
+
+    @property
+    def audio_live(self) -> bool:
+        """True, когда текущий трек реально запущен в движке, а не только объявлен."""
+        return self._audio_live
+
+    def notify_progress(self, position_ms: int) -> None:
+        """Трек играет достаточно долго — цепочку аварийных пропусков сбрасываем."""
+        if position_ms >= _HEALTHY_POSITION_MS:
+            self._failovers = 0
+        report = getattr(self.music.streamer, "report_position_ms", None)
+        track = self._current_track
+        if callable(report) and track is not None:
+            report(track, position_ms)
 
     def handle_stream_error(self, message: str) -> None:
         """Повтор воспроизведения при ошибке медиадвижка."""
@@ -87,14 +116,15 @@ class PlaybackController:
         if self._stall_track_key != track_key:
             self._stall_track_key = track_key
             self._stall_recoveries = 0
-        if reason == "resume-after-pause":
+        if reason in ("resume-after-pause", "seek"):
             self._stall_recoveries = 0
-        if self._stall_recoveries >= 3:
+        if self._stall_recoveries >= _MAX_RECOVERIES:
             logger.warning(
-                "Лимит восстановления потока для «%s» (%s)",
+                "Лимит восстановления потока для «%s» (%s) — следующий трек",
                 track.title,
                 reason,
             )
+            await self._failover_to_next()
             return
 
         self._stream_retry_pending = True
@@ -112,8 +142,13 @@ class PlaybackController:
                 return
 
             resume_at = position_ms
+            if resume_at > 0:
+                await self._prepare_seek(track, resume_at, new_source)
 
             def replay() -> None:
+                if self._current_track is not track:
+                    return
+                self._audio_live = True
                 if resume_at > 0:
                     self.player.play(new_source, start_ms=resume_at)
                 else:
@@ -124,6 +159,84 @@ class PlaybackController:
             logger.exception("Не удалось восстановить поток")
         finally:
             self._stream_retry_pending = False
+
+    async def _failover_to_next(self) -> None:
+        """Трек не поднимается — не молчим, а переходим дальше по очереди."""
+        if self._failovers >= _MAX_FAILOVERS:
+            logger.warning("Подряд %d сбойных трека — остановка", self._failovers)
+            return
+        self._failovers += 1
+        self._stall_track_key = None
+        self._stall_recoveries = 0
+        await self.play_next()
+
+    async def _prepare_seek(
+        self, track: Track, position_ms: int, source: str | None
+    ) -> bool:
+        """Ждёт, пока прогрессивный буфер догрузит нужный участок."""
+        seek = getattr(self.music.streamer, "seek_to_ms", None)
+        if seek is None:
+            return True
+        try:
+            result = seek(track, position_ms, source=source)
+            if inspect.isawaitable(result):
+                result = await result
+            if isinstance(result, bool):
+                return result
+            return True
+        except Exception:
+            logger.debug("Подготовка перемотки не удалась", exc_info=True)
+            return False
+
+    def seek(self, position_ms: int) -> None:
+        """Единая точка перемотки: буфер, плеер и видео-фон идут вместе."""
+        position = max(0, int(position_ms))
+        duration = max(0, int(self.player.duration))
+        if duration > 2000 and position >= duration - 1500:
+            notify = getattr(self.player, "notify_natural_end", None)
+            if callable(notify):
+                notify()
+            return
+        track = self._current_track
+        self._seek_seq += 1
+        seq = self._seek_seq
+        self._seek_pending = True
+        if track is None or self._bridge is None:
+            self._apply_seek(position, seq=seq, track=track)
+            return
+        self._bridge.schedule(self._seek_buffered(track, position, seq))
+
+    async def _seek_buffered(
+        self, track: Track, position_ms: int, seq: int
+    ) -> None:
+        ready = await self._prepare_seek(
+            track, position_ms, self.player.current_source
+        )
+        if seq != self._seek_seq or self._current_track is not track:
+            return
+        if not ready:
+            self._seek_pending = False
+            self.request_playback_recovery(position_ms, reason="seek")
+            return
+        self._bridge.invoke_main(  # type: ignore[union-attr]
+            lambda: self._apply_seek(position_ms, seq=seq, track=track)
+        )
+
+    def _apply_seek(
+        self,
+        position_ms: int,
+        *,
+        seq: int | None = None,
+        track: Track | None = None,
+    ) -> None:
+        if seq is not None and seq != self._seek_seq:
+            return
+        if track is not None and self._current_track is not track:
+            return
+        self._seek_pending = False
+        self.player.time = position_ms
+        if self._event_bus is not None:
+            self._event_bus.playback_seeked.emit(position_ms)
 
     async def _prefetch_next_track(self, current: Track) -> None:
         playlist = self.playlist_manager.current_playlist
@@ -168,11 +281,36 @@ class PlaybackController:
 
         return await self.music.streamer.open_playback(track)
 
+    def _begin_track(self, track: Track) -> None:
+        """Сразу объявляет трек: UI и видео-фон стартуют параллельно с буфером."""
+        self._seek_seq += 1
+        self._seek_pending = False
+        self._audio_live = False
+        self._current_track = track
+        self._stall_track_key = None
+        self._stall_recoveries = 0
+
+        def announce() -> None:
+            self.player.current_track = track
+            if self._event_bus is not None:
+                self._event_bus.track_changed.emit(track)
+
+        if self._bridge is not None:
+            self._bridge.invoke_main(announce)
+        else:
+            announce()
+
     async def play_track(self, track: Track | None) -> None:
         if not track:
             return
 
+        self._play_seq += 1
+        seq = self._play_seq
+        self._begin_track(track)
+
         source = await self._resolve_source(track)
+        if seq != self._play_seq:
+            return
         if not source:
             message = f"Не удалось получить источник для воспроизведения: {track.title}"
             logger.warning(message)
@@ -193,15 +331,18 @@ class PlaybackController:
             and not self._wave_skip_start_feedback
         ):
             await self.music.wave.notify_track_started(track, playlist)
+        if seq != self._play_seq:
+            return
 
         def start_playback() -> None:
+            if seq != self._play_seq:
+                return
             self._current_track = track
             self._stall_track_key = None
             self._stall_recoveries = 0
             self.player.current_track = track
+            self._audio_live = True
             self.player.play(source)
-            if self._event_bus is not None:
-                self._event_bus.track_changed.emit(track)
 
         if self._bridge is not None:
             self._bridge.invoke_main(start_playback)

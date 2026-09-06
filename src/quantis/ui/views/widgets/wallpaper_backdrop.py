@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from time import monotonic
 
@@ -160,6 +161,9 @@ class WallpaperBackdrop(QWidget):
         self._current_source: str | None = None
         self._loop_enabled = False
         self._pending_start_ms = 0
+        self._follow_audio = False
+        self._hold_until_audio = False
+        self._position_provider: Callable[[], int] | None = None
         self._stall_notified = False
 
         self._video_surface = _VideoSurface(self)
@@ -210,12 +214,24 @@ class WallpaperBackdrop(QWidget):
     def set_video_limits(self, *, fps: int, max_side: int) -> None:
         self._video_surface.set_limits(fps=fps, max_side=max_side)
 
+    def set_position_provider(self, provider: Callable[[], int] | None) -> None:
+        """Источник актуальной позиции аудио для старта видео «в ноль»."""
+        self._position_provider = provider
+
     def play_video_url(
-        self, url: str, *, loop: bool = False, start_ms: int = 0
+        self,
+        url: str,
+        *,
+        loop: bool = False,
+        start_ms: int = 0,
+        follow_audio: bool = False,
+        hold_until_audio: bool = False,
     ) -> None:
         if not self._dynamic_enabled or not url:
             return
         self._loop_enabled = loop
+        self._follow_audio = follow_audio and not loop
+        self._hold_until_audio = hold_until_audio and not loop
         self._pending_start_ms = max(0, int(start_ms))
         self._stall_notified = False
         self._video_active = True
@@ -243,6 +259,8 @@ class WallpaperBackdrop(QWidget):
             return
         self._loop_enabled = False
         self._pending_start_ms = 0
+        self._follow_audio = False
+        self._hold_until_audio = False
         self._stall_notified = False
         self._video_active = True
         self._current_source = path
@@ -276,13 +294,20 @@ class WallpaperBackdrop(QWidget):
         if self._video_player is None or not self._video_active:
             return
         self._pending_start_ms = 0
-        self._video_player.setPosition(max(0, int(position_ms)))
+        self._follow_audio = False
+        self._hold_until_audio = False
+        duration = int(self._video_player.duration())
+        position = max(0, int(position_ms))
+        if duration > 0:
+            position = min(position, max(0, duration - 400))
+        self._video_player.setPosition(position)
 
     def pause_video(self) -> None:
         if self._video_active and self._video_player is not None:
             self._video_player.pause()
 
     def resume_video(self) -> None:
+        self._hold_until_audio = False
         if self._video_active and self._dynamic_enabled and self._video_player is not None:
             self._video_player.play()
 
@@ -291,6 +316,8 @@ class WallpaperBackdrop(QWidget):
         self._current_source = None
         self._loop_enabled = False
         self._pending_start_ms = 0
+        self._follow_audio = False
+        self._hold_until_audio = False
         self._stall_notified = False
         if self._video_player is not None:
             self._video_player.stop()
@@ -311,14 +338,22 @@ class WallpaperBackdrop(QWidget):
         return source.startswith(("http://", "https://"))
 
     def _apply_pending_seek(self) -> None:
-        if self._video_player is None or self._pending_start_ms <= 0:
+        if self._video_player is None:
             return
-        duration = int(self._video_player.duration())
+        if not self._follow_audio and self._pending_start_ms <= 0:
+            return
         position = self._pending_start_ms
-        if duration > 0:
-            position = min(position, max(0, duration - 400))
-        self._video_player.setPosition(position)
+        if self._follow_audio and self._position_provider is not None:
+            # Пока грузился поток, трек ушёл вперёд — берём позицию на сейчас.
+            position = max(0, int(self._position_provider()))
+        duration = int(self._video_player.duration())
+        if duration <= 0:
+            return
+        self._video_player.setPosition(min(position, max(0, duration - 400)))
         self._pending_start_ms = 0
+        self._follow_audio = False
+        if self._hold_until_audio:
+            self._video_player.pause()
 
     def _on_duration_ready(self, duration: int) -> None:
         if duration > 0:

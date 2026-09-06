@@ -37,13 +37,51 @@ async def test_play_track_sets_current_and_emits_event() -> None:
     track = YandexTrack(track_id="1", title="Song", author="Artist")
     await playback.play_track(track)
 
-    bridge.invoke_main.assert_called_once()
-    bridge.invoke_main.call_args[0][0]()
+    bridge.invoke_main.assert_called()
+    for call in bridge.invoke_main.call_args_list:
+        call[0][0]()
 
     assert playback.current_track is track
     assert player.current_track is track
     player.play.assert_called_once_with("http://stream")
     assert emitted == [track]
+
+
+@pytest.mark.asyncio
+async def test_play_track_announces_before_source_is_ready() -> None:
+    player = MagicMock()
+    music = MagicMock()
+    announced: list[object] = []
+    opened: list[list[object]] = []
+
+    async def slow_open(track):
+        opened.append(list(announced))
+        return "http://stream"
+
+    music.streamer.open_playback = slow_open
+    music.provider.get_track_path = MagicMock(return_value="/path")
+    event_bus = EventBus()
+    event_bus.track_changed.connect(announced.append)
+    bridge = MagicMock()
+    bridge.invoke_main.side_effect = lambda cb: cb()
+    scheduled: list = []
+    bridge.schedule = scheduled.append
+
+    playback = PlaybackController(
+        player=player,
+        playlist_manager=PlaylistManager(),
+        music_service=music,
+        event_bus=event_bus,
+        history=None,
+        async_bridge=bridge,
+    )
+    track = YandexTrack(track_id="1", title="Song", author="Artist")
+    await playback.play_track(track)
+    for coro in scheduled:
+        await coro
+
+    assert opened == [[track]]
+    player.play.assert_called_once_with("http://stream")
 
 
 @pytest.mark.asyncio

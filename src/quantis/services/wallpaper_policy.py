@@ -5,7 +5,11 @@ from __future__ import annotations
 # Часовой mp4 в кэш не качаем: это сотни МБ, стрима хватает.
 WALLPAPER_CACHE_MAX_SEC = 15 * 60
 WALLPAPER_MAX_LOCAL_BYTES = 40 * 1024 * 1024
-WALLPAPER_SYNC_DRIFT_MS = 3000
+WALLPAPER_SYNC_INTERVAL_MS = 1200
+WALLPAPER_SYNC_DRIFT_MS = 1500
+# Если видео стабильно не догоняет, порог растёт: лучше лёгкий рассинхрон,
+# чем перемотка HTTP-потока каждую секунду.
+WALLPAPER_MAX_DRIFT_MS = 6000
 WALLPAPER_QUALITY_CHOICES = (360, 480, 720)
 WALLPAPER_FPS_CHOICES = (5, 10, 15, 24, 30)
 WALLPAPER_DEFAULT_QUALITY = 360
@@ -18,10 +22,16 @@ def should_play_local_wallpaper(size_bytes: int) -> bool:
     return 0 < size_bytes <= WALLPAPER_MAX_LOCAL_BYTES
 
 
-def wallpaper_positions_drifted(audio_ms: int, video_ms: int) -> bool:
+def wallpaper_positions_drifted(
+    audio_ms: int, video_ms: int, *, tolerance_ms: int = WALLPAPER_SYNC_DRIFT_MS
+) -> bool:
     if audio_ms <= 0 or video_ms < 0:
         return False
-    return abs(audio_ms - video_ms) > WALLPAPER_SYNC_DRIFT_MS
+    return abs(audio_ms - video_ms) > max(WALLPAPER_SYNC_DRIFT_MS, tolerance_ms)
+
+
+def wallpaper_next_drift_tolerance(current_ms: int) -> int:
+    return min(WALLPAPER_MAX_DRIFT_MS, max(WALLPAPER_SYNC_DRIFT_MS, current_ms) * 2)
 
 
 def wallpaper_duration_filter(info: dict, *, incomplete: bool = False) -> str | None:

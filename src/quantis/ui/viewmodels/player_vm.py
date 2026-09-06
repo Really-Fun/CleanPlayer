@@ -85,7 +85,12 @@ class PlayerViewModel(BaseViewModel):
         self.volume_changed.emit(clamped)
 
     def seek(self, position_ms: int) -> None:
-        self._player.time = position_ms
+        # Слайдер уводим сразу, а сам плеер — через контроллер: он ещё должен
+        # догрузить буфер и подтянуть видео-фон.
+        self._stall_last_pos = position_ms
+        self._stall_last_move = time.monotonic()
+        self._end_ticks = 0
+        self._playback.seek(position_ms)
         self.position_changed.emit(position_ms)
 
     def sync_from_player(self) -> None:
@@ -101,11 +106,14 @@ class PlayerViewModel(BaseViewModel):
     def _update_timeline(self) -> None:
         if not self._player.current_source:
             return
+        if getattr(self._playback, "is_seeking", False):
+            return
         position = max(0, self._player.time)
         duration = max(0, self._player.duration)
         self.position_changed.emit(position)
         self._publish_duration(duration)
         reported = max(duration, self._last_duration)
+        self._playback.notify_progress(position)
         self._check_natural_end(position, reported)
         self._check_playback_stall(position, reported)
 

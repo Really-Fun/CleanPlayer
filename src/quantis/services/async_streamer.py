@@ -102,7 +102,10 @@ class AsyncStreamer(AsyncStreamerInterface):
 
         if should_buffer_stream(track, url=url):
             self._buffer_loop = get_running_loop()
-            path = await self._stream_buffer.open(track)
+            # Прогретая prefetch-ом ссылка экономит буферу поход в API.
+            if url is None:
+                url = await self.get_stream_url(track)
+            path = await self._stream_buffer.open(track, url=url)
             if path:
                 self._stream_buffer.cleanup_old_files(keep=Path(path))
                 return path
@@ -121,6 +124,17 @@ class AsyncStreamer(AsyncStreamerInterface):
             await self.get_stream_url(track)
         except Exception:
             logger.debug("Prefetch stream failed for %s", track.track_id, exc_info=True)
+
+    async def seek_to_ms(
+        self, track: Track, position_ms: int, *, source: str | None = None
+    ) -> bool:
+        """Готовит буфер к перемотке: прямые URL и локальные файлы не трогаем."""
+        if source is not None and not self._stream_buffer.owns(source):
+            return True
+        return await self._stream_buffer.seek_to_ms(track, position_ms)
+
+    def report_position_ms(self, track: Track, position_ms: int) -> None:
+        self._stream_buffer.report_position_ms(track, position_ms)
 
     async def get_video_url(
         self,

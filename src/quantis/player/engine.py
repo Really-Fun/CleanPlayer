@@ -132,12 +132,9 @@ class QtMediaEngine:
             return
         duration = self.get_duration_ms()
         position = self.get_position_ms()
-        truncated = duration > 60_000 and 15_000 <= position <= 45_000
-        if duration > 1000 and position < duration - 1000 and not truncated:
-            return
-        if truncated:
+        if duration > 1000 and position < duration - 1000:
             logger.warning(
-                "Поток оборвался рано (%sms из %sms) — preview или обрыв CDN",
+                "Поток оборвался рано (%sms из %sms)",
                 position,
                 duration,
             )

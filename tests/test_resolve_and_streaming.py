@@ -141,13 +141,21 @@ async def test_open_playback_yandex_uses_progressive_buffer() -> None:
             return_value="/tmp/quantis_stream/yandex_1.mp3",
         ) as buffer_mock,
         patch.object(streamer._stream_buffer, "cleanup_old_files"),
-        patch.object(streamer, "get_stream_url", new_callable=AsyncMock) as url_mock,
+        patch.object(
+            streamer,
+            "get_stream_url",
+            new_callable=AsyncMock,
+            return_value="https://storage.mds.yandex.net/get-mp3/track.mp3",
+        ) as url_mock,
     ):
         result = await streamer.open_playback(track)
 
     assert result == "/tmp/quantis_stream/yandex_1.mp3"
-    buffer_mock.assert_awaited_once_with(track)
-    url_mock.assert_not_awaited()
+    # Прогретая ссылка передаётся в буфер, чтобы он не ходил в API повторно.
+    buffer_mock.assert_awaited_once_with(
+        track, url="https://storage.mds.yandex.net/get-mp3/track.mp3"
+    )
+    url_mock.assert_awaited_once_with(track)
     streamer.shutdown()
 
 
@@ -247,13 +255,20 @@ async def test_open_playback_qt_yandex_uses_buffer() -> None:
             return_value="/tmp/quantis_stream/yandex_1.mp3",
         ) as buffer_mock,
         patch.object(streamer._stream_buffer, "cleanup_old_files"),
-        patch.object(streamer, "get_stream_url", new_callable=AsyncMock) as url_mock,
+        patch.object(
+            streamer,
+            "get_stream_url",
+            new_callable=AsyncMock,
+            return_value="https://storage.mds.yandex.net/get-mp3/track.mp3",
+        ) as url_mock,
     ):
         result = await streamer.open_playback(track)
 
     assert result == "/tmp/quantis_stream/yandex_1.mp3"
-    buffer_mock.assert_awaited_once_with(track)
-    url_mock.assert_not_awaited()
+    buffer_mock.assert_awaited_once_with(
+        track, url="https://storage.mds.yandex.net/get-mp3/track.mp3"
+    )
+    url_mock.assert_awaited_once_with(track)
     streamer.shutdown()
 
 
@@ -281,7 +296,9 @@ async def test_open_playback_qt_soundcloud_uses_buffer() -> None:
         result = await streamer.open_playback(track)
 
     assert result == "/tmp/quantis_stream/soundcloud_123.mp3"
-    buffer_mock.assert_awaited_once_with(track)
+    buffer_mock.assert_awaited_once_with(
+        track, url="https://cf-media.sndcdn.com/track.mp3"
+    )
     url_mock.assert_awaited_once_with(track)
     streamer.shutdown()
 

@@ -286,7 +286,12 @@ class Player:
 
     @time.setter
     def time(self, time_in_ms: int) -> None:
-        self._engine.set_position_ms(time_in_ms)
+        position = max(0, int(time_in_ms))
+        self._last_known_ms = position
+        # Через request_seek: движок доложит позицию, когда медиа готово.
+        self._request_seek(position)
+        if position == 0:
+            self._engine.set_position_ms(0)
 
     @property
     def duration(self) -> int:

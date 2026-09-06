@@ -15,8 +15,11 @@ from quantis.plugins.event_bus import EventBus
 from quantis.providers import PathProvider
 from quantis.services.music_service import MusicService
 from quantis.services.wallpaper_policy import (
+    WALLPAPER_SYNC_DRIFT_MS,
+    WALLPAPER_SYNC_INTERVAL_MS,
     should_play_local_wallpaper,
     wallpaper_decode_max_side,
+    wallpaper_next_drift_tolerance,
     wallpaper_positions_drifted,
 )
 from quantis.ui.preferences import UiPreferences
@@ -55,15 +58,20 @@ class DynamicWallpaperController(QObject):
         self._reload_fails = 0
         self._last_reload_at = 0.0
         self._applied_quality: int | None = None
+        self._looping = False
+        self._drift_tolerance = WALLPAPER_SYNC_DRIFT_MS
 
         self._sync_timer = QTimer(self)
-        self._sync_timer.setInterval(2500)
+        self._sync_timer.setInterval(WALLPAPER_SYNC_INTERVAL_MS)
         self._sync_timer.timeout.connect(self._sync_to_audio)
+
+        backdrop.set_position_provider(self._audio_position_ms)
 
         preferences.changed.connect(self._on_preferences_changed)
         event_bus.track_changed.connect(self._on_track_changed)
         event_bus.playback_paused.connect(self._on_audio_paused)
         event_bus.playback_resumed.connect(self._on_audio_resumed)
+        event_bus.playback_seeked.connect(self._on_audio_seeked)
         backdrop.stream_stalled.connect(self._on_stream_stalled)
         self._apply_enabled()
         self._apply_render_prefs()
@@ -83,7 +91,9 @@ class DynamicWallpaperController(QObject):
             self._paused_for_eco = False
             if self._video_should_play():
                 self._backdrop.resume_video()
-                self._sync_timer.start()
+                self._align_to_audio()
+                if not self._looping:
+                    self._sync_timer.start()
 
     def _on_preferences_changed(self) -> None:
         self._apply_enabled()
@@ -126,8 +136,11 @@ class DynamicWallpaperController(QObject):
     def _video_should_play(self) -> bool:
         if not self._prefs.dynamic_wallpaper_enabled or self._eco:
             return False
-        if self._playback is not None and not self._playback.player.is_playing():
-            return False
+        if self._playback is not None:
+            if not self._playback.audio_live:
+                return False
+            if not self._playback.player.is_playing():
+                return False
         return True
 
     def _audio_position_ms(self) -> int:
@@ -144,17 +157,39 @@ class DynamicWallpaperController(QObject):
         if not self._video_should_play():
             return
         self._backdrop.resume_video()
+        self._align_to_audio()
         self._sync_timer.start()
 
+    def _on_audio_seeked(self, position_ms: int) -> None:
+        """Перемотка трека — фон догоняет сразу, а не через такт таймера."""
+        if self._looping or not self._prefs.dynamic_wallpaper_enabled or self._eco:
+            return
+        if not self._backdrop.is_video_playing():
+            return
+        self._drift_tolerance = WALLPAPER_SYNC_DRIFT_MS
+        self._backdrop.seek_ms(max(0, int(position_ms)))
+
+    def _align_to_audio(self) -> None:
+        if self._looping or not self._backdrop.is_video_playing():
+            return
+        audio_ms = self._audio_position_ms()
+        if audio_ms > 0:
+            self._backdrop.seek_ms(audio_ms)
+
     def _sync_to_audio(self) -> None:
-        if self._reload_pending or not self._video_should_play():
+        if self._reload_pending or self._looping or not self._video_should_play():
             return
         if not self._backdrop.is_video_playing():
             return
         audio_ms = self._audio_position_ms()
         video_ms = self._backdrop.position_ms()
-        if wallpaper_positions_drifted(audio_ms, video_ms):
-            self._backdrop.seek_ms(audio_ms)
+        if not wallpaper_positions_drifted(
+            audio_ms, video_ms, tolerance_ms=self._drift_tolerance
+        ):
+            self._drift_tolerance = WALLPAPER_SYNC_DRIFT_MS
+            return
+        self._drift_tolerance = wallpaper_next_drift_tolerance(self._drift_tolerance)
+        self._backdrop.seek_ms(audio_ms)
 
     def _on_track_changed(self, track: Track) -> None:
         if not self._prefs.dynamic_wallpaper_enabled or self._eco:
@@ -162,11 +197,18 @@ class DynamicWallpaperController(QObject):
         track_key = _track_key(track)
         self._track = track
         if track_key == self._shown_key and self._backdrop.has_picture():
-            if self._video_should_play() and not self._sync_timer.isActive():
+            if (
+                not self._looping
+                and self._video_should_play()
+                and not self._sync_timer.isActive()
+            ):
                 self._sync_timer.start()
             return
         self._pending_track_key = track_key
         self._reload_fails = 0
+        self._looping = False
+        self._drift_tolerance = WALLPAPER_SYNC_DRIFT_MS
+        self._sync_timer.stop()
         cover = self._existing_cover_path(track)
         if cover is not None:
             self._backdrop.show_still(cover)
@@ -260,13 +302,23 @@ class DynamicWallpaperController(QObject):
         def _run() -> None:
             if self._pending_track_key != track_key:
                 return
+            self._looping = loop
+            # Короткий локальный клип крутится по кругу — к позиции трека его
+            # привязывать нельзя, иначе перемотка выкинет за конец файла.
             self._backdrop.play_video_url(
-                url, loop=loop, start_ms=self._audio_position_ms()
+                url,
+                loop=loop,
+                start_ms=0 if loop else self._audio_position_ms(),
+                follow_audio=not loop,
+                hold_until_audio=not loop and not self._video_should_play(),
             )
             self._shown_key = track_key
             self._reload_fails = 0
-            if self._video_should_play():
+            self._drift_tolerance = WALLPAPER_SYNC_DRIFT_MS
+            if not loop and self._video_should_play():
                 self._sync_timer.start()
+            else:
+                self._sync_timer.stop()
 
         self._bridge.invoke_main(_run)
 
@@ -275,6 +327,8 @@ class DynamicWallpaperController(QObject):
             if self._pending_track_key != track_key:
                 return
             play()
+            self._looping = False
+            self._sync_timer.stop()
             self._shown_key = track_key
 
         self._bridge.invoke_main(_run)
