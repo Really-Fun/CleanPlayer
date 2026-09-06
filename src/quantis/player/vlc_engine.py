@@ -79,6 +79,7 @@ class VlcMediaEngine:
         self._ended_cbs: list[Callable[[], None]] = []
         self._error_cbs: list[Callable[[str], None]] = []
         self._pending_seek_ms = 0
+        self._last_time_ms = 0
 
         self._bridge.playing.connect(lambda: self._fire(self._playing_cbs))
         self._bridge.paused.connect(lambda: self._fire(self._paused_cbs))
@@ -117,13 +118,28 @@ class VlcMediaEngine:
         self._emit(self._bridge.stopped)
 
     def _on_vlc_ended(self, _event) -> None:
-        self._emit(self._bridge.ended)
+        # libVLC из EndReached нельзя трогать; stop() обязателен, иначе
+        # следующий play() нового URL молча не стартует.
+        QTimer.singleShot(0, self._finish_ended)
+
+    def _finish_ended(self) -> None:
+        try:
+            self._player.stop()
+        except Exception:
+            logger.debug("VLC stop after EndReached failed", exc_info=True)
+        self._fire(self._ended_cbs)
 
     def _on_vlc_error(self, _event) -> None:
         QTimer.singleShot(0, lambda: self._bridge.errored.emit("VLC playback error"))
 
     def play_media(self, source: str) -> None:
         self._pending_seek_ms = 0
+        self._last_time_ms = 0
+        # После EndReached без stop() новый media не играет.
+        try:
+            self._player.stop()
+        except Exception:
+            logger.debug("VLC stop before play failed", exc_info=True)
         path = source
         if not source.startswith(("http://", "https://", "file:")):
             path = str(Path(source).resolve())
@@ -149,7 +165,10 @@ class VlcMediaEngine:
 
     def get_position_ms(self) -> int:
         value = self._player.get_time()
-        return max(0, int(value)) if value is not None and value >= 0 else 0
+        if value is not None and value > 0:
+            self._last_time_ms = int(value)
+            return self._last_time_ms
+        return self._last_time_ms
 
     def set_position_ms(self, ms: int) -> None:
         self._player.set_time(max(0, int(ms)))

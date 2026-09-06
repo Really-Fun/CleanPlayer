@@ -187,10 +187,6 @@ class PlaybackController:
                     notify()
             return
 
-        resume_ms = 0
-        if self._history is not None:
-            resume_ms = await self._history.get_resume_position(track)
-
         playlist = self.playlist_manager.current_playlist
         if (
             isinstance(playlist, WavePlaylist)
@@ -203,11 +199,7 @@ class PlaybackController:
             self._stall_track_key = None
             self._stall_recoveries = 0
             self.player.current_track = track
-            start_ms = resume_ms if resume_ms > 0 else 0
-            if start_ms > 0:
-                self.player.play(source, start_ms=start_ms)
-            else:
-                self.player.play(source)
+            self.player.play(source)
             if self._event_bus is not None:
                 self._event_bus.track_changed.emit(track)
 

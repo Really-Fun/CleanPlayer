@@ -27,6 +27,8 @@ class Player:
         self._playback_active: bool = False
         self._loading_source: bool = False
         self._was_playing: bool = False
+        self._finish_emitted: bool = False
+        self._last_known_ms: int = 0
 
         self._source_changed_callbacks: list[Callable[[str], None]] = []
         self._playback_paused_callbacks: list[Callable[[], None]] = []
@@ -67,7 +69,11 @@ class Player:
     def play(self, source: str, *, start_ms: int = 0) -> None:
         self._stream_retry_used = False
         self._loading_source = True
-        self._playback_active = False
+        self._finish_emitted = False
+        self._last_known_ms = 0
+        # Сессия активна сразу: иначе EndReached до PlayingState глушит
+        # автопереход (типично для VLC на HTTP).
+        self._playback_active = True
         self._was_playing = False
         self.on_pause = False
         self._paused_at_ms = 0
@@ -118,6 +124,7 @@ class Player:
         self._paused_at_mono = 0.0
         self._playback_active = False
         self._was_playing = False
+        self._finish_emitted = True
         self._engine.stop_media()
         for callback in self._playback_paused_callbacks:
             callback()
@@ -160,15 +167,36 @@ class Player:
                 callback()
 
     def _on_engine_stopped(self) -> None:
-        self.on_pause = True
-        self._loading_source = False
         self._was_playing = False
+        if self._loading_source:
+            return
+        self.on_pause = True
+
+    def notify_natural_end(self) -> None:
+        """Запасной путь, если движок не прислал EndReached."""
+        self._on_engine_ended()
+
+    def _emit_track_finished(self) -> None:
+        if self._finish_emitted:
+            return
+        self._finish_emitted = True
+        self._playback_active = False
+        self._was_playing = False
+        for callback in self._track_finished_callbacks:
+            callback()
 
     def _on_engine_ended(self) -> None:
         if not self._playback_active or not self.current_source:
             return
+        if self._finish_emitted:
+            return
+        # EndReached предыдущего источника при set_media — ещё нет прогресса.
+        if self._loading_source and self._last_known_ms < 1000:
+            return
         duration = self.duration
         position = self.time
+        if position < 1000:
+            position = max(position, self._last_known_ms)
         is_http = str(self.current_source).startswith(("http://", "https://"))
         # ~30с preview на прямом HTTP. Локальный growing MP3 на этом окне
         # восстанавливаем, а не считаем трек законченным.
@@ -177,7 +205,17 @@ class Player:
             and duration > 60_000
             and 15_000 <= position <= 45_000
         )
-        if duration > 1000 and position < duration - 1000 and not truncated:
+        # VLC после EndReached часто отдаёт time=0 — это конец, не обрыв.
+        reset_after_end = position < 1000
+        near_end = duration > 0 and position >= duration - 2000
+        early = (
+            duration > 1000
+            and not reset_after_end
+            and not near_end
+            and not truncated
+            and position < duration - 1000
+        )
+        if early:
             logger.warning(
                 "Поток оборвался рано (%sms из %sms) — восстановление",
                 position,
@@ -192,10 +230,7 @@ class Player:
                 position,
                 duration,
             )
-        self._playback_active = False
-        self._was_playing = False
-        for callback in self._track_finished_callbacks:
-            callback()
+        self._emit_track_finished()
 
     def _on_engine_error(self, message: str) -> None:
         logger.warning(
@@ -243,7 +278,11 @@ class Player:
 
     @property
     def time(self) -> int:
-        return self._engine.get_position_ms()
+        position = max(0, int(self._engine.get_position_ms()))
+        if position > 500:
+            self._last_known_ms = position
+            self._loading_source = False
+        return position
 
     @time.setter
     def time(self, time_in_ms: int) -> None:

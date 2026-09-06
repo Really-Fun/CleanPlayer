@@ -193,6 +193,43 @@ def test_http_preview_still_finishes() -> None:
     assert finished == [1]
 
 
+def test_end_of_media_with_reset_position_finishes() -> None:
+    engine = StubEngine()
+    player = Player(engine=engine)
+    player.current_track = YandexTrack(
+        track_id="1", title="T", author="A", duration_ms=180_000
+    )
+    errors: list[str] = []
+    finished: list[int] = []
+    player.on_stream_error(errors.append)
+    player.on_track_finished(lambda: finished.append(1))
+    _start(player, engine, "https://cdn.example/full.mp3")
+    engine._position = 179_000
+    assert player.time == 179_000
+    engine._position = 0
+
+    for callback in list(engine._ended_cbs):
+        callback()
+
+    assert errors == []
+    assert finished == [1]
+
+
+def test_notify_natural_end_finishes_once() -> None:
+    engine = StubEngine()
+    player = Player(engine=engine)
+    player.current_track = YandexTrack(
+        track_id="1", title="T", author="A", duration_ms=180_000
+    )
+    finished: list[int] = []
+    player.on_track_finished(lambda: finished.append(1))
+    _start(player, engine, "https://cdn.example/full.mp3")
+    engine._position = 179_800
+    player.notify_natural_end()
+    player.notify_natural_end()
+    assert finished == [1]
+
+
 def test_http_pause_reset_to_zero_refreshes_source() -> None:
     engine = StubEngine()
     player = Player(engine=engine)

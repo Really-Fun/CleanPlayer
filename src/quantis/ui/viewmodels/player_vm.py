@@ -36,6 +36,7 @@ class PlayerViewModel(BaseViewModel):
         self._last_duration = -1
         self._stall_last_pos = -1
         self._stall_last_move = 0.0
+        self._end_ticks = 0
         self._tick = QTimer(self)
         self._tick.setInterval(250)
         self._tick.timeout.connect(self._update_timeline)
@@ -104,7 +105,25 @@ class PlayerViewModel(BaseViewModel):
         duration = max(0, self._player.duration)
         self.position_changed.emit(position)
         self._publish_duration(duration)
-        self._check_playback_stall(position, max(duration, self._last_duration))
+        reported = max(duration, self._last_duration)
+        self._check_natural_end(position, reported)
+        self._check_playback_stall(position, reported)
+
+    def _check_natural_end(self, position: int, duration: int) -> None:
+        if duration < 2000 or self._player.on_pause:
+            self._end_ticks = 0
+            return
+        if position < duration - 400:
+            self._end_ticks = 0
+            return
+        self._end_ticks += 1
+        needed = 1 if self._eco else 2
+        if self._end_ticks < needed:
+            return
+        self._end_ticks = 0
+        notify = getattr(self._player, "notify_natural_end", None)
+        if callable(notify):
+            notify()
 
     def _check_playback_stall(self, position: int, duration: int) -> None:
         now = time.monotonic()
@@ -136,6 +155,7 @@ class PlayerViewModel(BaseViewModel):
         self._stall_last_pos = -1
         self._stall_last_move = time.monotonic()
         self._last_duration = -1
+        self._end_ticks = 0
         self.track_changed.emit(track)
         catalog = max(0, int(getattr(track, "duration_ms", 0) or 0))
         self._publish_duration(max(catalog, self._player.duration))

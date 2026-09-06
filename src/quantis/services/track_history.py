@@ -55,6 +55,7 @@ class TrackHistoryService:
         force: bool = False,
         played_delta_ms: int | None = None,
     ) -> None:
+        del position_ms  # таймкод не пишем — старт всегда с нуля
         track_key = self.build_track_key(track)
         now = monotonic()
         last_saved = self._last_saved_by_key.get(track_key, 0.0)
@@ -67,7 +68,7 @@ class TrackHistoryService:
             title=track.title,
             author=track.author,
             source=str(track.source),
-            position_ms=position_ms,
+            position_ms=0,
             duration_ms=duration_ms,
             listen_increment=0,
             played_delta_ms=played_delta_ms,
@@ -82,6 +83,7 @@ class TrackHistoryService:
         *,
         played_delta_ms: int | None = None,
     ) -> None:
+        del position_ms  # таймкод не пишем — старт всегда с нуля
         track_key = self.build_track_key(track)
         await asyncio.to_thread(
             sync_history.upsert_progress,
@@ -89,7 +91,7 @@ class TrackHistoryService:
             title=track.title,
             author=track.author,
             source=str(track.source),
-            position_ms=position_ms,
+            position_ms=0,
             duration_ms=duration_ms,
             listen_increment=1,
             played_delta_ms=played_delta_ms,
